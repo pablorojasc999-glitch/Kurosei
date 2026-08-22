@@ -22,6 +22,8 @@ export interface DailyMetric {
   vitaminDTaken: boolean
   /** Sum of that day's CardioSession.caloriesBurned. */
   cardioCaloriesBurned: number
+  /** Sum of that day's CardioSession.distanceKm. */
+  cardioDistanceKm: number
   /** Total minutes across that day's finished strength sessions. */
   strengthSessionDurationMinutes: number
   /** True if a strength session was started that day (finished or not). */
@@ -68,10 +70,12 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
   ])
 
   const cardioCaloriesByDate = new Map<string, number>()
+  const cardioDistanceByDate = new Map<string, number>()
   for (const c of cardioSessions) {
     const dateKey = dayIdToDateKey.get(c.dayId)
     if (!dateKey) continue
     cardioCaloriesByDate.set(dateKey, (cardioCaloriesByDate.get(dateKey) ?? 0) + (c.caloriesBurned ?? 0))
+    cardioDistanceByDate.set(dateKey, (cardioDistanceByDate.get(dateKey) ?? 0) + (c.distanceKm ?? 0))
   }
 
   const strengthMinutesByDate = new Map<string, number>()
@@ -109,6 +113,7 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
       omega3Taken: log?.omega3Taken ?? false,
       vitaminDTaken: log?.vitaminDTaken ?? false,
       cardioCaloriesBurned: cardioCaloriesByDate.get(date) ?? 0,
+      cardioDistanceKm: cardioDistanceByDate.get(date) ?? 0,
       strengthSessionDurationMinutes: strengthMinutesByDate.get(date) ?? 0,
       hadStrengthSession: hadStrengthSessionDates.has(date),
     }

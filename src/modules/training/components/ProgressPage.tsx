@@ -243,6 +243,7 @@ export function ProgressPage() {
   const trainingDayDates = new Set(
     dailyMetrics.filter((m) => m.hadStrengthSession).map((m) => m.date),
   )
+  const bodyWeightByDate = new Map(dailyMetrics.map((m) => [m.date, m.bodyWeightKg]))
 
   const bodyWeightSeries: ChartSeries[] = [
     {
@@ -338,6 +339,28 @@ export function ProgressPage() {
       label: 'Agua',
       color: 'var(--accent)',
       points: dailyMetrics.map((m) => ({ date: m.date, value: m.waterLiters })),
+    },
+  ]
+
+  const cardioCaloriesSeries: ChartSeries[] = [
+    {
+      label: 'Calorías quemadas',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({
+        date: m.date,
+        value: m.cardioCaloriesBurned > 0 ? m.cardioCaloriesBurned : null,
+      })),
+    },
+  ]
+
+  const cardioDistanceSeries: ChartSeries[] = [
+    {
+      label: 'Distancia',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({
+        date: m.date,
+        value: m.cardioDistanceKm > 0 ? m.cardioDistanceKm : null,
+      })),
     },
   ]
 
@@ -511,7 +534,15 @@ export function ProgressPage() {
             </option>
           ))}
         </select>
-        <LineChart domainDates={domainDates} series={e1rmSeries} unit=" e1RM" />
+        <LineChart
+          domainDates={domainDates}
+          series={e1rmSeries}
+          unit=" e1RM"
+          tooltipExtra={(date) => {
+            const weight = bodyWeightByDate.get(date)
+            return weight != null ? { label: 'Peso corporal', value: `${weight} kg` } : null
+          }}
+        />
       </section>
 
       <section>
@@ -539,6 +570,26 @@ export function ProgressPage() {
             markedDates={trainingDayDates}
           />
         )}
+      </section>
+
+      <section>
+        <h2>Cardio: calorías quemadas</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={cardioCaloriesSeries}
+          unit=" kcal"
+          markedDates={trainingDayDates}
+        />
+      </section>
+
+      <section>
+        <h2>Cardio: distancia</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={cardioDistanceSeries}
+          unit=" km"
+          markedDates={trainingDayDates}
+        />
       </section>
 
       <section>
