@@ -8,6 +8,7 @@ import {
   listPlannedExercises,
 } from '../db/planningRepository'
 import { addDays, startOfDay } from '../lib/calendarGrid'
+import { BitacoraSection } from './BitacoraSection'
 import { CardioView } from './CardioView'
 import { SessionView } from './SessionView'
 
@@ -114,6 +115,8 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
           ›
         </button>
       </div>
+
+      <BitacoraSection date={selectedDate} />
 
       {day === undefined || dayHasContent === undefined ? null : day ===
           null || (!dayHasContent && !forceShowContent) ? (

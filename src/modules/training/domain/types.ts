@@ -112,3 +112,37 @@ export interface CardioSession extends SyncedEntity {
   caloriesBurned: number | null
   notes: string
 }
+
+export type Sex = 'male' | 'female'
+
+/**
+ * Singleton per user — the slow-changing body data needed to estimate
+ * calorie expenditure (BMR). Body-fat/muscle % are updated by hand
+ * whenever the user gets evaluated (roughly monthly), not logged daily.
+ */
+export interface UserProfile extends SyncedEntity {
+  heightCm: number | null
+  birthDate: string | null
+  sex: Sex | null
+  bodyFatPercent: number | null
+  muscleMassPercent: number | null
+}
+
+/** One row per calendar day — the daily wellness/nutrition bitácora. */
+export interface DailyLog extends SyncedEntity {
+  date: string
+  bodyWeightKg: number | null
+  calories: number | null
+  carbsG: number | null
+  proteinG: number | null
+  fatG: number | null
+  sleepHours: number | null
+  creatineTaken: boolean
+  omega3Taken: boolean
+  vitaminDTaken: boolean
+  waterLiters: number | null
+  stress: number | null
+  stimulants: number | null
+  fatigue: number | null
+  steps: number | null
+}

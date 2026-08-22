@@ -1207,3 +1207,74 @@ section {
   color: var(--danger);
   background: var(--danger-bg);
 }
+
+/* --- bitácora --- */
+
+.checkbox-row {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.checkbox-row input {
+  width: auto !important;
+  min-height: auto;
+  flex: none;
+}
+
+.bitacora-profile {
+  margin-bottom: 16px;
+}
+
+.bitacora-profile-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bitacora-log-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin-bottom: 16px;
+}
+
+.bitacora-log-form > label {
+  gap: 4px;
+}
+
+.bitacora-supplements {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.bitacora-log-form > button[type='submit'] {
+  grid-column: 1 / -1;
+}
+
+.bitacora-expenditure {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+}
+
+.bitacora-expenditure-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.bitacora-expenditure-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--accent-2);
+}

@@ -19,3 +19,8 @@ export const TRAINING_STORES_V1 = {
   training_cardio_sessions:
     'id, dayId, exerciseId, startedAt, updatedAt, deletedAt',
 }
+
+export const TRAINING_STORES_V2 = {
+  training_user_profile: 'id, updatedAt, deletedAt',
+  training_daily_logs: 'id, date, updatedAt, deletedAt',
+}

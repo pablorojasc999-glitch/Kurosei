@@ -511,6 +511,38 @@ export async function listWeeksWithContext(): Promise<WeekWithContext[]> {
     .sort((a, b) => (a.dayDates[0] ?? '').localeCompare(b.dayDates[0] ?? ''))
 }
 
+export interface MesocycleWithContext {
+  id: string
+  macrocycleName: string
+  name: string
+  phaseType: PhaseType
+  startDate: string
+  endDate: string
+}
+
+/**
+ * Every Mesocycle annotated with its macrocycle name, sorted chronologically
+ * by start date — drives the mesocycle picker for Progreso's scope selector.
+ */
+export async function listMesocyclesWithContext(): Promise<MesocycleWithContext[]> {
+  const [mesocycles, macrocycles] = await Promise.all([
+    db.training_mesocycles.filter((m) => m.deletedAt === null).toArray(),
+    db.training_macrocycles.filter((m) => m.deletedAt === null).toArray(),
+  ])
+  const macroById = new Map(macrocycles.map((m) => [m.id, m]))
+
+  return mesocycles
+    .map((m) => ({
+      id: m.id,
+      macrocycleName: macroById.get(m.macrocycleId)?.name ?? '?',
+      name: m.name,
+      phaseType: m.phaseType,
+      startDate: m.startDate,
+      endDate: m.endDate,
+    }))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+}
+
 /** Finds the Day (if any) whose date falls on the same calendar day as `date`. */
 export async function findDayByDate(date: Date): Promise<Day | null> {
   const dateKey = date.toDateString()
