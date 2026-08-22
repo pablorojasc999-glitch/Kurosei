@@ -375,13 +375,15 @@ export function SessionView({ dayId }: SessionViewProps) {
             <li key={se.id} className="planned-exercise-item">
               <div className="planned-exercise-header">
                 <strong>{exerciseName(se.exerciseId)}</strong>
-                <button
-                  type="button"
-                  className="btn-danger"
-                  onClick={() => deleteSessionExercise(se.id)}
-                >
-                  Quitar
-                </button>
+                {!session.endedAt && (
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={() => deleteSessionExercise(se.id)}
+                  >
+                    Quitar
+                  </button>
+                )}
               </div>
 
               {targetSets && targetSets.length > 0 && (
@@ -403,50 +405,60 @@ export function SessionView({ dayId }: SessionViewProps) {
 
               <DeloadAlert exerciseId={se.exerciseId} />
 
-              <div className="rep-history-picker">
-                <label>
-                  Ver historial a
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={historyRepsValue}
-                    onChange={(e) =>
-                      setHistoryReps((prev) => ({
-                        ...prev,
-                        [se.id]: e.target.value,
-                      }))
-                    }
-                  />
-                  reps
-                </label>
-              </div>
-              {historyRepsValue && (
-                <RepHistory
-                  exerciseId={se.exerciseId}
-                  reps={Number(historyRepsValue)}
-                />
+              {!session.endedAt && (
+                <>
+                  <div className="rep-history-picker">
+                    <label>
+                      Ver historial a
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={historyRepsValue}
+                        onChange={(e) =>
+                          setHistoryReps((prev) => ({
+                            ...prev,
+                            [se.id]: e.target.value,
+                          }))
+                        }
+                      />
+                      reps
+                    </label>
+                  </div>
+                  {historyRepsValue && (
+                    <RepHistory
+                      exerciseId={se.exerciseId}
+                      reps={Number(historyRepsValue)}
+                    />
+                  )}
+                </>
               )}
 
-              <ul className="sets-list">
-                {sets.map((s) => (
-                  <li key={s.id} className="set-row">
-                    <span className="set-number">{s.setNumber}</span>
-                    <span className="set-summary">
-                      {s.weightKg ?? '-'} kg × {s.reps}
-                      {s.rpe !== null && ` · RPE ${s.rpe}`}
-                      {s.eva !== null && ` · EVA ${s.eva}`}
-                      {s.notes && ` · ${s.notes}`}
-                    </span>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      onClick={() => deleteExecutedSet(s.id)}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {sets.length === 0 ? (
+                <p className="empty-hint">Sin series registradas.</p>
+              ) : (
+                <ul className="sets-list">
+                  {sets.map((s) => (
+                    <li key={s.id} className="set-row">
+                      <span className="set-number">{s.setNumber}</span>
+                      <span className="set-summary">
+                        {s.weightKg ?? '-'} kg × {s.reps}
+                        {s.rpe !== null && ` · RPE ${s.rpe}`}
+                        {s.eva !== null && ` · EVA ${s.eva}`}
+                        {s.notes && ` · ${s.notes}`}
+                      </span>
+                      {!session.endedAt && (
+                        <button
+                          type="button"
+                          className="icon-button"
+                          onClick={() => deleteExecutedSet(s.id)}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               {lastSet && !session.endedAt && (
                 <RestTimer

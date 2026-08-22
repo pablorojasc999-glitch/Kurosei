@@ -8,6 +8,7 @@ import {
   createPlannedExercise,
   createPlannedSet,
   createWeek,
+  deleteDay,
   deletePlannedExercise,
   deletePlannedSet,
   duplicateWeek,
@@ -144,6 +145,10 @@ export function PeriodizationPage({
 
   const [dayDate, setDayDate] = useState('')
   const [dayLabel, setDayLabel] = useState('')
+  const [confirmingDeleteDayId, setConfirmingDeleteDayId] = useState<
+    string | null
+  >(null)
+  const [dayDeleteError, setDayDeleteError] = useState<string | null>(null)
 
   const [newExerciseId, setNewExerciseId] = useState('')
   const [newExerciseNotes, setNewExerciseNotes] = useState('')
@@ -207,6 +212,16 @@ export function PeriodizationPage({
     setDayDate('')
     setDayLabel('')
     setDayId(d.id)
+  }
+
+  async function handleConfirmDeleteDay(id: string) {
+    setDayDeleteError(null)
+    try {
+      await deleteDay(id)
+    } catch (err) {
+      setDayDeleteError(err instanceof Error ? err.message : 'Error desconocido')
+    }
+    setConfirmingDeleteDayId(null)
   }
 
   async function handleAddPlannedExercise(e: React.FormEvent) {
@@ -357,14 +372,43 @@ export function PeriodizationPage({
       {weekId && !dayId && (
         <section>
           <h2>Días de la semana {selectedWeek ? selectedWeek.order + 1 : ''}</h2>
+          {dayDeleteError && <p className="error">{dayDeleteError}</p>}
           <ul className="entity-list">
-            {days?.map((d) => (
-              <li key={d.id}>
-                <button type="button" onClick={() => setDayId(d.id)}>
-                  {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
-                </button>
-              </li>
-            ))}
+            {days?.map((d) =>
+              confirmingDeleteDayId === d.id ? (
+                <li key={d.id}>
+                  <div className="confirm-inline">
+                    <span>¿Eliminar este día del plan?</span>
+                    <button
+                      type="button"
+                      className="btn-danger"
+                      onClick={() => handleConfirmDeleteDay(d.id)}
+                    >
+                      Sí, eliminar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDeleteDayId(null)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                <li key={d.id} className="day-row">
+                  <button type="button" onClick={() => setDayId(d.id)}>
+                    {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={() => setConfirmingDeleteDayId(d.id)}
+                  >
+                    Eliminar
+                  </button>
+                </li>
+              ),
+            )}
           </ul>
           <form onSubmit={handleCreateDay} className="entity-form">
             <label>

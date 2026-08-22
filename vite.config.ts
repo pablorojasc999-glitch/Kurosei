@@ -4,6 +4,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    // Inline the small logo mark as a data URI instead of a separate
+    // network request, and so it survives the self-contained artifact
+    // packaging used for hands-on previews (no server to fetch assets from).
+    assetsInlineLimit: 20000,
+  },
   plugins: [
     react(),
     VitePWA({

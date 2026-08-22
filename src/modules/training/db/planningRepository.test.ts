@@ -8,6 +8,8 @@ import {
   createPlannedExercise,
   createPlannedSet,
   createWeek,
+  dayHasLoggedData,
+  deleteDay,
   duplicateWeek,
   findDayByDate,
   getOrCreateDayForDate,
@@ -17,6 +19,7 @@ import {
   listPlannedSets,
   listWeeks,
 } from './planningRepository'
+import { addSessionExercise, startSession } from './executionRepository'
 
 beforeEach(async () => {
   await db.transaction(
@@ -224,6 +227,77 @@ describe('listPlannedDaysWithExercises', () => {
       id: dayWithExercise.id,
       label: 'Tren superior',
       exerciseCount: 1,
+    })
+  })
+})
+
+describe('deleteDay', () => {
+  it('soft-deletes the day and cascades to its planned exercises/sets', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+    })
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const plannedExercise = await createPlannedExercise({
+      dayId: day.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    const plannedSet = await createPlannedSet({
+      plannedExerciseId: plannedExercise.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180,
+    })
+
+    await deleteDay(day.id)
+
+    expect(await db.training_days.get(day.id)).toMatchObject({
+      deletedAt: expect.any(String),
+    })
+    expect(await listPlannedExercises(day.id)).toEqual([])
+    expect(await listPlannedSets(plannedExercise.id)).toEqual([])
+    expect(
+      (await db.training_planned_sets.get(plannedSet.id))?.deletedAt,
+    ).not.toBeNull()
+  })
+
+  it('refuses to delete a day that already has a logged session', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+    })
+    const session = await startSession(day.id)
+    await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+
+    expect(await dayHasLoggedData(day.id)).toBe(true)
+    await expect(deleteDay(day.id)).rejects.toThrow()
+    expect(await db.training_days.get(day.id)).toMatchObject({
+      deletedAt: null,
     })
   })
 })

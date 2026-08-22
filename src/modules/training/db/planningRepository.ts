@@ -1,6 +1,8 @@
 import { db } from '../../../shared/db/database'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
+import { listCardioSessions } from './cardioRepository'
+import { getSessionForDay } from './executionRepository'
 import type {
   Day,
   Macrocycle,
@@ -130,6 +132,50 @@ export async function createDay(input: CreateDayInput): Promise<Day> {
   }
   await db.training_days.add(day)
   return day
+}
+
+/** True if a strength session or cardio session was already logged for this day. */
+export async function dayHasLoggedData(dayId: string): Promise<boolean> {
+  const [session, cardioSessions] = await Promise.all([
+    getSessionForDay(dayId),
+    listCardioSessions(dayId),
+  ])
+  return session !== undefined || cardioSessions.length > 0
+}
+
+/**
+ * Deletes a planned Day and cascades to its planned exercises/sets. Refuses
+ * to delete a day that already has logged execution data (a session or
+ * cardio entries), since that would orphan it from Registro.
+ */
+export async function deleteDay(id: string): Promise<void> {
+  if (await dayHasLoggedData(id)) {
+    throw new Error(
+      'Este día ya tiene una sesión o cardio registrado — no se puede eliminar el plan sin perder ese registro.',
+    )
+  }
+  const timestamp = nowIso()
+  const plannedExercises = await listPlannedExercises(id)
+  await db.transaction(
+    'rw',
+    db.training_days,
+    db.training_planned_exercises,
+    db.training_planned_sets,
+    async () => {
+      await db.training_days.update(id, { deletedAt: timestamp })
+      for (const pe of plannedExercises) {
+        await db.training_planned_exercises.update(pe.id, {
+          deletedAt: timestamp,
+        })
+        const sets = await listPlannedSets(pe.id)
+        await Promise.all(
+          sets.map((s) =>
+            db.training_planned_sets.update(s.id, { deletedAt: timestamp }),
+          ),
+        )
+      }
+    },
+  )
 }
 
 export async function listPlannedExercises(

@@ -8,6 +8,7 @@ import {
   IconProgress,
   IconRegistro,
 } from './modules/training/components/icons'
+import { Logo } from './modules/training/components/Logo'
 import { PeriodizationPage } from './modules/training/components/PeriodizationPage'
 import { ProgressPage } from './modules/training/components/ProgressPage'
 import { RegistroPage } from './modules/training/components/RegistroPage'
@@ -32,6 +33,9 @@ function App() {
 
   return (
     <div className="app-shell">
+      <header className="app-header">
+        <Logo />
+      </header>
       <main className="app-content">
         <div hidden={tab !== 'registro'}>
           <RegistroPage jumpToDate={jumpToDate} onEditPlan={handleEditPlan} />
