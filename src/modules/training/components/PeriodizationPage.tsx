@@ -222,7 +222,6 @@ export function PeriodizationPage({
     setDayDate('')
     setDayLabel('')
     setCopyFromDayId('')
-    setDayId(d.id)
   }
 
   async function handleAddPlannedExercise(e: React.FormEvent) {
