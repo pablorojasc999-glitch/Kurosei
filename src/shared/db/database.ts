@@ -50,3 +50,16 @@ export class KuroseiDatabase extends Dexie {
 }
 
 export const db = new KuroseiDatabase()
+
+/**
+ * A schema version bump (new tables/indexes) can't upgrade this tab's
+ * connection while an older tab still holds one open — IndexedDB blocks the
+ * upgrade until every other connection closes, which otherwise hangs every
+ * query in this tab forever with no visible error. When another tab
+ * attempts the upgrade, close this stale connection and reload so it stops
+ * blocking that tab and picks up the current app version too.
+ */
+db.on('versionchange', () => {
+  db.close()
+  window.location.reload()
+})
