@@ -98,4 +98,63 @@ describe('upsertDailyLog / getDailyLog', () => {
     expect((await getDailyLog('2026-08-22'))?.steps).toBe(1000)
     expect((await getDailyLog('2026-08-23'))?.steps).toBe(2000)
   })
+
+  it('resolves a legacy duplicate (two rows for the same date) to the most recently updated one', async () => {
+    // Simulate leftover duplicate rows from before upsertDailyLog deduplicated,
+    // inserted directly so `.first()`-style ordering can't be relied on.
+    await db.training_daily_logs.bulkAdd([
+      {
+        id: 'old-row',
+        date: '2026-08-22',
+        ...EMPTY_LOG_INPUT,
+        fatigue: 4,
+        stimulants: 2,
+        createdAt: '2026-08-22T10:00:00.000Z',
+        updatedAt: '2026-08-22T10:00:00.000Z',
+        deletedAt: null,
+      },
+      {
+        id: 'new-row',
+        date: '2026-08-22',
+        ...EMPTY_LOG_INPUT,
+        fatigue: 1,
+        stimulants: 0,
+        createdAt: '2026-08-22T09:00:00.000Z',
+        updatedAt: '2026-08-22T18:00:00.000Z',
+        deletedAt: null,
+      },
+    ])
+
+    const found = await getDailyLog('2026-08-22')
+    expect(found).toMatchObject({ id: 'new-row', fatigue: 1, stimulants: 0 })
+  })
+
+  it('cleans up duplicate rows for a date the next time it is saved', async () => {
+    await db.training_daily_logs.bulkAdd([
+      {
+        id: 'old-row',
+        date: '2026-08-22',
+        ...EMPTY_LOG_INPUT,
+        createdAt: '2026-08-22T10:00:00.000Z',
+        updatedAt: '2026-08-22T10:00:00.000Z',
+        deletedAt: null,
+      },
+      {
+        id: 'new-row',
+        date: '2026-08-22',
+        ...EMPTY_LOG_INPUT,
+        createdAt: '2026-08-22T09:00:00.000Z',
+        updatedAt: '2026-08-22T18:00:00.000Z',
+        deletedAt: null,
+      },
+    ])
+
+    await upsertDailyLog('2026-08-22', { ...EMPTY_LOG_INPUT, steps: 500 })
+
+    const active = await db.training_daily_logs
+      .filter((l) => l.deletedAt === null)
+      .toArray()
+    expect(active).toHaveLength(1)
+    expect(active[0]).toMatchObject({ id: 'new-row', steps: 500 })
+  })
 })

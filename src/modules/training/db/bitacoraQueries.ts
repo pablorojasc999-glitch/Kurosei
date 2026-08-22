@@ -89,8 +89,14 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
     strengthMinutesByDate.set(dateKey, (strengthMinutesByDate.get(dateKey) ?? 0) + minutes)
   }
 
+  // If a date somehow has more than one row (e.g. leftover duplicates from
+  // before upsertDailyLog started deduplicating), sort oldest-first so the
+  // most recently updated one is the last write into the map and wins.
   const dailyLogByDate = new Map(
-    dailyLogs.filter((l) => domainDateSet.has(l.date)).map((l) => [l.date, l]),
+    dailyLogs
+      .filter((l) => domainDateSet.has(l.date))
+      .sort((a, b) => a.updatedAt.localeCompare(b.updatedAt))
+      .map((l) => [l.date, l]),
   )
 
   return domainDates.map((date) => {
