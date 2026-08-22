@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../../shared/db/database'
 import { createExercise, createMuscleGroup } from './trainingRepository'
 import {
+  copyPlannedExercisesToDay,
   createDay,
   createMacrocycle,
   createMesocycle,
@@ -453,5 +454,62 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
     const remaining = await listMesocycles(macrocycle.id)
     expect(remaining).toHaveLength(1)
     expect(remaining[0].id).toBe(mesoToKeep.id)
+  })
+})
+
+describe('copyPlannedExercisesToDay', () => {
+  it('copies exercises and sets as independent records', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+    })
+    const sourceDay = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Origen',
+    })
+    const sourcePe = await createPlannedExercise({
+      dayId: sourceDay.id,
+      exerciseId: exercise.id,
+      notes: 'Técnica',
+    })
+    await createPlannedSet({
+      plannedExerciseId: sourcePe.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180,
+    })
+
+    const targetDay = await createDay({
+      weekId: week.id,
+      date: '2026-01-12T00:00:00.000Z',
+      label: 'Destino',
+    })
+
+    await copyPlannedExercisesToDay(sourceDay.id, targetDay.id)
+
+    const copiedExercises = await listPlannedExercises(targetDay.id)
+    expect(copiedExercises).toHaveLength(1)
+    expect(copiedExercises[0].exerciseId).toBe(exercise.id)
+    expect(copiedExercises[0].id).not.toBe(sourcePe.id)
+
+    const copiedSets = await listPlannedSets(copiedExercises[0].id)
+    expect(copiedSets).toHaveLength(1)
+    expect(copiedSets[0]).toMatchObject({
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180,
+    })
+
+    // deleting the copy leaves the source untouched
+    await deleteDay(targetDay.id)
+    expect(await listPlannedExercises(sourceDay.id)).toHaveLength(1)
   })
 })

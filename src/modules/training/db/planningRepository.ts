@@ -313,6 +313,55 @@ export async function deletePlannedExercise(id: string): Promise<void> {
  * to the same mesocycle, its days shifted +7 days, with all planned
  * exercises/sets copied 1:1 so they can be edited independently.
  */
+/**
+ * Copies every planned exercise (and its planned sets) from `sourceDayId`
+ * into `targetDayId`, as independent new records — editing one day
+ * afterwards never touches the other.
+ */
+export async function copyPlannedExercisesToDay(
+  sourceDayId: string,
+  targetDayId: string,
+): Promise<void> {
+  const timestamp = nowIso()
+  const sourcePlannedExercises = await listPlannedExercises(sourceDayId)
+  await db.transaction(
+    'rw',
+    db.training_planned_exercises,
+    db.training_planned_sets,
+    async () => {
+      for (const sourcePe of sourcePlannedExercises) {
+        const newPe: PlannedExercise = {
+          id: generateId(),
+          dayId: targetDayId,
+          exerciseId: sourcePe.exerciseId,
+          order: sourcePe.order,
+          notes: sourcePe.notes,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        }
+        await db.training_planned_exercises.add(newPe)
+
+        const sourceSets = await listPlannedSets(sourcePe.id)
+        await db.training_planned_sets.bulkAdd(
+          sourceSets.map((s) => ({
+            id: generateId(),
+            plannedExerciseId: newPe.id,
+            setNumber: s.setNumber,
+            targetWeightKg: s.targetWeightKg,
+            targetReps: s.targetReps,
+            targetRpe: s.targetRpe,
+            restSecondsTarget: s.restSecondsTarget,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            deletedAt: null,
+          })),
+        )
+      }
+    },
+  )
+}
+
 export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
   const sourceWeek = await db.training_weeks.get(sourceWeekId)
   if (!sourceWeek) {
@@ -323,61 +372,22 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
   const timestamp = nowIso()
   const newWeek = await createWeek(sourceWeek.mesocycleId)
 
-  await db.transaction(
-    'rw',
-    db.training_days,
-    db.training_planned_exercises,
-    db.training_planned_sets,
-    async () => {
-      for (const sourceDay of sourceDays) {
-        const newDay: Day = {
-          id: generateId(),
-          weekId: newWeek.id,
-          date: new Date(
-            new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS,
-          ).toISOString(),
-          label: sourceDay.label,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          deletedAt: null,
-        }
-        await db.training_days.add(newDay)
+  const newDays: Day[] = sourceDays.map((sourceDay) => ({
+    id: generateId(),
+    weekId: newWeek.id,
+    date: new Date(
+      new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS,
+    ).toISOString(),
+    label: sourceDay.label,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+  }))
+  await db.training_days.bulkAdd(newDays)
 
-        const sourcePlannedExercises = await listPlannedExercises(
-          sourceDay.id,
-        )
-        for (const sourcePe of sourcePlannedExercises) {
-          const newPe: PlannedExercise = {
-            id: generateId(),
-            dayId: newDay.id,
-            exerciseId: sourcePe.exerciseId,
-            order: sourcePe.order,
-            notes: sourcePe.notes,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-            deletedAt: null,
-          }
-          await db.training_planned_exercises.add(newPe)
-
-          const sourceSets = await listPlannedSets(sourcePe.id)
-          await db.training_planned_sets.bulkAdd(
-            sourceSets.map((s) => ({
-              id: generateId(),
-              plannedExerciseId: newPe.id,
-              setNumber: s.setNumber,
-              targetWeightKg: s.targetWeightKg,
-              targetReps: s.targetReps,
-              targetRpe: s.targetRpe,
-              restSecondsTarget: s.restSecondsTarget,
-              createdAt: timestamp,
-              updatedAt: timestamp,
-              deletedAt: null,
-            })),
-          )
-        }
-      }
-    },
-  )
+  for (let i = 0; i < sourceDays.length; i++) {
+    await copyPlannedExercisesToDay(sourceDays[i].id, newDays[i].id)
+  }
 
   return newWeek
 }

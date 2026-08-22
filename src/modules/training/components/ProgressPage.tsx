@@ -1,10 +1,18 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { BodyMap } from './BodyMap'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
+import { matchBodyRegion } from '../lib/bodyMap'
+import type { BodyRegionKey } from '../lib/bodyMap'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate } from '../lib/format'
-import { buildE1rmTrend, muscleGroupVolume } from '../lib/metrics'
+import { buildE1rmTrend, muscleGroupStressIndex, muscleGroupVolume } from '../lib/metrics'
+import {
+  calculateStressIndex,
+  classifyStressLevel,
+  STRESS_LEVEL_LABELS,
+} from '../lib/stressIndex'
 
 const RECENT_DAYS = 7
 const RECENT_WINDOW_MS = RECENT_DAYS * 24 * 60 * 60 * 1000
@@ -93,6 +101,22 @@ export function ProgressPage() {
   ].sort((a, b) => b[1] - a[1])
   const maxVolume = Math.max(1, ...volumeByGroup.map(([, v]) => v))
 
+  const valuesByRegion: Partial<Record<BodyRegionKey, number>> = {}
+  for (const [groupId, value] of volumeByGroup) {
+    const region = matchBodyRegion(muscleGroupName(groupId))
+    if (!region) continue
+    valuesByRegion[region] = (valuesByRegion[region] ?? 0) + value
+  }
+  const maxRegionValue = Math.max(1, ...Object.values(valuesByRegion))
+
+  const stressByGroup = [
+    ...muscleGroupStressIndex(
+      recentSets,
+      contributionsByExercise,
+      calculateStressIndex,
+    ).entries(),
+  ].sort((a, b) => b[1] - a[1])
+
   const trendExerciseId = exerciseIdsWithHistory.includes(selectedExerciseId)
     ? selectedExerciseId
     : exerciseIdsWithHistory[0]
@@ -120,7 +144,12 @@ export function ProgressPage() {
       </section>
 
       <section>
-        <h2>Volumen por grupo muscular (últimos {RECENT_DAYS} días)</h2>
+        <h2>Mapa corporal (últimos {RECENT_DAYS} días)</h2>
+        <BodyMap valuesByRegion={valuesByRegion} maxValue={maxRegionValue} />
+      </section>
+
+      <section>
+        <h2>Series por grupo muscular (últimos {RECENT_DAYS} días)</h2>
         {volumeByGroup.length === 0 ? (
           <p className="empty-hint">Sin series recientes.</p>
         ) : (
@@ -139,6 +168,28 @@ export function ProgressPage() {
                 </span>
               </li>
             ))}
+          </ul>
+        )}
+      </section>
+
+      <section>
+        <h2>Estrés por grupo muscular (últimos {RECENT_DAYS} días)</h2>
+        {stressByGroup.length === 0 ? (
+          <p className="empty-hint">Sin series recientes con RPE cargado.</p>
+        ) : (
+          <ul className="stress-list">
+            {stressByGroup.map(([groupId, value]) => {
+              const level = classifyStressLevel(value)
+              return (
+                <li key={groupId} className={`stress-row stress-row--${level}`}>
+                  <span>{muscleGroupName(groupId)}</span>
+                  <span className="numeric">{value.toFixed(1)}</span>
+                  <span className="stress-badge">
+                    {STRESS_LEVEL_LABELS[level]}
+                  </span>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>

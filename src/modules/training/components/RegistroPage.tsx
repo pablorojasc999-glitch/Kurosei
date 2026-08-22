@@ -1,6 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
-import { findDayByDate, getOrCreateDayForDate } from '../db/planningRepository'
+import { listCardioSessions } from '../db/cardioRepository'
+import { getSessionForDay } from '../db/executionRepository'
+import {
+  findDayByDate,
+  getOrCreateDayForDate,
+  listPlannedExercises,
+} from '../db/planningRepository'
 import { addDays, startOfDay } from '../lib/calendarGrid'
 import { CardioView } from './CardioView'
 import { SessionView } from './SessionView'
@@ -33,14 +39,40 @@ interface RegistroPageProps {
 export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()))
   const [appliedJumpToDate, setAppliedJumpToDate] = useState(jumpToDate)
+  const [forceShowContent, setForceShowContent] = useState(false)
+  const [appliedForceShowDate, setAppliedForceShowDate] = useState(selectedDate)
   const touchStartX = useRef<number | null>(null)
 
   if (jumpToDate !== appliedJumpToDate) {
     setAppliedJumpToDate(jumpToDate)
     if (jumpToDate) setSelectedDate(startOfDay(jumpToDate))
   }
+  if (selectedDate !== appliedForceShowDate) {
+    setAppliedForceShowDate(selectedDate)
+    setForceShowContent(false)
+  }
 
   const day = useLiveQuery(() => findDayByDate(selectedDate), [selectedDate])
+  const dayHasContent = useLiveQuery(async () => {
+    if (!day) return false
+    const [plannedExercises, session, cardioSessions] = await Promise.all([
+      listPlannedExercises(day.id),
+      getSessionForDay(day.id),
+      listCardioSessions(day.id),
+    ])
+    return plannedExercises.length > 0 || session !== undefined || cardioSessions.length > 0
+  }, [day?.id])
+
+  const [appliedDayHasContent, setAppliedDayHasContent] = useState(dayHasContent)
+  if (dayHasContent !== appliedDayHasContent) {
+    // Content that justified staying revealed just got deleted down to
+    // nothing (e.g. "Eliminar sesión") — collapse back to the blank state,
+    // same as a day that was never touched.
+    if (appliedDayHasContent === true && dayHasContent === false) {
+      setForceShowContent(false)
+    }
+    setAppliedDayHasContent(dayHasContent)
+  }
 
   function goToPreviousDay() {
     setSelectedDate((d) => addDays(d, -1))
@@ -62,6 +94,7 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
 
   async function handleCreateDay() {
     await getOrCreateDayForDate(selectedDate)
+    setForceShowContent(true)
   }
 
   return (
@@ -82,7 +115,8 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
         </button>
       </div>
 
-      {day === undefined ? null : day === null ? (
+      {day === undefined || dayHasContent === undefined ? null : day ===
+          null || (!dayHasContent && !forceShowContent) ? (
         <div>
           <p className="empty-hint">Nada registrado este día todavía.</p>
           <button type="button" onClick={handleCreateDay}>

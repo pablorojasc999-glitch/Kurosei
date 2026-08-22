@@ -3,6 +3,7 @@ import {
   averageRpeDeviation,
   buildE1rmTrend,
   isNewPR,
+  muscleGroupStressIndex,
   muscleGroupVolume,
   needsDeloadAlert,
   relativeIntensity,
@@ -64,6 +65,59 @@ describe('muscleGroupVolume', () => {
 
   it('ignores exercises with no known contribution mapping', () => {
     const result = muscleGroupVolume([{ exerciseId: 'unknown' }], new Map())
+    expect(result.size).toBe(0)
+  })
+})
+
+describe('muscleGroupStressIndex', () => {
+  const stressIndexForRpe = (rpe: number) => rpe / 10 // simple stand-in, avoids coupling to stressIndex.ts
+
+  it('splits each set\'s stress index across muscle groups by contribution %', () => {
+    const contributions = new Map([
+      [
+        'bench',
+        [
+          { muscleGroupId: 'chest', percentage: 60 },
+          { muscleGroupId: 'triceps', percentage: 40 },
+        ],
+      ],
+    ])
+
+    const result = muscleGroupStressIndex(
+      [{ exerciseId: 'bench', rpe: 8 }],
+      contributions,
+      stressIndexForRpe,
+    )
+
+    // stressIndexForRpe(8) = 0.8
+    expect(result.get('chest')).toBeCloseTo(0.48) // 0.8 * 0.6
+    expect(result.get('triceps')).toBeCloseTo(0.32) // 0.8 * 0.4
+  })
+
+  it('sums across multiple sets for the same muscle group', () => {
+    const contributions = new Map([
+      ['bench', [{ muscleGroupId: 'chest', percentage: 100 }]],
+    ])
+    const result = muscleGroupStressIndex(
+      [
+        { exerciseId: 'bench', rpe: 8 },
+        { exerciseId: 'bench', rpe: 10 },
+      ],
+      contributions,
+      stressIndexForRpe,
+    )
+    expect(result.get('chest')).toBeCloseTo(1.8) // 0.8 + 1.0
+  })
+
+  it('skips sets with no RPE logged', () => {
+    const contributions = new Map([
+      ['bench', [{ muscleGroupId: 'chest', percentage: 100 }]],
+    ])
+    const result = muscleGroupStressIndex(
+      [{ exerciseId: 'bench', rpe: null }],
+      contributions,
+      stressIndexForRpe,
+    )
     expect(result.size).toBe(0)
   })
 })

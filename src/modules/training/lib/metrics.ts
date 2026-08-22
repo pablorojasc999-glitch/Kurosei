@@ -42,6 +42,37 @@ export function muscleGroupVolume(
   return volumeByGroup
 }
 
+export interface SetWithExerciseAndRpe extends SetWithExercise {
+  rpe: number | null
+}
+
+/**
+ * Contribution-weighted Stress Index per muscle group: each set contributes
+ * its RPE's Stress Index fractionally to every muscle group the exercise
+ * trains, same weighting as muscleGroupVolume. A set with no RPE logged
+ * contributes nothing (there's no RPE to look up).
+ */
+export function muscleGroupStressIndex(
+  sets: SetWithExerciseAndRpe[],
+  contributionsByExercise: Map<string, MuscleContribution[]>,
+  stressIndexForRpe: (rpe: number) => number,
+): Map<string, number> {
+  const stressByGroup = new Map<string, number>()
+  for (const set of sets) {
+    if (set.rpe === null) continue
+    const setStress = stressIndexForRpe(set.rpe)
+    const contributions = contributionsByExercise.get(set.exerciseId) ?? []
+    for (const c of contributions) {
+      const prior = stressByGroup.get(c.muscleGroupId) ?? 0
+      stressByGroup.set(
+        c.muscleGroupId,
+        prior + setStress * (c.percentage / 100),
+      )
+    }
+  }
+  return stressByGroup
+}
+
 export function isNewPR(candidate: number, priorBest: number | null): boolean {
   return priorBest === null || candidate > priorBest
 }

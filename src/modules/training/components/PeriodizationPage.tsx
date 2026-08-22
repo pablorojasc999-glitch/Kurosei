@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../../../shared/db/database'
 import {
+  copyPlannedExercisesToDay,
   createDay,
   createMacrocycle,
   createMesocycle,
@@ -15,6 +16,7 @@ import {
   deletePlannedSet,
   deleteWeek,
   duplicateWeek,
+  listPlannedDaysWithExercises,
 } from '../db/planningRepository'
 import { parseDateInput } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
@@ -131,6 +133,10 @@ export function PeriodizationPage({
         .toArray(),
     [],
   )
+  const plannedDayOptions = useLiveQuery(
+    () => listPlannedDaysWithExercises(),
+    [],
+  )
 
   const selectedMacrocycle = macrocycles?.find((m) => m.id === macrocycleId)
   const selectedMesocycle = mesocycles?.find((m) => m.id === mesocycleId)
@@ -149,6 +155,7 @@ export function PeriodizationPage({
 
   const [dayDate, setDayDate] = useState('')
   const [dayLabel, setDayLabel] = useState('')
+  const [copyFromDayId, setCopyFromDayId] = useState('')
 
   const [newExerciseId, setNewExerciseId] = useState('')
   const [newExerciseNotes, setNewExerciseNotes] = useState('')
@@ -209,8 +216,12 @@ export function PeriodizationPage({
       date: parseDateInput(dayDate).toISOString(),
       label: dayLabel,
     })
+    if (copyFromDayId) {
+      await copyPlannedExercisesToDay(copyFromDayId, d.id)
+    }
     setDayDate('')
     setDayLabel('')
+    setCopyFromDayId('')
     setDayId(d.id)
   }
 
@@ -397,6 +408,23 @@ export function PeriodizationPage({
               <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
             </label>
             <input value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
+            {plannedDayOptions && plannedDayOptions.length > 0 && (
+              <label>
+                Copiar plan de un día ya planificado (opcional)
+                <select
+                  value={copyFromDayId}
+                  onChange={(e) => setCopyFromDayId(e.target.value)}
+                >
+                  <option value="">No copiar</option>
+                  {plannedDayOptions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
+                      {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button type="submit">Agregar día</button>
           </form>
         </section>
