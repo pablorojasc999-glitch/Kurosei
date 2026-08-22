@@ -445,6 +445,30 @@ section {
   color: var(--accent);
 }
 
+.confirm-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  background: var(--danger-bg);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 16px;
+}
+
+.confirm-inline span {
+  flex: 1 1 100%;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.confirm-inline button {
+  min-height: 36px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
 .set-form--execution {
   grid-template-columns: 1fr 1fr;
 }

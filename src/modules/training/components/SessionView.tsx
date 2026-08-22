@@ -126,6 +126,7 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [restTargets, setRestTargets] = useState<Record<string, number>>({})
   const [pickedSourceDayId, setPickedSourceDayId] = useState('')
   const [historyReps, setHistoryReps] = useState<Record<string, string>>({})
+  const [confirmingReopen, setConfirmingReopen] = useState(false)
 
   const otherPlannedDays = (plannedDayOptions ?? []).filter(
     (d) => d.id !== dayId,
@@ -282,7 +283,7 @@ export function SessionView({ dayId }: SessionViewProps) {
       <div className="session-header">
         <span className="session-duration numeric">{formatDuration(elapsed)}</span>
         {session.endedAt ? (
-          <button type="button" onClick={() => reopenSession(session.id)}>
+          <button type="button" onClick={() => setConfirmingReopen(true)}>
             Reabrir sesión
           </button>
         ) : (
@@ -291,6 +292,25 @@ export function SessionView({ dayId }: SessionViewProps) {
           </button>
         )}
       </div>
+
+      {confirmingReopen && (
+        <div className="confirm-inline">
+          <span>¿Reabrir la sesión ya finalizada?</span>
+          <button
+            type="button"
+            className="btn-danger"
+            onClick={() => {
+              reopenSession(session.id)
+              setConfirmingReopen(false)
+            }}
+          >
+            Sí, reabrir
+          </button>
+          <button type="button" onClick={() => setConfirmingReopen(false)}>
+            Cancelar
+          </button>
+        </div>
+      )}
 
       <SessionSummary sessionId={session.id} />
 
