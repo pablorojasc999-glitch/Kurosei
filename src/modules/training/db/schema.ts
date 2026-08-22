@@ -11,4 +11,9 @@ export const TRAINING_STORES_V1 = {
     'id, dayId, exerciseId, order, updatedAt, deletedAt',
   training_planned_sets:
     'id, plannedExerciseId, setNumber, updatedAt, deletedAt',
+  training_sessions: 'id, dayId, startedAt, endedAt, updatedAt, deletedAt',
+  training_session_exercises:
+    'id, sessionId, exerciseId, order, updatedAt, deletedAt',
+  training_executed_sets:
+    'id, sessionExerciseId, setNumber, performedAt, updatedAt, deletedAt',
 }

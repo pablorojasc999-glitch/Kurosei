@@ -12,6 +12,7 @@ import {
   deletePlannedSet,
   duplicateWeek,
 } from '../db/planningRepository'
+import { SessionView } from './SessionView'
 import type {
   Day,
   Mesocycle,
@@ -42,6 +43,7 @@ export function PeriodizationPage() {
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
   const [dayId, setDayId] = useState<string | null>(null)
+  const [dayView, setDayView] = useState<'plan' | 'session'>('plan')
 
   const macrocycles = useLiveQuery(
     () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
@@ -339,6 +341,29 @@ export function PeriodizationPage() {
       )}
 
       {dayId && (
+        <section>
+          <div className="sub-tabs">
+            <button
+              type="button"
+              className={dayView === 'plan' ? 'active' : ''}
+              onClick={() => setDayView('plan')}
+            >
+              Plan
+            </button>
+            <button
+              type="button"
+              className={dayView === 'session' ? 'active' : ''}
+              onClick={() => setDayView('session')}
+            >
+              Sesión
+            </button>
+          </div>
+
+          {dayView === 'session' && <SessionView dayId={dayId} />}
+        </section>
+      )}
+
+      {dayId && dayView === 'plan' && (
         <section>
           <h2>Plan del día</h2>
           <ul className="planned-exercise-list">

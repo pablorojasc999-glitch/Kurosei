@@ -74,3 +74,28 @@ export interface PlannedSet extends SyncedEntity {
   targetRpe: number | null
   restSecondsTarget: number | null
 }
+
+export interface StrengthSession extends SyncedEntity {
+  dayId: string
+  startedAt: string
+  endedAt: string | null
+}
+
+export interface SessionExercise extends SyncedEntity {
+  sessionId: string
+  exerciseId: string
+  order: number
+  notes: string
+}
+
+export interface ExecutedSet extends SyncedEntity {
+  sessionExerciseId: string
+  setNumber: number
+  weightKg: number | null
+  reps: number
+  rpe: number | null
+  eva: number | null
+  notes: string
+  performedAt: string
+  restTakenSeconds: number | null
+}
