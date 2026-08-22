@@ -52,7 +52,7 @@ export async function pushTable(
 
   const rows = changed.map((row) => ({ ...row, userId }))
   const { error } = await client.from(tableName).upsert(rows)
-  if (error) throw error
+  if (error) throw new Error(`${tableName}: ${error.message}`)
 }
 
 /**
@@ -71,7 +71,7 @@ export async function pullTable(
     .select('*')
     .eq('userId', userId)
     .gt('updatedAt', since)
-  if (error) throw error
+  if (error) throw new Error(`${tableName}: ${error.message}`)
   if (!data || data.length === 0) return
 
   const table = localTable(tableName)

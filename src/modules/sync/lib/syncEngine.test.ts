@@ -18,13 +18,19 @@ interface FakeRow {
   [key: string]: unknown
 }
 
-function createFakeSupabaseClient(seed: FakeRow[] = []) {
+function createFakeSupabaseClient(
+  seed: FakeRow[] = [],
+  errorMessage: string | null = null,
+) {
   const store: FakeRow[] = [...seed]
 
   const client = {
     from(_tableName: string) {
       return {
         upsert(rows: FakeRow[]) {
+          if (errorMessage) {
+            return Promise.resolve({ error: { message: errorMessage } })
+          }
           for (const row of rows) {
             const idx = store.findIndex((r) => r.id === row.id)
             if (idx >= 0) store[idx] = row
@@ -40,6 +46,9 @@ function createFakeSupabaseClient(seed: FakeRow[] = []) {
               return builder
             },
             gt(_col: string, since: string) {
+              if (errorMessage) {
+                return Promise.resolve({ data: null, error: { message: errorMessage } })
+              }
               return Promise.resolve({
                 data: store.filter(
                   (r) => r.userId === userId && r.updatedAt > since,
@@ -86,6 +95,15 @@ describe('pushTable', () => {
     await pushTable(client, 'training_muscle_groups', USER_ID, future)
 
     expect(store).toHaveLength(0)
+  })
+
+  it('throws a readable Error carrying the table name and Supabase message on failure', async () => {
+    await createMuscleGroup('Pecho')
+    const { client } = createFakeSupabaseClient([], 'column "factor" does not exist')
+
+    await expect(
+      pushTable(client, 'training_muscle_groups', USER_ID, EPOCH),
+    ).rejects.toThrow('training_muscle_groups: column "factor" does not exist')
   })
 })
 
@@ -143,6 +161,14 @@ describe('pullTable', () => {
 
     const local = await db.training_muscle_groups.get(group.id)
     expect(local?.name).toBe('Pecho')
+  })
+
+  it('throws a readable Error carrying the table name and Supabase message on failure', async () => {
+    const { client } = createFakeSupabaseClient([], 'permission denied for table')
+
+    await expect(
+      pullTable(client, 'training_muscle_groups', USER_ID, EPOCH),
+    ).rejects.toThrow('training_muscle_groups: permission denied for table')
   })
 })
 
