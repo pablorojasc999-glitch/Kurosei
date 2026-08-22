@@ -1,6 +1,10 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../../shared/db/database'
-import { createExercise, createMuscleGroup } from './trainingRepository'
+import {
+  createExercise,
+  createMuscleGroup,
+  ensureCanonicalMuscleGroups,
+} from './trainingRepository'
 
 beforeEach(async () => {
   await db.transaction(
@@ -14,6 +18,38 @@ describe('createMuscleGroup', () => {
   it('rejects a duplicate name, case- and whitespace-insensitive', async () => {
     await createMuscleGroup('Pecho')
     await expect(createMuscleGroup('  pecho ')).rejects.toThrow(/ya existe/i)
+  })
+})
+
+describe('ensureCanonicalMuscleGroups', () => {
+  it('creates the 11 body-map regions when none exist yet', async () => {
+    const groups = await ensureCanonicalMuscleGroups()
+    expect(groups.map((g) => g.name)).toEqual([
+      'Pecho',
+      'Espalda',
+      'Tríceps',
+      'Bíceps',
+      'Hombro',
+      'Abdomen',
+      'Cuádriceps',
+      'Glúteos',
+      'Isquios',
+      'Gemelo',
+      'Antebrazos',
+    ])
+  })
+
+  it('reuses an existing group that already aliases to a region instead of duplicating it', async () => {
+    const chest = await createMuscleGroup('pecho')
+    const groups = await ensureCanonicalMuscleGroups()
+    expect(groups.find((g) => g.name === 'pecho')).toMatchObject({ id: chest.id })
+    expect(groups).toHaveLength(11)
+  })
+
+  it('is idempotent across repeated calls', async () => {
+    const first = await ensureCanonicalMuscleGroups()
+    const second = await ensureCanonicalMuscleGroups()
+    expect(second.map((g) => g.id)).toEqual(first.map((g) => g.id))
   })
 })
 

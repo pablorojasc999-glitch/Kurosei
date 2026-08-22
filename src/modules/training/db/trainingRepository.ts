@@ -1,6 +1,7 @@
 import { db } from '../../../shared/db/database'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
+import { BODY_REGION_LABELS, matchBodyRegion } from '../lib/bodyMap'
 import {
   validateMuscleContributions,
   type ContributionInput,
@@ -38,6 +39,30 @@ export async function createMuscleGroup(name: string): Promise<MuscleGroup> {
   }
   await db.training_muscle_groups.add(muscleGroup)
   return muscleGroup
+}
+
+/**
+ * Ensures every body-map region (Pecho, Espalda, Tríceps, ...) has a
+ * matching muscle group row, reusing an existing one whose name aliases to
+ * that region instead of creating a duplicate. Returns them in body-map
+ * order, ready to drive the exercise form's contribution rows.
+ */
+export async function ensureCanonicalMuscleGroups(): Promise<MuscleGroup[]> {
+  const existing = await listMuscleGroups()
+  const byRegion = new Map(
+    existing
+      .map((g) => [matchBodyRegion(g.name), g] as const)
+      .filter((entry): entry is [NonNullable<(typeof entry)[0]>, MuscleGroup] =>
+        entry[0] !== null,
+      ),
+  )
+
+  const result: MuscleGroup[] = []
+  for (const [region, label] of Object.entries(BODY_REGION_LABELS)) {
+    const found = byRegion.get(region as keyof typeof BODY_REGION_LABELS)
+    result.push(found ?? (await createMuscleGroup(label)))
+  }
+  return result
 }
 
 export async function listExercises(): Promise<Exercise[]> {

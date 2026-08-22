@@ -1,18 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from '../../../shared/db/database'
 import {
   createExercise,
-  createMuscleGroup,
+  ensureCanonicalMuscleGroups,
   softDeleteExercise,
 } from '../db/trainingRepository'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
-import type { ExerciseCategory, ExerciseType } from '../domain/types'
-
-interface ContributionRow {
-  muscleGroupId: string
-  percentage: number
-}
+import type { ExerciseCategory, ExerciseType, MuscleGroup } from '../domain/types'
 
 const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
   squat: 'Sentadilla',
@@ -37,59 +32,43 @@ export function ExerciseLibraryPage() {
     [],
   )
 
-  const [newGroupName, setNewGroupName] = useState('')
+  const [canonicalGroups, setCanonicalGroups] = useState<MuscleGroup[]>([])
   const [exerciseName, setExerciseName] = useState('')
   const [exerciseType, setExerciseType] = useState<ExerciseType>('strength')
   const [exerciseCategory, setExerciseCategory] =
     useState<ExerciseCategory | ''>('')
-  const [rows, setRows] = useState<ContributionRow[]>([])
+  const [percentages, setPercentages] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
-  const [groupError, setGroupError] = useState<string | null>(null)
 
-  async function handleAddMuscleGroup(e: React.FormEvent) {
-    e.preventDefault()
-    setGroupError(null)
-    if (!newGroupName.trim()) return
-    try {
-      await createMuscleGroup(newGroupName.trim())
-      setNewGroupName('')
-    } catch (err) {
-      setGroupError(err instanceof Error ? err.message : 'Error desconocido')
-    }
-  }
+  useEffect(() => {
+    ensureCanonicalMuscleGroups().then(setCanonicalGroups)
+  }, [])
 
-  function addRow() {
-    if (!muscleGroups?.length) return
-    setRows((prev) => [
-      ...prev,
-      { muscleGroupId: muscleGroups[0].id, percentage: 0 },
-    ])
-  }
-
-  function updateRow(index: number, patch: Partial<ContributionRow>) {
-    setRows((prev) =>
-      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    )
-  }
-
-  function removeRow(index: number) {
-    setRows((prev) => prev.filter((_, i) => i !== index))
+  function updatePercentage(muscleGroupId: string, value: string) {
+    setPercentages((prev) => ({ ...prev, [muscleGroupId]: value }))
   }
 
   async function handleAddExercise(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     try {
+      const muscleContributions = canonicalGroups
+        .map((g) => ({
+          muscleGroupId: g.id,
+          percentage: Number(percentages[g.id]) || 0,
+        }))
+        .filter((c) => c.percentage > 0)
+
       await createExercise({
         name: exerciseName.trim(),
         type: exerciseType,
         category: exerciseCategory || null,
-        muscleContributions: rows,
+        muscleContributions,
       })
       setExerciseName('')
       setExerciseType('strength')
       setExerciseCategory('')
-      setRows([])
+      setPercentages({})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
     }
@@ -102,26 +81,6 @@ export function ExerciseLibraryPage() {
   return (
     <div className="page">
       <h1>Biblioteca de ejercicios</h1>
-
-      <section>
-        <h2>Grupos musculares</h2>
-        <form onSubmit={handleAddMuscleGroup} className="inline-form">
-          <input
-            value={newGroupName}
-            onChange={(e) => setNewGroupName(e.target.value)}
-            placeholder="Ej. Pecho"
-          />
-          <button type="submit">Agregar</button>
-        </form>
-        {groupError && <p className="error">{groupError}</p>}
-        <ul className="chip-list">
-          {muscleGroups?.map((g) => (
-            <li key={g.id} className="chip">
-              {g.name}
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <section>
         <h2>Nuevo ejercicio</h2>
@@ -166,42 +125,20 @@ export function ExerciseLibraryPage() {
           {exerciseType === 'strength' && (
             <div className="contributions">
               <h3>% de contribución por grupo muscular</h3>
-              {rows.map((row, i) => (
-                <div key={i} className="contribution-row">
-                  <select
-                    value={row.muscleGroupId}
-                    onChange={(e) =>
-                      updateRow(i, { muscleGroupId: e.target.value })
-                    }
-                  >
-                    {muscleGroups?.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
+              {canonicalGroups.map((g) => (
+                <div key={g.id} className="contribution-row">
+                  <span className="contribution-row-label">{g.name}</span>
                   <input
                     type="number"
                     min={0}
                     max={100}
-                    value={row.percentage}
-                    onChange={(e) =>
-                      updateRow(i, { percentage: Number(e.target.value) })
-                    }
+                    value={percentages[g.id] ?? ''}
+                    onChange={(e) => updatePercentage(g.id, e.target.value)}
+                    placeholder="0"
                   />
                   <span>%</span>
-                  <button type="button" onClick={() => removeRow(i)}>
-                    Quitar
-                  </button>
                 </div>
               ))}
-              <button
-                type="button"
-                onClick={addRow}
-                disabled={!muscleGroups?.length}
-              >
-                + Agregar grupo muscular
-              </button>
             </div>
           )}
 

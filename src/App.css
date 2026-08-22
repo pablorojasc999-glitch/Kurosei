@@ -182,33 +182,6 @@ section {
   margin-top: 24px;
 }
 
-.inline-form {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.inline-form input {
-  flex: 1;
-}
-
-.chip-list {
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0;
-  margin: 0;
-}
-
-.chip {
-  background: var(--accent-bg);
-  color: var(--accent);
-  border-radius: 999px;
-  padding: 6px 14px;
-  font-size: 14px;
-}
-
 .exercise-form {
   display: flex;
   flex-direction: column;
@@ -244,7 +217,7 @@ section {
   margin-bottom: 8px;
 }
 
-.contribution-row select {
+.contribution-row-label {
   flex: 1;
 }
 
