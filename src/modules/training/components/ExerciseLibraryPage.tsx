@@ -71,7 +71,9 @@ export function ExerciseLibraryPage() {
     setExerciseCategory(ex.category ?? '')
     const nextFactors: Record<string, string> = {}
     for (const c of contributions ?? []) {
-      if (c.exerciseId === ex.id) nextFactors[c.muscleGroupId] = String(c.factor)
+      // Must match a FACTOR_OPTIONS value exactly (e.g. "1.0", not "1")
+      // or the <select> shows as unselected even though the factor is saved.
+      if (c.exerciseId === ex.id) nextFactors[c.muscleGroupId] = c.factor.toFixed(1)
     }
     setFactors(nextFactors)
     setError(null)
