@@ -140,6 +140,75 @@ export async function createExercise(
   return exercise
 }
 
+export interface UpdateExerciseInput {
+  name: string
+  type: ExerciseType
+  category: ExerciseCategory | null
+  muscleContributions: ContributionInput[]
+}
+
+export async function updateExercise(
+  exerciseId: string,
+  input: UpdateExerciseInput,
+): Promise<void> {
+  const validation = validateMuscleContributions(
+    input.type,
+    input.muscleContributions,
+  )
+  if (!validation.valid) {
+    throw new Error(validation.error)
+  }
+
+  const existing = await listExercises()
+  if (
+    existing.some(
+      (e) => e.id !== exerciseId && normalizeName(e.name) === normalizeName(input.name),
+    )
+  ) {
+    throw new Error(`Ya existe un ejercicio llamado "${input.name}".`)
+  }
+
+  const timestamp = nowIso()
+
+  await db.transaction(
+    'rw',
+    db.training_exercises,
+    db.training_exercise_muscle_contributions,
+    async () => {
+      await db.training_exercises.update(exerciseId, {
+        name: input.name,
+        type: input.type,
+        category: input.category,
+        updatedAt: timestamp,
+      })
+
+      const oldContributions = await db.training_exercise_muscle_contributions
+        .where('exerciseId')
+        .equals(exerciseId)
+        .filter((c) => c.deletedAt === null)
+        .toArray()
+      await db.training_exercise_muscle_contributions.bulkUpdate(
+        oldContributions.map((c) => ({
+          key: c.id,
+          changes: { deletedAt: timestamp, updatedAt: timestamp },
+        })),
+      )
+
+      await db.training_exercise_muscle_contributions.bulkAdd(
+        input.muscleContributions.map((c) => ({
+          id: generateId(),
+          exerciseId,
+          muscleGroupId: c.muscleGroupId,
+          factor: c.factor,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        })),
+      )
+    },
+  )
+}
+
 export async function softDeleteExercise(exerciseId: string): Promise<void> {
   await db.training_exercises.update(exerciseId, { deletedAt: nowIso() })
 }

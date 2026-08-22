@@ -5,9 +5,10 @@ import {
   createExercise,
   ensureCanonicalMuscleGroups,
   softDeleteExercise,
+  updateExercise,
 } from '../db/trainingRepository'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
-import type { ExerciseCategory, ExerciseType, MuscleGroup } from '../domain/types'
+import type { Exercise, ExerciseCategory, ExerciseType, MuscleGroup } from '../domain/types'
 
 const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
   squat: 'Sentadilla',
@@ -33,6 +34,7 @@ export function ExerciseLibraryPage() {
   )
 
   const [canonicalGroups, setCanonicalGroups] = useState<MuscleGroup[]>([])
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
   const [exerciseName, setExerciseName] = useState('')
   const [exerciseType, setExerciseType] = useState<ExerciseType>('strength')
   const [exerciseCategory, setExerciseCategory] =
@@ -48,7 +50,29 @@ export function ExerciseLibraryPage() {
     setFactors((prev) => ({ ...prev, [muscleGroupId]: value }))
   }
 
-  async function handleAddExercise(e: React.FormEvent) {
+  function resetForm() {
+    setEditingExerciseId(null)
+    setExerciseName('')
+    setExerciseType('strength')
+    setExerciseCategory('')
+    setFactors({})
+    setError(null)
+  }
+
+  function startEdit(ex: Exercise) {
+    setEditingExerciseId(ex.id)
+    setExerciseName(ex.name)
+    setExerciseType(ex.type)
+    setExerciseCategory(ex.category ?? '')
+    const nextFactors: Record<string, string> = {}
+    for (const c of contributions ?? []) {
+      if (c.exerciseId === ex.id) nextFactors[c.muscleGroupId] = String(c.factor)
+    }
+    setFactors(nextFactors)
+    setError(null)
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     try {
@@ -59,16 +83,19 @@ export function ExerciseLibraryPage() {
         }))
         .filter((c) => c.factor > 0)
 
-      await createExercise({
+      const input = {
         name: exerciseName.trim(),
         type: exerciseType,
         category: exerciseCategory || null,
         muscleContributions,
-      })
-      setExerciseName('')
-      setExerciseType('strength')
-      setExerciseCategory('')
-      setFactors({})
+      }
+
+      if (editingExerciseId) {
+        await updateExercise(editingExerciseId, input)
+      } else {
+        await createExercise(input)
+      }
+      resetForm()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
     }
@@ -83,8 +110,8 @@ export function ExerciseLibraryPage() {
       <h1>Biblioteca de ejercicios</h1>
 
       <section>
-        <h2>Nuevo ejercicio</h2>
-        <form onSubmit={handleAddExercise} className="exercise-form">
+        <h2>{editingExerciseId ? 'Editar ejercicio' : 'Nuevo ejercicio'}</h2>
+        <form onSubmit={handleSubmit} className="exercise-form">
           <label>
             Nombre
             <input
@@ -147,7 +174,14 @@ export function ExerciseLibraryPage() {
 
           {error && <p className="error">{error}</p>}
 
-          <button type="submit">Guardar ejercicio</button>
+          <button type="submit">
+            {editingExerciseId ? 'Guardar cambios' : 'Guardar ejercicio'}
+          </button>
+          {editingExerciseId && (
+            <button type="button" onClick={resetForm}>
+              Cancelar
+            </button>
+          )}
         </form>
       </section>
 
@@ -174,10 +208,15 @@ export function ExerciseLibraryPage() {
                     ))}
                 </div>
               </div>
-              <ConfirmDeleteButton
-                onConfirm={() => softDeleteExercise(ex.id)}
-                confirmMessage={`¿Eliminar "${ex.name}"?`}
-              />
+              <div className="exercise-item-actions">
+                <button type="button" onClick={() => startEdit(ex)}>
+                  Editar
+                </button>
+                <ConfirmDeleteButton
+                  onConfirm={() => softDeleteExercise(ex.id)}
+                  confirmMessage={`¿Eliminar "${ex.name}"?`}
+                />
+              </div>
             </li>
           ))}
         </ul>

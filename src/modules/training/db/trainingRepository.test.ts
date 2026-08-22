@@ -4,6 +4,8 @@ import {
   createExercise,
   createMuscleGroup,
   ensureCanonicalMuscleGroups,
+  listContributionsForExercise,
+  updateExercise,
 } from './trainingRepository'
 
 beforeEach(async () => {
@@ -81,5 +83,74 @@ describe('createExercise', () => {
     await expect(
       createExercise({ ...input, name: 'Press militar' }),
     ).resolves.toMatchObject({ name: 'Press militar' })
+  })
+})
+
+describe('updateExercise', () => {
+  it('renames the exercise and replaces its muscle contributions', async () => {
+    const chest = await createMuscleGroup('Pecho')
+    const triceps = await createMuscleGroup('Tríceps')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+
+    await updateExercise(exercise.id, {
+      name: 'Press banca inclinado',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [
+        { muscleGroupId: chest.id, factor: 0.75 },
+        { muscleGroupId: triceps.id, factor: 0.5 },
+      ],
+    })
+
+    const updated = await db.training_exercises.get(exercise.id)
+    expect(updated?.name).toBe('Press banca inclinado')
+
+    const contributions = await listContributionsForExercise(exercise.id)
+    expect(contributions).toHaveLength(2)
+    expect(contributions).toEqual(
+      expect.arrayContaining([
+        { muscleGroupId: chest.id, factor: 0.75 },
+        { muscleGroupId: triceps.id, factor: 0.5 },
+      ]),
+    )
+  })
+
+  it('rejects renaming to a name already used by another exercise', async () => {
+    const chest = await createMuscleGroup('Pecho')
+    const input = {
+      type: 'strength' as const,
+      category: null,
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    }
+    await createExercise({ ...input, name: 'Press banca' })
+    const other = await createExercise({ ...input, name: 'Press militar' })
+
+    await expect(
+      updateExercise(other.id, { ...input, name: '  press BANCA  ' }),
+    ).rejects.toThrow(/ya existe/i)
+  })
+
+  it('allows keeping the exercise\'s own name unchanged', async () => {
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: null,
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+
+    await expect(
+      updateExercise(exercise.id, {
+        name: 'Press banca',
+        type: 'strength',
+        category: null,
+        muscleContributions: [{ muscleGroupId: chest.id, factor: 2 }],
+      }),
+    ).resolves.toBeUndefined()
   })
 })

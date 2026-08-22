@@ -261,6 +261,18 @@ section {
   box-shadow: var(--shadow-sm);
 }
 
+.exercise-item-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.exercise-item-actions button {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 .exercise-item strong {
   color: var(--text);
   font-size: 15px;
