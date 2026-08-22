@@ -347,6 +347,9 @@ export function SessionView({ dayId }: SessionViewProps) {
           const historyRepsValue =
             historyReps[se.id] ??
             (targetSets?.[0] ? String(targetSets[0].targetReps) : lastSet ? String(lastSet.reps) : '')
+          const matchingPlannedSet = targetSets?.find(
+            (ps) => ps.setNumber === nextSetNumber,
+          )
 
           return (
             <li key={se.id} className="planned-exercise-item">
@@ -440,6 +443,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                   <div className="set-form set-form--execution">
                   <label>
                     Peso (kg)
+                    {matchingPlannedSet?.targetWeightKg != null && (
+                      <span className="planned-hint">
+                        planificado: {matchingPlannedSet.targetWeightKg}
+                      </span>
+                    )}
                     <input
                       type="number"
                       inputMode="decimal"
@@ -454,6 +462,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                   </label>
                   <label>
                     Reps
+                    {matchingPlannedSet && (
+                      <span className="planned-hint">
+                        planificado: {matchingPlannedSet.targetReps}
+                      </span>
+                    )}
                     <input
                       type="number"
                       inputMode="numeric"
@@ -468,6 +481,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                   </label>
                   <label>
                     RPE
+                    {matchingPlannedSet?.targetRpe != null && (
+                      <span className="planned-hint">
+                        planificado: {matchingPlannedSet.targetRpe}
+                      </span>
+                    )}
                     <input
                       type="number"
                       inputMode="decimal"

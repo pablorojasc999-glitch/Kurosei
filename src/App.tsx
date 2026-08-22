@@ -1,6 +1,13 @@
 import { useState } from 'react'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { ExerciseLibraryPage } from './modules/training/components/ExerciseLibraryPage'
+import {
+  IconCalendar,
+  IconLibrary,
+  IconPlan,
+  IconProgress,
+  IconRegistro,
+} from './modules/training/components/icons'
 import { PeriodizationPage } from './modules/training/components/PeriodizationPage'
 import { ProgressPage } from './modules/training/components/ProgressPage'
 import { RegistroPage } from './modules/training/components/RegistroPage'
@@ -51,6 +58,7 @@ function App() {
           className={tab === 'registro' ? 'active' : ''}
           onClick={() => setTab('registro')}
         >
+          <IconRegistro />
           Registro
         </button>
         <button
@@ -58,6 +66,7 @@ function App() {
           className={tab === 'periodizacion' ? 'active' : ''}
           onClick={() => setTab('periodizacion')}
         >
+          <IconPlan />
           Plan
         </button>
         <button
@@ -65,6 +74,7 @@ function App() {
           className={tab === 'calendario' ? 'active' : ''}
           onClick={() => setTab('calendario')}
         >
+          <IconCalendar />
           Calendario
         </button>
         <button
@@ -72,6 +82,7 @@ function App() {
           className={tab === 'progreso' ? 'active' : ''}
           onClick={() => setTab('progreso')}
         >
+          <IconProgress />
           Progreso
         </button>
         <button
@@ -79,6 +90,7 @@ function App() {
           className={tab === 'biblioteca' ? 'active' : ''}
           onClick={() => setTab('biblioteca')}
         >
+          <IconLibrary />
           Biblioteca
         </button>
       </nav>

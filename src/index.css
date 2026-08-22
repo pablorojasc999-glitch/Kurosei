@@ -43,7 +43,9 @@
 body {
   margin: 0;
   color: var(--text);
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 50% -10%, rgba(139, 92, 246, 0.1), transparent 55%),
+    var(--bg);
   min-height: 100svh;
   overflow-x: hidden;
 }
@@ -67,12 +69,27 @@ h3 {
 h1 {
   font-size: 26px;
   letter-spacing: -0.4px;
+  padding-bottom: 10px;
+  position: relative;
+}
+
+h1::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 36px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
 
 h2 {
   font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.1px;
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
 }
 
 h3 {

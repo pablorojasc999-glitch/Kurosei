@@ -22,12 +22,16 @@
 
 .tabs button {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
   padding: 8px 4px;
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 500;
 }
 
@@ -36,6 +40,11 @@
   color: var(--text);
   border-color: var(--accent-border);
   box-shadow: var(--shadow-glow);
+}
+
+.tab-icon {
+  width: 22px;
+  height: 22px;
 }
 
 .page {
@@ -142,7 +151,7 @@ section {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
-  background: var(--surface);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px;
@@ -212,7 +221,7 @@ section {
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
   box-shadow: var(--shadow-sm);
 }
 
@@ -272,7 +281,7 @@ section {
 }
 
 .planned-exercise-item {
-  background: var(--surface);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 14px;
@@ -374,6 +383,12 @@ section {
 .set-form input {
   width: 100%;
   min-width: 0;
+}
+
+.planned-hint {
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 600;
 }
 
 .add-set-button {
@@ -489,7 +504,7 @@ section {
   justify-content: space-between;
   align-items: flex-start;
   gap: 8px;
-  background: var(--surface);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 12px;
@@ -836,7 +851,7 @@ section {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  background: var(--surface);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 10px 12px;
