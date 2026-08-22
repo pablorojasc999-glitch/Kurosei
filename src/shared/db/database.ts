@@ -1,6 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { TRAINING_STORES_V1 } from '../../modules/training/db/schema'
 import type {
+  CardioSession,
   Day,
   ExecutedSet,
   Exercise,
@@ -31,6 +32,7 @@ export class KuroseiDatabase extends Dexie {
   training_sessions!: EntityTable<StrengthSession, 'id'>
   training_session_exercises!: EntityTable<SessionExercise, 'id'>
   training_executed_sets!: EntityTable<ExecutedSet, 'id'>
+  training_cardio_sessions!: EntityTable<CardioSession, 'id'>
 
   constructor() {
     super('kurosei')

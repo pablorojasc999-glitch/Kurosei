@@ -99,3 +99,14 @@ export interface ExecutedSet extends SyncedEntity {
   performedAt: string
   restTakenSeconds: number | null
 }
+
+export interface CardioSession extends SyncedEntity {
+  dayId: string
+  exerciseId: string
+  startedAt: string
+  durationMinutes: number
+  distanceKm: number | null
+  rpe: number | null
+  eva: number | null
+  notes: string
+}

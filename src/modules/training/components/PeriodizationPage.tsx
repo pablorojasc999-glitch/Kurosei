@@ -12,6 +12,7 @@ import {
   deletePlannedSet,
   duplicateWeek,
 } from '../db/planningRepository'
+import { CardioView } from './CardioView'
 import { SessionView } from './SessionView'
 import type {
   Day,
@@ -43,7 +44,7 @@ export function PeriodizationPage() {
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
   const [dayId, setDayId] = useState<string | null>(null)
-  const [dayView, setDayView] = useState<'plan' | 'session'>('plan')
+  const [dayView, setDayView] = useState<'plan' | 'session' | 'cardio'>('plan')
 
   const macrocycles = useLiveQuery(
     () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
@@ -357,9 +358,17 @@ export function PeriodizationPage() {
             >
               Sesión
             </button>
+            <button
+              type="button"
+              className={dayView === 'cardio' ? 'active' : ''}
+              onClick={() => setDayView('cardio')}
+            >
+              Cardio
+            </button>
           </div>
 
           {dayView === 'session' && <SessionView dayId={dayId} />}
+          {dayView === 'cardio' && <CardioView dayId={dayId} />}
         </section>
       )}
 

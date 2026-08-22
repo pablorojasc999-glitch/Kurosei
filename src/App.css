@@ -225,6 +225,14 @@ section {
   width: 100%;
 }
 
+.entity-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 .entity-form > button[type='submit'] {
   background: var(--accent-dark);
   border: 1px solid var(--accent-border);
@@ -439,4 +447,23 @@ section {
   min-height: 32px;
   padding: 0 8px;
   font-size: 12px;
+}
+
+/* --- cardio --- */
+
+.cardio-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.cardio-summary {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 4px;
 }
