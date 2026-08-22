@@ -126,7 +126,7 @@ describe('getRecentRpeDeviations', () => {
 })
 
 describe('listAllExecutedSetsWithContext', () => {
-  it('joins executed sets up to their exerciseId and sessionId', async () => {
+  it('joins executed sets up to their exerciseId, sessionId, and weekId', async () => {
     const mesocycle = await seedMesocycle()
     const exercise = await seedExercise()
     const week = await createWeek(mesocycle.id)
@@ -155,9 +155,36 @@ describe('listAllExecutedSetsWithContext', () => {
     expect(sets[0]).toMatchObject({
       exerciseId: exercise.id,
       sessionId: session.id,
+      weekId: week.id,
       weightKg: 100,
       reps: 5,
     })
+  })
+
+  it('reports a null weekId for a session on an unplanned day', async () => {
+    const exercise = await seedExercise()
+    const day = await createDay({
+      weekId: null,
+      date: '2026-01-05T00:00:00.000Z',
+      label: '',
+    })
+    const session = await startSession(day.id)
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    await createExecutedSet({
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '',
+    })
+
+    const sets = await listAllExecutedSetsWithContext()
+    expect(sets[0].weekId).toBeNull()
   })
 
   it('returns an empty list when nothing has been executed', async () => {

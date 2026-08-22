@@ -5,22 +5,33 @@ import type { ExecutedSet } from '../domain/types'
 export interface ExecutedSetWithContext extends ExecutedSet {
   exerciseId: string
   sessionId: string
+  weekId: string | null
 }
 
-/** Every executed set across all sessions, joined up to its exerciseId/sessionId. */
+/**
+ * Every executed set across all sessions, joined up to its exerciseId,
+ * sessionId, and the weekId of the planning week its session's day belongs
+ * to (null for a session on an ad-hoc/unplanned day).
+ */
 export async function listAllExecutedSetsWithContext(): Promise<
   ExecutedSetWithContext[]
 > {
-  const [sets, sessionExercises] = await Promise.all([
+  const [sets, sessionExercises, sessions, days] = await Promise.all([
     db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
     db.training_session_exercises.filter((se) => se.deletedAt === null).toArray(),
+    db.training_sessions.filter((s) => s.deletedAt === null).toArray(),
+    db.training_days.filter((d) => d.deletedAt === null).toArray(),
   ])
   const sessionExerciseById = new Map(sessionExercises.map((se) => [se.id, se]))
+  const sessionById = new Map(sessions.map((s) => [s.id, s]))
+  const weekIdByDayId = new Map(days.map((d) => [d.id, d.weekId]))
 
   return sets.flatMap((s) => {
     const se = sessionExerciseById.get(s.sessionExerciseId)
     if (!se) return []
-    return [{ ...s, exerciseId: se.exerciseId, sessionId: se.sessionId }]
+    const session = sessionById.get(se.sessionId)
+    const weekId = session ? (weekIdByDayId.get(session.dayId) ?? null) : null
+    return [{ ...s, exerciseId: se.exerciseId, sessionId: se.sessionId, weekId }]
   })
 }
 

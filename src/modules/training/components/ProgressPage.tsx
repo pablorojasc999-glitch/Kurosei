@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { db } from '../../../shared/db/database'
 import { BodyMap } from './BodyMap'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
+import { listWeeksWithContext } from '../db/planningRepository'
 import { matchBodyRegion } from '../lib/bodyMap'
 import type { BodyRegionKey } from '../lib/bodyMap'
 import { calculateE1rm } from '../lib/e1rm'
@@ -14,8 +15,18 @@ import {
   STRESS_LEVEL_LABELS,
 } from '../lib/stressIndex'
 
-const RECENT_DAYS = 7
-const RECENT_WINDOW_MS = RECENT_DAYS * 24 * 60 * 60 * 1000
+function weekLabel(week: {
+  macrocycleName: string
+  mesocycleName: string
+  order: number
+  dayDates: string[]
+}): string {
+  const range =
+    week.dayDates.length > 0
+      ? ` (${formatDate(week.dayDates[0])} - ${formatDate(week.dayDates[week.dayDates.length - 1])})`
+      : ''
+  return `${week.macrocycleName} / ${week.mesocycleName} / Semana ${week.order + 1}${range}`
+}
 
 export function ProgressPage() {
   const setsWithContext = useLiveQuery(() => listAllExecutedSetsWithContext(), [])
@@ -34,13 +45,25 @@ export function ProgressPage() {
         .toArray(),
     [],
   )
+  const weeks = useLiveQuery(() => listWeeksWithContext(), [])
 
   const [selectedExerciseId, setSelectedExerciseId] = useState('')
+  const [selectedWeekId, setSelectedWeekId] = useState('')
   const [now] = useState(() => Date.now())
 
-  if (!setsWithContext || !exercises || !muscleGroups || !contributions) {
+  if (!setsWithContext || !exercises || !muscleGroups || !contributions || !weeks) {
     return null
   }
+
+  const nowIso = new Date(now).toISOString()
+  const currentOrPastWeeks = weeks.filter(
+    (w) => w.dayDates.length > 0 && w.dayDates[0] <= nowIso,
+  )
+  const defaultWeekId =
+    currentOrPastWeeks[currentOrPastWeeks.length - 1]?.id ?? weeks[0]?.id ?? ''
+  const activeWeekId = weeks.some((w) => w.id === selectedWeekId)
+    ? selectedWeekId
+    : defaultWeekId
 
   function exerciseName(id: string): string {
     return exercises?.find((e) => e.id === id)?.name ?? '?'
@@ -83,10 +106,7 @@ export function ProgressPage() {
     }
   })
 
-  const recentCutoff = now - RECENT_WINDOW_MS
-  const recentSets = setsWithE1rm.filter(
-    (s) => new Date(s.performedAt).getTime() >= recentCutoff,
-  )
+  const weekSets = setsWithE1rm.filter((s) => s.weekId === activeWeekId)
   const contributionsByExercise = new Map<
     string,
     { muscleGroupId: string; factor: number }[]
@@ -97,7 +117,7 @@ export function ProgressPage() {
     contributionsByExercise.set(c.exerciseId, list)
   }
   const volumeByGroup = [
-    ...muscleGroupVolume(recentSets, contributionsByExercise).entries(),
+    ...muscleGroupVolume(weekSets, contributionsByExercise).entries(),
   ].sort((a, b) => b[1] - a[1])
   const maxVolume = Math.max(1, ...volumeByGroup.map(([, v]) => v))
 
@@ -111,7 +131,7 @@ export function ProgressPage() {
 
   const stressByGroup = [
     ...muscleGroupStressIndex(
-      recentSets,
+      weekSets,
       contributionsByExercise,
       calculateStressIndex,
     ).entries(),
@@ -144,14 +164,35 @@ export function ProgressPage() {
       </section>
 
       <section>
-        <h2>Mapa corporal (últimos {RECENT_DAYS} días)</h2>
+        <h2>Volumen semanal</h2>
+        {weeks.length === 0 ? (
+          <p className="empty-hint">
+            Todavía no armaste una semana en Periodización — el volumen se
+            cuenta por semana planificada.
+          </p>
+        ) : (
+          <select
+            value={activeWeekId}
+            onChange={(e) => setSelectedWeekId(e.target.value)}
+          >
+            {weeks.map((w) => (
+              <option key={w.id} value={w.id}>
+                {weekLabel(w)}
+              </option>
+            ))}
+          </select>
+        )}
+      </section>
+
+      <section>
+        <h2>Mapa corporal</h2>
         <BodyMap valuesByRegion={valuesByRegion} maxValue={maxRegionValue} />
       </section>
 
       <section>
-        <h2>Series por grupo muscular (últimos {RECENT_DAYS} días)</h2>
+        <h2>Series por grupo muscular</h2>
         {volumeByGroup.length === 0 ? (
-          <p className="empty-hint">Sin series recientes.</p>
+          <p className="empty-hint">Sin series en esta semana.</p>
         ) : (
           <ul className="volume-bars">
             {volumeByGroup.map(([groupId, value]) => (
@@ -173,9 +214,9 @@ export function ProgressPage() {
       </section>
 
       <section>
-        <h2>Estrés por grupo muscular (últimos {RECENT_DAYS} días)</h2>
+        <h2>Estrés por grupo muscular</h2>
         {stressByGroup.length === 0 ? (
-          <p className="empty-hint">Sin series recientes con RPE cargado.</p>
+          <p className="empty-hint">Sin series con RPE cargado en esta semana.</p>
         ) : (
           <ul className="stress-list">
             {stressByGroup.map(([groupId, value]) => {

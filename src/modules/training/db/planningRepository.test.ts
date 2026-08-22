@@ -23,6 +23,7 @@ import {
   listPlannedExercises,
   listPlannedSets,
   listWeeks,
+  listWeeksWithContext,
 } from './planningRepository'
 import {
   addSessionExercise,
@@ -240,6 +241,36 @@ describe('listPlannedDaysWithExercises', () => {
       label: 'Tren superior',
       exerciseCount: 1,
     })
+  })
+})
+
+describe('listWeeksWithContext', () => {
+  it('annotates each week with its macro/mesocycle names and sorted day dates', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    await createDay({ weekId: week.id, date: '2026-01-06T00:00:00.000Z', label: '' })
+    await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
+
+    const result = await listWeeksWithContext()
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      id: week.id,
+      macrocycleName: 'Prep',
+      mesocycleName: 'Bloque 1',
+      order: 0,
+      dayDates: ['2026-01-05T00:00:00.000Z', '2026-01-06T00:00:00.000Z'],
+    })
+  })
+
+  it('sorts weeks chronologically by their first day', async () => {
+    const mesocycle = await seedMesocycle()
+    const laterWeek = await createWeek(mesocycle.id)
+    await createDay({ weekId: laterWeek.id, date: '2026-02-01T00:00:00.000Z', label: '' })
+    const earlierWeek = await createWeek(mesocycle.id)
+    await createDay({ weekId: earlierWeek.id, date: '2026-01-01T00:00:00.000Z', label: '' })
+
+    const result = await listWeeksWithContext()
+    expect(result.map((w) => w.id)).toEqual([earlierWeek.id, laterWeek.id])
   })
 })
 

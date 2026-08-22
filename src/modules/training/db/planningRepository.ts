@@ -426,6 +426,51 @@ export async function listPlannedDaysWithExercises(): Promise<PlannedDaySummary[
     .sort((a, b) => a.date.localeCompare(b.date))
 }
 
+export interface WeekWithContext {
+  id: string
+  macrocycleName: string
+  mesocycleName: string
+  order: number
+  dayDates: string[]
+}
+
+/**
+ * Every Week annotated with its macro/mesocycle names and the dates of its
+ * Days, sorted chronologically by first day — drives the week picker for
+ * Progreso's per-week volume view.
+ */
+export async function listWeeksWithContext(): Promise<WeekWithContext[]> {
+  const [weeks, mesocycles, macrocycles, days] = await Promise.all([
+    db.training_weeks.filter((w) => w.deletedAt === null).toArray(),
+    db.training_mesocycles.filter((m) => m.deletedAt === null).toArray(),
+    db.training_macrocycles.filter((m) => m.deletedAt === null).toArray(),
+    db.training_days.filter((d) => d.deletedAt === null).toArray(),
+  ])
+  const mesoById = new Map(mesocycles.map((m) => [m.id, m]))
+  const macroById = new Map(macrocycles.map((m) => [m.id, m]))
+  const dayDatesByWeek = new Map<string, string[]>()
+  for (const d of days) {
+    if (!d.weekId) continue
+    const list = dayDatesByWeek.get(d.weekId) ?? []
+    list.push(d.date)
+    dayDatesByWeek.set(d.weekId, list)
+  }
+
+  return weeks
+    .map((w) => {
+      const meso = mesoById.get(w.mesocycleId)
+      const macro = meso ? macroById.get(meso.macrocycleId) : undefined
+      return {
+        id: w.id,
+        macrocycleName: macro?.name ?? '?',
+        mesocycleName: meso?.name ?? '?',
+        order: w.order,
+        dayDates: (dayDatesByWeek.get(w.id) ?? []).sort(),
+      }
+    })
+    .sort((a, b) => (a.dayDates[0] ?? '').localeCompare(b.dayDates[0] ?? ''))
+}
+
 /** Finds the Day (if any) whose date falls on the same calendar day as `date`. */
 export async function findDayByDate(date: Date): Promise<Day | null> {
   const dateKey = date.toDateString()
