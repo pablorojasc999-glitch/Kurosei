@@ -123,6 +123,7 @@ export function SessionView({ dayId }: SessionViewProps) {
       )
     : runningElapsed
 
+  const [showAddExerciseForm, setShowAddExerciseForm] = useState(false)
   const [newExerciseId, setNewExerciseId] = useState('')
   const [setForms, setSetForms] = useState<Record<string, SetFormState>>({})
   const [restTargets, setRestTargets] = useState<Record<string, number>>({})
@@ -147,6 +148,7 @@ export function SessionView({ dayId }: SessionViewProps) {
       notes: '',
     })
     setNewExerciseId('')
+    setShowAddExerciseForm(false)
   }
 
   const missingPlannedExercises = (plannedExercises ?? []).filter(
@@ -582,21 +584,30 @@ export function SessionView({ dayId }: SessionViewProps) {
       </ul>
 
       {!session.endedAt && (
-        <form onSubmit={handleAddExercise} className="entity-form">
-          <select
-            value={newExerciseId}
-            onChange={(e) => setNewExerciseId(e.target.value)}
-            required
-          >
-            <option value="">Elegir ejercicio</option>
-            {exercisesLibrary?.map((ex) => (
-              <option key={ex.id} value={ex.id}>
-                {ex.name}
-              </option>
-            ))}
-          </select>
-          <button type="submit">Agregar ejercicio a la sesión</button>
-        </form>
+        showAddExerciseForm ? (
+          <form onSubmit={handleAddExercise} className="entity-form">
+            <select
+              value={newExerciseId}
+              onChange={(e) => setNewExerciseId(e.target.value)}
+              required
+            >
+              <option value="">Elegir ejercicio</option>
+              {exercisesLibrary?.map((ex) => (
+                <option key={ex.id} value={ex.id}>
+                  {ex.name}
+                </option>
+              ))}
+            </select>
+            <button type="submit">Agregar ejercicio a la sesión</button>
+            <button type="button" onClick={() => setShowAddExerciseForm(false)}>
+              Cancelar
+            </button>
+          </form>
+        ) : (
+          <button type="button" onClick={() => setShowAddExerciseForm(true)}>
+            + Agregar ejercicio a la sesión
+          </button>
+        )
       )}
     </div>
   )

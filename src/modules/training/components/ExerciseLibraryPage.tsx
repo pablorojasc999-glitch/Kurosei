@@ -25,10 +25,6 @@ const FACTOR_OPTIONS = Array.from({ length: 10 }, (_, i) => {
 })
 
 export function ExerciseLibraryPage() {
-  const muscleGroups = useLiveQuery(
-    () => db.training_muscle_groups.filter((g) => g.deletedAt === null).sortBy('name'),
-    [],
-  )
   const exercises = useLiveQuery(
     () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
     [],
@@ -49,6 +45,7 @@ export function ExerciseLibraryPage() {
     useState<ExerciseCategory | ''>('')
   const [factors, setFactors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     ensureCanonicalMuscleGroups().then(setCanonicalGroups)
@@ -109,9 +106,9 @@ export function ExerciseLibraryPage() {
     }
   }
 
-  function muscleGroupName(id: string): string {
-    return muscleGroups?.find((g) => g.id === id)?.name ?? '?'
-  }
+  const filteredExercises = exercises?.filter((ex) =>
+    ex.name.toLowerCase().includes(search.trim().toLowerCase()),
+  )
 
   return (
     <div className="page">
@@ -198,8 +195,15 @@ export function ExerciseLibraryPage() {
 
       <section>
         <h2>Ejercicios</h2>
+        <input
+          type="search"
+          className="exercise-search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar ejercicio..."
+        />
         <ul className="exercise-list">
-          {exercises?.map((ex) => (
+          {filteredExercises?.map((ex) => (
             <li key={ex.id} className="exercise-item">
               <div>
                 <strong>{ex.name}</strong>{' '}
@@ -209,15 +213,6 @@ export function ExerciseLibraryPage() {
                 {ex.category && (
                   <span className="tag">{CATEGORY_LABELS[ex.category]}</span>
                 )}
-                <div className="contribution-summary">
-                  {contributions
-                    ?.filter((c) => c.exerciseId === ex.id)
-                    .map((c) => (
-                      <span key={c.id} className="contribution-chip">
-                        {muscleGroupName(c.muscleGroupId)} ×{String(c.factor).replace('.', ',')}
-                      </span>
-                    ))}
-                </div>
               </div>
               <div className="exercise-item-actions">
                 <button type="button" onClick={() => startEdit(ex)}>
@@ -230,6 +225,9 @@ export function ExerciseLibraryPage() {
               </div>
             </li>
           ))}
+          {filteredExercises?.length === 0 && (
+            <p className="empty-hint">Ningún ejercicio coincide con la búsqueda.</p>
+          )}
         </ul>
       </section>
     </div>

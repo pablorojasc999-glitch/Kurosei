@@ -39,6 +39,7 @@ export function CardioView({ dayId }: CardioViewProps) {
     [],
   )
 
+  const [showForm, setShowForm] = useState(false)
   const [exerciseId, setExerciseId] = useState('')
   const [startedAt, setStartedAt] = useState(() =>
     toDatetimeLocalValue(new Date()),
@@ -70,6 +71,7 @@ export function CardioView({ dayId }: CardioViewProps) {
     setDistance('')
     setCalories('')
     setNotes('')
+    setShowForm(false)
   }
 
   if (!cardioExercises?.length) {
@@ -100,64 +102,69 @@ export function CardioView({ dayId }: CardioViewProps) {
         ))}
       </ul>
 
-      <form onSubmit={handleAddCardioSession} className="entity-form">
-        <select
-          value={exerciseId}
-          onChange={(e) => setExerciseId(e.target.value)}
-          required
-        >
-          <option value="">Elegir ejercicio de cardio</option>
-          {cardioExercises.map((ex) => (
-            <option key={ex.id} value={ex.id}>
-              {ex.name}
-            </option>
-          ))}
-        </select>
-        <label>
-          Hora de inicio
-          <input
-            type="datetime-local"
-            value={startedAt}
-            onChange={(e) => setStartedAt(e.target.value)}
+      {showForm ? (
+        <form onSubmit={handleAddCardioSession} className="entity-form">
+          <select
+            value={exerciseId}
+            onChange={(e) => setExerciseId(e.target.value)}
             required
-          />
-        </label>
-        <label>
-          Duración (min)
+          >
+            <option value="">Elegir ejercicio de cardio</option>
+            {cardioExercises.map((ex) => (
+              <option key={ex.id} value={ex.id}>
+                {ex.name}
+              </option>
+            ))}
+          </select>
+          <label>
+            Hora de inicio
+            <input
+              type="datetime-local"
+              value={startedAt}
+              onChange={(e) => setStartedAt(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Duración (min)
+            <input
+              type="number"
+              inputMode="numeric"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              required
+            />
+          </label>
+          <label>
+            Distancia (km, opcional)
+            <input
+              type="number"
+              inputMode="decimal"
+              value={distance}
+              onChange={(e) => setDistance(e.target.value)}
+            />
+          </label>
+          <label>
+            Calorías (kcal, opcional)
+            <input
+              type="number"
+              inputMode="numeric"
+              value={calories}
+              onChange={(e) => setCalories(e.target.value)}
+            />
+          </label>
           <input
-            type="number"
-            inputMode="numeric"
-            value={duration}
-            onChange={(e) => setDuration(e.target.value)}
-            required
+            type="text"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Notas (opcional)"
           />
-        </label>
-        <label>
-          Distancia (km, opcional)
-          <input
-            type="number"
-            inputMode="decimal"
-            value={distance}
-            onChange={(e) => setDistance(e.target.value)}
-          />
-        </label>
-        <label>
-          Calorías (kcal, opcional)
-          <input
-            type="number"
-            inputMode="numeric"
-            value={calories}
-            onChange={(e) => setCalories(e.target.value)}
-          />
-        </label>
-        <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notas (opcional)"
-        />
-        <button type="submit">Agregar cardio</button>
-      </form>
+          <button type="submit">Agregar cardio</button>
+          <button type="button" onClick={() => setShowForm(false)}>Cancelar</button>
+        </form>
+      ) : (
+        <button type="button" onClick={() => setShowForm(true)}>+ Agregar cardio</button>
+      )}
     </div>
   )
 }
