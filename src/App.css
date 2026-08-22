@@ -946,6 +946,7 @@ section {
   background: var(--surface);
   border: 1px solid transparent;
   min-height: 0;
+  min-width: 0;
   color: var(--text);
 }
 
