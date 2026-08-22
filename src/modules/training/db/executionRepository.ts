@@ -47,6 +47,15 @@ export async function reopenSession(sessionId: string): Promise<void> {
   })
 }
 
+/** Deletes a session entirely, cascading to its exercises and their sets. */
+export async function deleteSession(sessionId: string): Promise<void> {
+  const sessionExercises = await listSessionExercises(sessionId)
+  for (const se of sessionExercises) {
+    await deleteSessionExercise(se.id)
+  }
+  await db.training_sessions.update(sessionId, { deletedAt: nowIso() })
+}
+
 export async function listSessionExercises(
   sessionId: string,
 ): Promise<SessionExercise[]> {

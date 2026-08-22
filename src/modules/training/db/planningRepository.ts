@@ -1,8 +1,8 @@
 import { db } from '../../../shared/db/database'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
-import { listCardioSessions } from './cardioRepository'
-import { getSessionForDay } from './executionRepository'
+import { deleteCardioSession, listCardioSessions } from './cardioRepository'
+import { deleteSession, getSessionForDay } from './executionRepository'
 import type {
   Day,
   Macrocycle,
@@ -144,18 +144,25 @@ export async function dayHasLoggedData(dayId: string): Promise<boolean> {
 }
 
 /**
- * Deletes a planned Day and cascades to its planned exercises/sets. Refuses
- * to delete a day that already has logged execution data (a session or
- * cardio entries), since that would orphan it from Registro.
+ * Deletes a planned Day and everything tied to it: its planned
+ * exercises/sets, any logged strength session (with its exercises/sets),
+ * and any cardio sessions. A full, irreversible wipe of that day.
  */
 export async function deleteDay(id: string): Promise<void> {
-  if (await dayHasLoggedData(id)) {
-    throw new Error(
-      'Este día ya tiene una sesión o cardio registrado — no se puede eliminar el plan sin perder ese registro.',
-    )
+  const [plannedExercises, session, cardioSessions] = await Promise.all([
+    listPlannedExercises(id),
+    getSessionForDay(id),
+    listCardioSessions(id),
+  ])
+
+  if (session) {
+    await deleteSession(session.id)
   }
+  for (const cardioSession of cardioSessions) {
+    await deleteCardioSession(cardioSession.id)
+  }
+
   const timestamp = nowIso()
-  const plannedExercises = await listPlannedExercises(id)
   await db.transaction(
     'rw',
     db.training_days,
@@ -176,6 +183,33 @@ export async function deleteDay(id: string): Promise<void> {
       }
     },
   )
+}
+
+/** Deletes a Week and every day inside it (see deleteDay). */
+export async function deleteWeek(id: string): Promise<void> {
+  const days = await listDays(id)
+  for (const day of days) {
+    await deleteDay(day.id)
+  }
+  await db.training_weeks.update(id, { deletedAt: nowIso() })
+}
+
+/** Deletes a Mesocycle and every week inside it (see deleteWeek). */
+export async function deleteMesocycle(id: string): Promise<void> {
+  const weeks = await listWeeks(id)
+  for (const week of weeks) {
+    await deleteWeek(week.id)
+  }
+  await db.training_mesocycles.update(id, { deletedAt: nowIso() })
+}
+
+/** Deletes a Macrocycle and every mesocycle inside it (see deleteMesocycle). */
+export async function deleteMacrocycle(id: string): Promise<void> {
+  const mesocycles = await listMesocycles(id)
+  for (const mesocycle of mesocycles) {
+    await deleteMesocycle(mesocycle.id)
+  }
+  await db.training_macrocycles.update(id, { deletedAt: nowIso() })
 }
 
 export async function listPlannedExercises(

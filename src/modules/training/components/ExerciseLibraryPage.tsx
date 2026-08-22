@@ -6,6 +6,7 @@ import {
   createMuscleGroup,
   softDeleteExercise,
 } from '../db/trainingRepository'
+import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type { ExerciseCategory, ExerciseType } from '../domain/types'
 
 interface ContributionRow {
@@ -233,13 +234,10 @@ export function ExerciseLibraryPage() {
                     ))}
                 </div>
               </div>
-              <button
-                type="button"
-                className="btn-danger"
-                onClick={() => softDeleteExercise(ex.id)}
-              >
-                Eliminar
-              </button>
+              <ConfirmDeleteButton
+                onConfirm={() => softDeleteExercise(ex.id)}
+                confirmMessage={`¿Eliminar "${ex.name}"?`}
+              />
             </li>
           ))}
         </ul>

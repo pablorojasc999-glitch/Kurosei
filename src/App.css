@@ -262,36 +262,25 @@ section {
   background: var(--surface-2);
 }
 
-.week-row {
+.list-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.week-row button:first-child {
-  flex: 1;
-}
-
-.week-row button:last-child {
-  flex: 0 0 auto;
-  width: auto;
-  font-size: 13px;
-  color: var(--accent);
-}
-
-.day-row {
-  display: flex;
-  gap: 8px;
-}
-
-.day-row button:first-child {
+.list-row button:first-child {
   flex: 1;
   text-align: left;
 }
 
-.day-row button:last-child {
+.list-row button:not(:first-child) {
   flex: 0 0 auto;
   width: auto;
   font-size: 13px;
+}
+
+.list-row-secondary {
+  color: var(--accent);
 }
 
 .entity-form {
@@ -488,6 +477,13 @@ section {
   margin-bottom: 16px;
 }
 
+.session-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .session-duration {
   font-size: 24px;
   font-weight: 600;
@@ -517,6 +513,24 @@ section {
   min-height: 36px;
   padding: 0 10px;
   font-size: 13px;
+}
+
+.confirm-inline--compact {
+  flex: 1;
+  margin-bottom: 0;
+  padding: 4px 8px;
+  gap: 6px;
+}
+
+.confirm-inline--compact span {
+  flex: initial;
+  font-size: 12px;
+}
+
+.confirm-inline--compact button {
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
 }
 
 .set-form--execution {

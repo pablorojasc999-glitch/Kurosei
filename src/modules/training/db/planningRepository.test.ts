@@ -10,16 +10,27 @@ import {
   createWeek,
   dayHasLoggedData,
   deleteDay,
+  deleteMacrocycle,
+  deleteMesocycle,
+  deleteWeek,
   duplicateWeek,
   findDayByDate,
   getOrCreateDayForDate,
   listDays,
+  listMesocycles,
   listPlannedDaysWithExercises,
   listPlannedExercises,
   listPlannedSets,
   listWeeks,
 } from './planningRepository'
-import { addSessionExercise, startSession } from './executionRepository'
+import {
+  addSessionExercise,
+  createExecutedSet,
+  listExecutedSets,
+  listSessionExercises,
+  startSession,
+} from './executionRepository'
+import { createCardioSession, listCardioSessions } from './cardioRepository'
 
 beforeEach(async () => {
   await db.transaction(
@@ -272,7 +283,7 @@ describe('deleteDay', () => {
     ).not.toBeNull()
   })
 
-  it('refuses to delete a day that already has a logged session', async () => {
+  it('cascades to a logged session (and its executed sets) and cardio sessions', async () => {
     const mesocycle = await seedMesocycle()
     const week = await createWeek(mesocycle.id)
     const day = await createDay({
@@ -287,17 +298,160 @@ describe('deleteDay', () => {
       category: 'bench',
       muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
     })
+    const cardioExercise = await createExercise({
+      name: 'Cinta',
+      type: 'cardio',
+      category: null,
+      muscleContributions: [],
+    })
     const session = await startSession(day.id)
-    await addSessionExercise({
+    const sessionExercise = await addSessionExercise({
       sessionId: session.id,
       exerciseId: exercise.id,
       notes: '',
     })
+    const executedSet = await createExecutedSet({
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '',
+    })
+    const cardioSession = await createCardioSession({
+      dayId: day.id,
+      exerciseId: cardioExercise.id,
+      startedAt: '2026-01-05T10:00:00.000Z',
+      durationMinutes: 20,
+      distanceKm: null,
+      caloriesBurned: null,
+      notes: '',
+    })
 
     expect(await dayHasLoggedData(day.id)).toBe(true)
-    await expect(deleteDay(day.id)).rejects.toThrow()
+    await deleteDay(day.id)
+
     expect(await db.training_days.get(day.id)).toMatchObject({
-      deletedAt: null,
+      deletedAt: expect.any(String),
     })
+    expect(await listSessionExercises(session.id)).toEqual([])
+    expect(await listExecutedSets(sessionExercise.id)).toEqual([])
+    expect(
+      (await db.training_sessions.get(session.id))?.deletedAt,
+    ).not.toBeNull()
+    expect(
+      (await db.training_executed_sets.get(executedSet.id))?.deletedAt,
+    ).not.toBeNull()
+    expect(await listCardioSessions(day.id)).toEqual([])
+    expect(
+      (await db.training_cardio_sessions.get(cardioSession.id))?.deletedAt,
+    ).not.toBeNull()
+  })
+})
+
+describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
+  it('cascades all the way down to planned exercises/sets of every day', async () => {
+    const macrocycle = await createMacrocycle({
+      name: 'Prep',
+      goal: 'Competencia',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-06-01T00:00:00.000Z',
+    })
+    const mesocycle = await createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: 'Bloque 1',
+      phaseType: 'accumulation',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-02-01T00:00:00.000Z',
+    })
+    const week = await createWeek(mesocycle.id)
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+    })
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const plannedExercise = await createPlannedExercise({
+      dayId: day.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    await createPlannedSet({
+      plannedExerciseId: plannedExercise.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180,
+    })
+
+    await deleteMacrocycle(macrocycle.id)
+
+    expect(await db.training_macrocycles.get(macrocycle.id)).toMatchObject({
+      deletedAt: expect.any(String),
+    })
+    expect(await listMesocycles(macrocycle.id)).toEqual([])
+    expect(await listWeeks(mesocycle.id)).toEqual([])
+    expect(await listDays(week.id)).toEqual([])
+    expect(await listPlannedExercises(day.id)).toEqual([])
+    expect(await listPlannedSets(plannedExercise.id)).toEqual([])
+  })
+
+  it('deleteWeek only removes its own days, not sibling weeks', async () => {
+    const mesocycle = await seedMesocycle()
+    const weekToDelete = await createWeek(mesocycle.id)
+    const weekToKeep = await createWeek(mesocycle.id)
+    const dayToDelete = await createDay({
+      weekId: weekToDelete.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'A',
+    })
+    const dayToKeep = await createDay({
+      weekId: weekToKeep.id,
+      date: '2026-01-12T00:00:00.000Z',
+      label: 'B',
+    })
+
+    await deleteWeek(weekToDelete.id)
+
+    expect(
+      (await db.training_days.get(dayToDelete.id))?.deletedAt,
+    ).not.toBeNull()
+    expect((await db.training_days.get(dayToKeep.id))?.deletedAt).toBeNull()
+    expect(await listWeeks(mesocycle.id)).toEqual([weekToKeep])
+  })
+
+  it('deleteMesocycle only removes its own weeks, not sibling mesocycles', async () => {
+    const macrocycle = await createMacrocycle({
+      name: 'Prep',
+      goal: 'Competencia',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-06-01T00:00:00.000Z',
+    })
+    const mesoToDelete = await createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: 'Bloque 1',
+      phaseType: 'accumulation',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-02-01T00:00:00.000Z',
+    })
+    const mesoToKeep = await createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: 'Bloque 2',
+      phaseType: 'intensification',
+      startDate: '2026-02-01T00:00:00.000Z',
+      endDate: '2026-03-01T00:00:00.000Z',
+    })
+
+    await deleteMesocycle(mesoToDelete.id)
+
+    const remaining = await listMesocycles(macrocycle.id)
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].id).toBe(mesoToKeep.id)
   })
 })

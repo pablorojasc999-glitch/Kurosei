@@ -5,6 +5,7 @@ import {
   addSessionExercise,
   createExecutedSet,
   deleteExecutedSet,
+  deleteSession,
   deleteSessionExercise,
   endSession,
   reopenSession,
@@ -14,6 +15,7 @@ import {
   listPlannedDaysWithExercises,
   listPlannedExercises,
 } from '../db/planningRepository'
+import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
@@ -282,15 +284,22 @@ export function SessionView({ dayId }: SessionViewProps) {
     <div>
       <div className="session-header">
         <span className="session-duration numeric">{formatDuration(elapsed)}</span>
-        {session.endedAt ? (
-          <button type="button" onClick={() => setConfirmingReopen(true)}>
-            Reabrir sesión
-          </button>
-        ) : (
-          <button type="button" onClick={() => endSession(session.id)}>
-            Finalizar sesión
-          </button>
-        )}
+        <div className="session-header-actions">
+          {session.endedAt ? (
+            <button type="button" onClick={() => setConfirmingReopen(true)}>
+              Reabrir sesión
+            </button>
+          ) : (
+            <button type="button" onClick={() => endSession(session.id)}>
+              Finalizar sesión
+            </button>
+          )}
+          <ConfirmDeleteButton
+            label="Eliminar sesión"
+            confirmMessage="¿Eliminar toda la sesión de hoy?"
+            onConfirm={() => deleteSession(session.id)}
+          />
+        </div>
       </div>
 
       {confirmingReopen && (
@@ -376,13 +385,11 @@ export function SessionView({ dayId }: SessionViewProps) {
               <div className="planned-exercise-header">
                 <strong>{exerciseName(se.exerciseId)}</strong>
                 {!session.endedAt && (
-                  <button
-                    type="button"
-                    className="btn-danger"
-                    onClick={() => deleteSessionExercise(se.id)}
-                  >
-                    Quitar
-                  </button>
+                  <ConfirmDeleteButton
+                    label="Quitar"
+                    confirmMessage="¿Quitar este ejercicio de la sesión?"
+                    onConfirm={() => deleteSessionExercise(se.id)}
+                  />
                 )}
               </div>
 
@@ -447,13 +454,12 @@ export function SessionView({ dayId }: SessionViewProps) {
                         {s.notes && ` · ${s.notes}`}
                       </span>
                       {!session.endedAt && (
-                        <button
-                          type="button"
-                          className="icon-button"
-                          onClick={() => deleteExecutedSet(s.id)}
-                        >
-                          ×
-                        </button>
+                        <ConfirmDeleteButton
+                          variant="icon"
+                          label="Eliminar serie"
+                          confirmMessage="¿Eliminar esta serie?"
+                          onConfirm={() => deleteExecutedSet(s.id)}
+                        />
                       )}
                     </li>
                   ))}

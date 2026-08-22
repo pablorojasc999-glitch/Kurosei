@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../../../shared/db/database'
 import { createCardioSession, deleteCardioSession } from '../db/cardioRepository'
+import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 
 function toDatetimeLocalValue(date: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0')
@@ -94,13 +95,7 @@ export function CardioView({ dayId }: CardioViewProps) {
                 {s.notes && ` · ${s.notes}`}
               </div>
             </div>
-            <button
-              type="button"
-              className="btn-danger"
-              onClick={() => deleteCardioSession(s.id)}
-            >
-              Eliminar
-            </button>
+            <ConfirmDeleteButton onConfirm={() => deleteCardioSession(s.id)} />
           </li>
         ))}
       </ul>

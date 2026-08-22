@@ -9,12 +9,16 @@ import {
   createPlannedSet,
   createWeek,
   deleteDay,
+  deleteMacrocycle,
+  deleteMesocycle,
   deletePlannedExercise,
   deletePlannedSet,
+  deleteWeek,
   duplicateWeek,
 } from '../db/planningRepository'
 import { parseDateInput } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
   Day,
   Mesocycle,
@@ -145,10 +149,6 @@ export function PeriodizationPage({
 
   const [dayDate, setDayDate] = useState('')
   const [dayLabel, setDayLabel] = useState('')
-  const [confirmingDeleteDayId, setConfirmingDeleteDayId] = useState<
-    string | null
-  >(null)
-  const [dayDeleteError, setDayDeleteError] = useState<string | null>(null)
 
   const [newExerciseId, setNewExerciseId] = useState('')
   const [newExerciseNotes, setNewExerciseNotes] = useState('')
@@ -212,16 +212,6 @@ export function PeriodizationPage({
     setDayDate('')
     setDayLabel('')
     setDayId(d.id)
-  }
-
-  async function handleConfirmDeleteDay(id: string) {
-    setDayDeleteError(null)
-    try {
-      await deleteDay(id)
-    } catch (err) {
-      setDayDeleteError(err instanceof Error ? err.message : 'Error desconocido')
-    }
-    setConfirmingDeleteDayId(null)
   }
 
   async function handleAddPlannedExercise(e: React.FormEvent) {
@@ -295,10 +285,14 @@ export function PeriodizationPage({
           <h2>Macrociclos</h2>
           <ul className="entity-list">
             {macrocycles?.map((m) => (
-              <li key={m.id}>
+              <li key={m.id} className="list-row">
                 <button type="button" onClick={() => setMacrocycleId(m.id)}>
                   {m.name} — {formatDate(m.startDate)} a {formatDate(m.endDate)}
                 </button>
+                <ConfirmDeleteButton
+                  confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
+                  onConfirm={() => deleteMacrocycle(m.id)}
+                />
               </li>
             ))}
           </ul>
@@ -323,10 +317,14 @@ export function PeriodizationPage({
           <h2>Mesociclos de {selectedMacrocycle?.name}</h2>
           <ul className="entity-list">
             {mesocycles?.map((m) => (
-              <li key={m.id}>
+              <li key={m.id} className="list-row">
                 <button type="button" onClick={() => setMesocycleId(m.id)}>
                   {m.name} ({PHASE_LABELS[m.phaseType]}) — {formatDate(m.startDate)} a {formatDate(m.endDate)}
                 </button>
+                <ConfirmDeleteButton
+                  confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
+                  onConfirm={() => deleteMesocycle(m.id)}
+                />
               </li>
             ))}
           </ul>
@@ -355,13 +353,21 @@ export function PeriodizationPage({
           <h2>Semanas de {selectedMesocycle?.name}</h2>
           <ul className="entity-list">
             {weeks?.map((w) => (
-              <li key={w.id} className="week-row">
+              <li key={w.id} className="list-row">
                 <button type="button" onClick={() => setWeekId(w.id)}>
                   Semana {w.order + 1}
                 </button>
-                <button type="button" onClick={() => handleDuplicateWeek(w.id)}>
+                <button
+                  type="button"
+                  className="list-row-secondary"
+                  onClick={() => handleDuplicateWeek(w.id)}
+                >
                   Duplicar como punto de partida
                 </button>
+                <ConfirmDeleteButton
+                  confirmMessage={`¿Eliminar la Semana ${w.order + 1}? Se borra todo lo planificado y registrado dentro.`}
+                  onConfirm={() => deleteWeek(w.id)}
+                />
               </li>
             ))}
           </ul>
@@ -372,43 +378,18 @@ export function PeriodizationPage({
       {weekId && !dayId && (
         <section>
           <h2>Días de la semana {selectedWeek ? selectedWeek.order + 1 : ''}</h2>
-          {dayDeleteError && <p className="error">{dayDeleteError}</p>}
           <ul className="entity-list">
-            {days?.map((d) =>
-              confirmingDeleteDayId === d.id ? (
-                <li key={d.id}>
-                  <div className="confirm-inline">
-                    <span>¿Eliminar este día del plan?</span>
-                    <button
-                      type="button"
-                      className="btn-danger"
-                      onClick={() => handleConfirmDeleteDay(d.id)}
-                    >
-                      Sí, eliminar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingDeleteDayId(null)}
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </li>
-              ) : (
-                <li key={d.id} className="day-row">
-                  <button type="button" onClick={() => setDayId(d.id)}>
-                    {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-danger"
-                    onClick={() => setConfirmingDeleteDayId(d.id)}
-                  >
-                    Eliminar
-                  </button>
-                </li>
-              ),
-            )}
+            {days?.map((d) => (
+              <li key={d.id} className="list-row">
+                <button type="button" onClick={() => setDayId(d.id)}>
+                  {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
+                </button>
+                <ConfirmDeleteButton
+                  confirmMessage="¿Eliminar este día? Si tenía una sesión o cardio registrado, también se elimina."
+                  onConfirm={() => deleteDay(d.id)}
+                />
+              </li>
+            ))}
           </ul>
           <form onSubmit={handleCreateDay} className="entity-form">
             <label>
@@ -433,7 +414,11 @@ export function PeriodizationPage({
                   <div className="planned-exercise-header">
                     <strong>{exerciseName(pe.exerciseId)}</strong>
                     {pe.notes && <span className="notes"> — {pe.notes}</span>}
-                    <button type="button" className="btn-danger" onClick={() => deletePlannedExercise(pe.id)}>Quitar</button>
+                    <ConfirmDeleteButton
+                      label="Quitar"
+                      confirmMessage="¿Quitar este ejercicio del plan?"
+                      onConfirm={() => deletePlannedExercise(pe.id)}
+                    />
                   </div>
                   <ul className="sets-list">
                     {sets.map((s) => (
@@ -445,7 +430,12 @@ export function PeriodizationPage({
                           {s.restSecondsTarget !== null &&
                             ` · ${formatRestMinutes(s.restSecondsTarget)}`}
                         </span>
-                        <button type="button" className="icon-button" onClick={() => deletePlannedSet(s.id)}>×</button>
+                        <ConfirmDeleteButton
+                          variant="icon"
+                          label="Eliminar serie planificada"
+                          confirmMessage="¿Eliminar esta serie planificada?"
+                          onConfirm={() => deletePlannedSet(s.id)}
+                        />
                       </li>
                     ))}
                   </ul>
