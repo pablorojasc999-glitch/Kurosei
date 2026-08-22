@@ -128,7 +128,7 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
   return (
     <div className="session-summary">
       <h3>Resumen de la sesión</h3>
-      <p className="summary-tonnage">{Math.round(thisTonnage)} kg de tonelaje</p>
+      <p className="summary-tonnage numeric">{Math.round(thisTonnage)} kg de tonelaje</p>
       {isSessionVolumePR && <span className="pr-badge">🏆 PR de volumen de sesión</span>}
 
       {volumeByGroup.size > 0 && (

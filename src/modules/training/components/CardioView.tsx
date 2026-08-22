@@ -98,7 +98,11 @@ export function CardioView({ dayId }: CardioViewProps) {
                 {s.notes && ` · ${s.notes}`}
               </div>
             </div>
-            <button type="button" onClick={() => deleteCardioSession(s.id)}>
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => deleteCardioSession(s.id)}
+            >
               Eliminar
             </button>
           </li>

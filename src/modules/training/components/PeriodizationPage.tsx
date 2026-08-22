@@ -14,6 +14,7 @@ import {
 } from '../db/planningRepository'
 import { CardioView } from './CardioView'
 import { SessionView } from './SessionView'
+import { formatDate, formatRestMinutes } from '../lib/format'
 import type {
   Day,
   Mesocycle,
@@ -30,22 +31,15 @@ const PHASE_LABELS: Record<PhaseType, string> = {
   custom: 'Personalizado',
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso)
-  return d.toLocaleDateString('es-AR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
-
 interface PeriodizationPageProps {
   jumpToDayId?: string | null
+  jumpToView?: 'plan' | 'session'
   onJumpHandled?: () => void
 }
 
 export function PeriodizationPage({
   jumpToDayId,
+  jumpToView = 'session',
   onJumpHandled,
 }: PeriodizationPageProps) {
   const [macrocycleId, setMacrocycleId] = useState<string | null>(null)
@@ -69,14 +63,14 @@ export function PeriodizationPage({
       setMesocycleId(week?.mesocycleId ?? null)
       setWeekId(day.weekId)
       setDayId(day.id)
-      setDayView('session')
+      setDayView(jumpToView)
       onJumpHandled?.()
     }
     resolveAndJump()
     return () => {
       cancelled = true
     }
-  }, [jumpToDayId, onJumpHandled])
+  }, [jumpToDayId, jumpToView, onJumpHandled])
 
   const macrocycles = useLiveQuery(
     () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
@@ -240,7 +234,7 @@ export function PeriodizationPage({
       targetWeightKg: form.weight ? Number(form.weight) : null,
       targetReps: Number(form.reps),
       targetRpe: form.rpe ? Number(form.rpe) : null,
-      restSecondsTarget: form.rest ? Number(form.rest) : null,
+      restSecondsTarget: form.rest ? Math.round(Number(form.rest) * 60) : null,
     })
     setSetForms((prev) => ({
       ...prev,
@@ -301,8 +295,14 @@ export function PeriodizationPage({
           <form onSubmit={handleCreateMacrocycle} className="entity-form">
             <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
             <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
-            <input type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
-            <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
+            <label>
+              Fecha de inicio
+              <input type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
+            </label>
+            <label>
+              Fecha de fin
+              <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
+            </label>
             <button type="submit">Crear macrociclo</button>
           </form>
         </section>
@@ -327,8 +327,14 @@ export function PeriodizationPage({
                 <option key={key} value={key}>{label}</option>
               ))}
             </select>
-            <input type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
-            <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
+            <label>
+              Fecha de inicio
+              <input type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
+            </label>
+            <label>
+              Fecha de fin
+              <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
+            </label>
             <button type="submit">Crear mesociclo</button>
           </form>
         </section>
@@ -366,7 +372,10 @@ export function PeriodizationPage({
             ))}
           </ul>
           <form onSubmit={handleCreateDay} className="entity-form">
-            <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
+            <label>
+              Fecha
+              <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
+            </label>
             <input value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
             <button type="submit">Agregar día</button>
           </form>
@@ -416,7 +425,7 @@ export function PeriodizationPage({
                   <div className="planned-exercise-header">
                     <strong>{exerciseName(pe.exerciseId)}</strong>
                     {pe.notes && <span className="notes"> — {pe.notes}</span>}
-                    <button type="button" onClick={() => deletePlannedExercise(pe.id)}>Quitar</button>
+                    <button type="button" className="btn-danger" onClick={() => deletePlannedExercise(pe.id)}>Quitar</button>
                   </div>
                   <ul className="sets-list">
                     {sets.map((s) => (
@@ -425,7 +434,8 @@ export function PeriodizationPage({
                         <span className="set-summary">
                           {s.targetWeightKg ?? '-'} kg × {s.targetReps}
                           {s.targetRpe !== null && ` · RPE ${s.targetRpe}`}
-                          {s.restSecondsTarget !== null && ` · ${s.restSecondsTarget}s`}
+                          {s.restSecondsTarget !== null &&
+                            ` · ${formatRestMinutes(s.restSecondsTarget)}`}
                         </span>
                         <button type="button" className="icon-button" onClick={() => deletePlannedSet(s.id)}>×</button>
                       </li>
@@ -446,8 +456,8 @@ export function PeriodizationPage({
                       <input type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
                     </label>
                     <label>
-                      Descanso (s)
-                      <input type="number" inputMode="numeric" value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
+                      Descanso (min)
+                      <input type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
                     </label>
                     <button type="button" className="add-set-button" onClick={() => handleAddPlannedSet(pe.id)}>
                       + Agregar serie {sets.length + 1}

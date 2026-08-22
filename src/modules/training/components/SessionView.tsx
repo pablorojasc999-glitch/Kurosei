@@ -14,6 +14,7 @@ import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
 import { SessionSummary } from './SessionSummary'
+import { formatRestMinutes } from '../lib/format'
 import type { SessionExercise } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
@@ -131,6 +132,21 @@ export function SessionView({ dayId }: SessionViewProps) {
     setNewExerciseId('')
   }
 
+  const missingPlannedExercises = (plannedExercises ?? []).filter(
+    (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),
+  )
+
+  async function handleLoadPlan() {
+    if (!session) return
+    for (const pe of missingPlannedExercises) {
+      await addSessionExercise({
+        sessionId: session.id,
+        exerciseId: pe.exerciseId,
+        notes: pe.notes,
+      })
+    }
+  }
+
   async function handleAddSet(sessionExerciseId: string) {
     const form = setForms[sessionExerciseId] ?? EMPTY_SET_FORM
     if (!form.reps) return
@@ -180,7 +196,7 @@ export function SessionView({ dayId }: SessionViewProps) {
   return (
     <div>
       <div className="session-header">
-        <span className="session-duration">{formatDuration(elapsed)}</span>
+        <span className="session-duration numeric">{formatDuration(elapsed)}</span>
         {session.endedAt ? (
           <button type="button" onClick={() => reopenSession(session.id)}>
             Reabrir sesión
@@ -194,6 +210,13 @@ export function SessionView({ dayId }: SessionViewProps) {
 
       <SessionSummary sessionId={session.id} />
 
+      {!session.endedAt && missingPlannedExercises.length > 0 && (
+        <button type="button" className="load-plan-button" onClick={handleLoadPlan}>
+          Cargar {missingPlannedExercises.length} ejercicio
+          {missingPlannedExercises.length === 1 ? '' : 's'} del plan
+        </button>
+      )}
+
       <ul className="planned-exercise-list">
         {sessionExercises?.map((se) => {
           const sets =
@@ -202,15 +225,44 @@ export function SessionView({ dayId }: SessionViewProps) {
           const nextSetNumber = sets.length + 1
           const lastSet = sets.at(-1)
           const target = restTargetFor(se.exerciseId, se.id, nextSetNumber)
+          const plannedExercise = plannedExercises?.find(
+            (pe) => pe.exerciseId === se.exerciseId,
+          )
+          const targetSets = plannedExercise
+            ? plannedSets?.filter(
+                (ps) => ps.plannedExerciseId === plannedExercise.id,
+              )
+            : undefined
 
           return (
             <li key={se.id} className="planned-exercise-item">
               <div className="planned-exercise-header">
                 <strong>{exerciseName(se.exerciseId)}</strong>
-                <button type="button" onClick={() => deleteSessionExercise(se.id)}>
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={() => deleteSessionExercise(se.id)}
+                >
                   Quitar
                 </button>
               </div>
+
+              {targetSets && targetSets.length > 0 && (
+                <ul className="plan-target-list">
+                  <li className="plan-target-title">Objetivo</li>
+                  {targetSets.map((ps) => (
+                    <li key={ps.id} className="plan-target-row">
+                      <span className="set-number">{ps.setNumber}</span>
+                      <span>
+                        {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
+                        {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
+                        {ps.restSecondsTarget !== null &&
+                          ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
 
               <DeloadAlert exerciseId={se.exerciseId} />
 

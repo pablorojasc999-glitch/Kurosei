@@ -17,22 +17,25 @@
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
 }
 
 .tabs button {
   flex: 1;
-  padding: 8px;
+  padding: 8px 4px;
   border-radius: 10px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .tabs button.active {
   background: var(--accent-dark);
   color: var(--text);
   border-color: var(--accent-border);
+  box-shadow: var(--shadow-glow);
 }
 
 .page {
@@ -90,9 +93,10 @@ section {
 .exercise-form > button[type='submit'] {
   background: var(--accent-dark);
   border: 1px solid var(--accent-border);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-weight: 600;
+  box-shadow: var(--shadow-sm);
 }
 
 .contributions {
@@ -117,7 +121,11 @@ section {
 
 .error {
   color: var(--danger);
-  font-size: 14px;
+  background: var(--danger-bg);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  padding: 6px 10px;
 }
 
 .exercise-list {
@@ -136,8 +144,14 @@ section {
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.exercise-item strong {
+  color: var(--text);
+  font-size: 15px;
 }
 
 .tag {
@@ -152,10 +166,16 @@ section {
 .contribution-summary {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  font-size: 13px;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.contribution-chip {
+  font-size: 12px;
   color: var(--text-muted);
-  margin-top: 6px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 3px 10px;
 }
 
 /* --- periodization --- */
@@ -191,8 +211,9 @@ section {
   text-align: left;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .entity-list li button:active {
@@ -253,8 +274,9 @@ section {
 .planned-exercise-item {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-md);
   padding: 14px;
+  box-shadow: var(--shadow-sm);
 }
 
 .planned-exercise-header {
@@ -278,6 +300,17 @@ section {
   background: none;
   border: 1px solid var(--border);
   border-radius: 8px;
+}
+
+.btn-danger,
+.planned-exercise-header .btn-danger {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.btn-danger:hover {
+  border-color: var(--danger);
 }
 
 .sets-list {
@@ -458,8 +491,9 @@ section {
   gap: 8px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   padding: 12px;
+  box-shadow: var(--shadow-sm);
 }
 
 .cardio-summary {
@@ -471,11 +505,12 @@ section {
 /* --- session summary --- */
 
 .session-summary {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 12px;
+  background: linear-gradient(160deg, var(--surface-3), var(--surface));
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
   margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
 }
 
 .session-summary h3 {
@@ -563,6 +598,65 @@ section {
   margin-bottom: 10px;
 }
 
+.load-plan-button {
+  width: 100%;
+  background: var(--accent-bg);
+  border: 1px dashed var(--accent-border);
+  color: var(--accent);
+  border-radius: 10px;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.plan-target-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-target-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  margin-bottom: 2px;
+}
+
+.plan-target-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --- today --- */
+
+.today-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.today-date {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.today-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
 /* --- calendar --- */
 
 .calendar-nav {
@@ -579,9 +673,10 @@ section {
 }
 
 .calendar-month-label {
-  font-size: 15px;
-  font-weight: 600;
-  min-width: 140px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 150px;
   text-align: center;
 }
 
@@ -608,27 +703,40 @@ section {
   justify-content: center;
   gap: 2px;
   padding: 2px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: var(--surface);
   border: 1px solid transparent;
   min-height: 0;
+  color: var(--text);
 }
 
 .calendar-cell:disabled {
   background: transparent;
-  opacity: 0.4;
+  opacity: 0.35;
 }
 
 .calendar-cell--outside {
   opacity: 0.35;
 }
 
-.calendar-cell--today {
+.calendar-cell--trained {
+  background: var(--accent-bg);
   border-color: var(--accent-border);
 }
 
+.calendar-cell--planned {
+  border: 1px dashed var(--border);
+}
+
+.calendar-cell--today {
+  border-color: var(--accent);
+  box-shadow: var(--shadow-glow);
+}
+
 .calendar-cell-number {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 .calendar-cell-label {

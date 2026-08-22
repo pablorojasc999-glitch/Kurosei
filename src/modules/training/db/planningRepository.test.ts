@@ -9,6 +9,7 @@ import {
   createPlannedSet,
   createWeek,
   duplicateWeek,
+  findTodayOrNearestDay,
   listDays,
   listPlannedExercises,
   listPlannedSets,
@@ -109,5 +110,61 @@ describe('duplicateWeek', () => {
     // original week is untouched
     const originalSets = await listPlannedSets(plannedExercise.id)
     expect(originalSets).toHaveLength(1)
+  })
+})
+
+function daysFromNow(offset: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + offset)
+  return d.toISOString()
+}
+
+describe('findTodayOrNearestDay', () => {
+  it('returns null when no days exist', async () => {
+    expect(await findTodayOrNearestDay()).toBeNull()
+  })
+
+  it('prefers an exact match for today over other days', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    await createDay({ weekId: week.id, date: daysFromNow(-3), label: 'Pasado' })
+    const todayDay = await createDay({
+      weekId: week.id,
+      date: daysFromNow(0),
+      label: 'Hoy',
+    })
+    await createDay({ weekId: week.id, date: daysFromNow(3), label: 'Futuro' })
+
+    const result = await findTodayOrNearestDay()
+    expect(result?.id).toBe(todayDay.id)
+  })
+
+  it('falls back to the nearest upcoming day when none is today', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    await createDay({ weekId: week.id, date: daysFromNow(-3), label: 'Pasado' })
+    const nearFuture = await createDay({
+      weekId: week.id,
+      date: daysFromNow(2),
+      label: 'Cercano',
+    })
+    await createDay({ weekId: week.id, date: daysFromNow(5), label: 'Lejano' })
+
+    const result = await findTodayOrNearestDay()
+    expect(result?.id).toBe(nearFuture.id)
+  })
+
+  it('falls back to the most recent past day when nothing is upcoming', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    await createDay({ weekId: week.id, date: daysFromNow(-10), label: 'Muy pasado' })
+    const recentPast = await createDay({
+      weekId: week.id,
+      date: daysFromNow(-2),
+      label: 'Reciente',
+    })
+
+    const result = await findTodayOrNearestDay()
+    expect(result?.id).toBe(recentPast.id)
   })
 })

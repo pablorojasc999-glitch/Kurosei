@@ -76,7 +76,7 @@ export function RestTimer({
 
   return (
     <div className={`rest-timer${isDone ? ' rest-timer--done' : ''}`}>
-      <span className="rest-timer-clock">{formatClock(remaining)}</span>
+      <span className="rest-timer-clock numeric">{formatClock(remaining)}</span>
       <div className="rest-timer-controls">
         <button type="button" onClick={() => setRunning((r) => !r)}>
           {running ? 'Pausar' : 'Reanudar'}

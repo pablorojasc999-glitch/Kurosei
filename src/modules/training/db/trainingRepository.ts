@@ -18,7 +18,16 @@ export async function listMuscleGroups(): Promise<MuscleGroup[]> {
     .sortBy('name')
 }
 
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase()
+}
+
 export async function createMuscleGroup(name: string): Promise<MuscleGroup> {
+  const existing = await listMuscleGroups()
+  if (existing.some((g) => normalizeName(g.name) === normalizeName(name))) {
+    throw new Error(`Ya existe un grupo muscular llamado "${name}".`)
+  }
+
   const timestamp = nowIso()
   const muscleGroup: MuscleGroup = {
     id: generateId(),
@@ -65,6 +74,11 @@ export async function createExercise(
   )
   if (!validation.valid) {
     throw new Error(validation.error)
+  }
+
+  const existing = await listExercises()
+  if (existing.some((e) => normalizeName(e.name) === normalizeName(input.name))) {
+    throw new Error(`Ya existe un ejercicio llamado "${input.name}".`)
   }
 
   const timestamp = nowIso()

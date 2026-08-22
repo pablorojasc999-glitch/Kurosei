@@ -13,6 +13,12 @@ interface ContributionRow {
   percentage: number
 }
 
+const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
+  squat: 'Sentadilla',
+  bench: 'Banca',
+  deadlift: 'Peso muerto',
+}
+
 export function ExerciseLibraryPage() {
   const muscleGroups = useLiveQuery(
     () => db.training_muscle_groups.filter((g) => g.deletedAt === null).sortBy('name'),
@@ -37,12 +43,18 @@ export function ExerciseLibraryPage() {
     useState<ExerciseCategory | ''>('')
   const [rows, setRows] = useState<ContributionRow[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [groupError, setGroupError] = useState<string | null>(null)
 
   async function handleAddMuscleGroup(e: React.FormEvent) {
     e.preventDefault()
+    setGroupError(null)
     if (!newGroupName.trim()) return
-    await createMuscleGroup(newGroupName.trim())
-    setNewGroupName('')
+    try {
+      await createMuscleGroup(newGroupName.trim())
+      setNewGroupName('')
+    } catch (err) {
+      setGroupError(err instanceof Error ? err.message : 'Error desconocido')
+    }
   }
 
   function addRow() {
@@ -100,6 +112,7 @@ export function ExerciseLibraryPage() {
           />
           <button type="submit">Agregar</button>
         </form>
+        {groupError && <p className="error">{groupError}</p>}
         <ul className="chip-list">
           {muscleGroups?.map((g) => (
             <li key={g.id} className="chip">
@@ -204,19 +217,27 @@ export function ExerciseLibraryPage() {
             <li key={ex.id} className="exercise-item">
               <div>
                 <strong>{ex.name}</strong>{' '}
-                <span className="tag">{ex.type}</span>
-                {ex.category && <span className="tag">{ex.category}</span>}
+                <span className="tag">
+                  {ex.type === 'strength' ? 'Fuerza' : 'Cardio'}
+                </span>
+                {ex.category && (
+                  <span className="tag">{CATEGORY_LABELS[ex.category]}</span>
+                )}
                 <div className="contribution-summary">
                   {contributions
                     ?.filter((c) => c.exerciseId === ex.id)
                     .map((c) => (
-                      <span key={c.id}>
-                        {muscleGroupName(c.muscleGroupId)}: {c.percentage}%
+                      <span key={c.id} className="contribution-chip">
+                        {muscleGroupName(c.muscleGroupId)} {c.percentage}%
                       </span>
                     ))}
                 </div>
               </div>
-              <button type="button" onClick={() => softDeleteExercise(ex.id)}>
+              <button
+                type="button"
+                className="btn-danger"
+                onClick={() => softDeleteExercise(ex.id)}
+              >
                 Eliminar
               </button>
             </li>

@@ -96,10 +96,18 @@ export function CalendarPage({ onOpenDay }: CalendarPageProps) {
               key={dateKey}
               type="button"
               disabled={!day}
-              className={`calendar-cell${isCurrentMonth ? '' : ' calendar-cell--outside'}${isToday ? ' calendar-cell--today' : ''}`}
+              className={[
+                'calendar-cell',
+                !isCurrentMonth && 'calendar-cell--outside',
+                isToday && 'calendar-cell--today',
+                isTrained && 'calendar-cell--trained',
+                day && !isTrained && !hasCardio && 'calendar-cell--planned',
+              ]
+                .filter(Boolean)
+                .join(' ')}
               onClick={() => day && onOpenDay(day.id)}
             >
-              <span className="calendar-cell-number">{date.getDate()}</span>
+              <span className="calendar-cell-number numeric">{date.getDate()}</span>
               {day?.label && isCurrentMonth && (
                 <span className="calendar-cell-label">{day.label}</span>
               )}
