@@ -14,6 +14,12 @@
   --danger: #f87171;
   --danger-bg: rgba(248, 113, 113, 0.1);
 
+  /* Secondary/tertiary series colors for multi-line charts (Progreso) —
+     validated for CVD-safe separation against --accent (ΔE > 15, see
+     dataviz skill's validate_palette.js). */
+  --chart-secondary: #38bdf8;
+  --chart-tertiary: #fb7185;
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.35), 0 8px 20px rgba(0, 0, 0, 0.3);
   --shadow-glow: 0 0 0 1px var(--accent-border), 0 4px 16px rgba(139, 92, 246, 0.25);

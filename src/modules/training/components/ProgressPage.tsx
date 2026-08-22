@@ -2,6 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../../../shared/db/database'
 import { BodyMap } from './BodyMap'
+import { LineChart } from './LineChart'
+import type { ChartSeries } from './LineChart'
+import { listDailyMetricsInRange } from '../db/bitacoraQueries'
+import { getProfile } from '../db/bitacoraRepository'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
 import {
   listMacrocycles,
@@ -10,7 +14,8 @@ import {
 } from '../db/planningRepository'
 import { matchBodyRegion } from '../lib/bodyMap'
 import type { BodyRegionKey } from '../lib/bodyMap'
-import { toDateKey } from '../lib/calendarGrid'
+import { parseDateInput, toDateKey } from '../lib/calendarGrid'
+import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate } from '../lib/format'
 import { buildE1rmTrend, muscleGroupStressIndex, muscleGroupVolume } from '../lib/metrics'
@@ -21,6 +26,7 @@ import {
   classifyStressLevel,
   STRESS_LEVEL_LABELS,
 } from '../lib/stressIndex'
+import type { Sex } from '../domain/types'
 
 const SCOPE_KIND_LABELS: Record<ScopeKind, string> = {
   macro: 'Macrociclo',
@@ -71,6 +77,7 @@ export function ProgressPage() {
   const macrocycles = useLiveQuery(() => listMacrocycles(), [])
   const mesocycles = useLiveQuery(() => listMesocyclesWithContext(), [])
   const weeks = useLiveQuery(() => listWeeksWithContext(), [])
+  const profile = useLiveQuery(() => getProfile(), [])
 
   const [selectedExerciseId, setSelectedExerciseId] = useState('')
   const [scopeKind, setScopeKind] = useState<ScopeKind>('week')
@@ -80,6 +87,45 @@ export function ProgressPage() {
   const [scopeDay, setScopeDay] = useState('')
   const [now] = useState(() => Date.now())
 
+  const nowIso = new Date(now).toISOString()
+  const todayKey = toDateKey(new Date(now))
+
+  const activeMacroId = macrocycles?.some((m) => m.id === scopeMacroId)
+    ? scopeMacroId
+    : defaultCurrentOrPastId(macrocycles ?? [], nowIso)
+  const activeMesoId = mesocycles?.some((m) => m.id === scopeMesoId)
+    ? scopeMesoId
+    : defaultCurrentOrPastId(mesocycles ?? [], nowIso)
+  const currentOrPastWeeks = (weeks ?? []).filter(
+    (w) => w.dayDates.length > 0 && w.dayDates[0] <= nowIso,
+  )
+  const defaultWeekId =
+    currentOrPastWeeks[currentOrPastWeeks.length - 1]?.id ?? weeks?.[0]?.id ?? ''
+  const activeWeekId = weeks?.some((w) => w.id === scopeWeekId) ? scopeWeekId : defaultWeekId
+  const activeDay = scopeDay || todayKey
+
+  let activeRange: DateRange | null = null
+  if (scopeKind === 'macro') {
+    const macro = macrocycles?.find((m) => m.id === activeMacroId)
+    activeRange = macro ? inclusiveRange(macro.startDate, macro.endDate) : null
+  } else if (scopeKind === 'meso') {
+    const meso = mesocycles?.find((m) => m.id === activeMesoId)
+    activeRange = meso ? inclusiveRange(meso.startDate, meso.endDate) : null
+  } else if (scopeKind === 'week') {
+    const week = weeks?.find((w) => w.id === activeWeekId)
+    activeRange =
+      week && week.dayDates.length > 0
+        ? inclusiveRange(week.dayDates[0], week.dayDates[week.dayDates.length - 1])
+        : null
+  } else {
+    activeRange = dayRange(activeDay)
+  }
+
+  const dailyMetrics = useLiveQuery(
+    () => (activeRange ? listDailyMetricsInRange(activeRange) : Promise.resolve([])),
+    [activeRange?.start, activeRange?.end],
+  )
+
   if (
     !setsWithContext ||
     !exercises ||
@@ -87,27 +133,12 @@ export function ProgressPage() {
     !contributions ||
     !macrocycles ||
     !mesocycles ||
-    !weeks
+    !weeks ||
+    !dailyMetrics ||
+    profile === undefined
   ) {
     return null
   }
-
-  const nowIso = new Date(now).toISOString()
-  const todayKey = toDateKey(new Date(now))
-
-  const activeMacroId = macrocycles.some((m) => m.id === scopeMacroId)
-    ? scopeMacroId
-    : defaultCurrentOrPastId(macrocycles, nowIso)
-  const activeMesoId = mesocycles.some((m) => m.id === scopeMesoId)
-    ? scopeMesoId
-    : defaultCurrentOrPastId(mesocycles, nowIso)
-  const currentOrPastWeeks = weeks.filter(
-    (w) => w.dayDates.length > 0 && w.dayDates[0] <= nowIso,
-  )
-  const defaultWeekId =
-    currentOrPastWeeks[currentOrPastWeeks.length - 1]?.id ?? weeks[0]?.id ?? ''
-  const activeWeekId = weeks.some((w) => w.id === scopeWeekId) ? scopeWeekId : defaultWeekId
-  const activeDay = scopeDay || todayKey
 
   function exerciseName(id: string): string {
     return exercises?.find((e) => e.id === id)?.name ?? '?'
@@ -139,23 +170,6 @@ export function ProgressPage() {
         </p>
       </div>
     )
-  }
-
-  let activeRange: DateRange | null = null
-  if (scopeKind === 'macro') {
-    const macro = macrocycles.find((m) => m.id === activeMacroId)
-    activeRange = macro ? inclusiveRange(macro.startDate, macro.endDate) : null
-  } else if (scopeKind === 'meso') {
-    const meso = mesocycles.find((m) => m.id === activeMesoId)
-    activeRange = meso ? inclusiveRange(meso.startDate, meso.endDate) : null
-  } else if (scopeKind === 'week') {
-    const week = weeks.find((w) => w.id === activeWeekId)
-    activeRange =
-      week && week.dayDates.length > 0
-        ? inclusiveRange(week.dayDates[0], week.dayDates[week.dayDates.length - 1])
-        : null
-  } else {
-    activeRange = dayRange(activeDay)
   }
 
   const scopedSets = activeRange
@@ -217,6 +231,99 @@ export function ProgressPage() {
       .filter((s) => s.exerciseId === trendExerciseId)
       .map((s) => ({ date: s.performedAt, e1rm: s.e1rm })),
   )
+  const e1rmSeries: ChartSeries[] = [
+    {
+      label: exerciseName(trendExerciseId),
+      color: 'var(--accent)',
+      points: trendPoints.map((p) => ({ date: toDateKey(new Date(p.date)), value: p.e1rm })),
+    },
+  ]
+
+  const domainDates = dailyMetrics.map((m) => m.date)
+  const trainingDayDates = new Set(
+    dailyMetrics.filter((m) => m.hadStrengthSession).map((m) => m.date),
+  )
+
+  const bodyWeightSeries: ChartSeries[] = [
+    {
+      label: 'Peso',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.bodyWeightKg })),
+    },
+  ]
+
+  const profileComplete =
+    profile?.heightCm != null && profile?.birthDate != null && profile?.sex != null
+  const expenditureSeries: ChartSeries[] = [
+    {
+      label: 'Calorías consumidas',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.calories })),
+    },
+    {
+      label: 'Gasto estimado',
+      color: 'var(--chart-secondary)',
+      points: dailyMetrics.map((m) => ({
+        date: m.date,
+        value:
+          profileComplete && m.bodyWeightKg !== null
+            ? estimateCalorieExpenditure({
+                heightCm: profile!.heightCm as number,
+                birthDate: profile!.birthDate as string,
+                sex: profile!.sex as Sex,
+                weightKg: m.bodyWeightKg,
+                targetDate: parseDateInput(m.date),
+                cardioCaloriesBurned: m.cardioCaloriesBurned,
+                strengthSessionDurationMinutes: m.strengthSessionDurationMinutes,
+              })
+            : null,
+      })),
+    },
+  ]
+
+  const macroSeries: ChartSeries[] = [
+    {
+      label: 'Carbohidratos',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.carbsG })),
+    },
+    {
+      label: 'Proteína',
+      color: 'var(--chart-secondary)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.proteinG })),
+    },
+    {
+      label: 'Grasa',
+      color: 'var(--chart-tertiary)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.fatG })),
+    },
+  ]
+
+  const sleepSeries: ChartSeries[] = [
+    {
+      label: 'Sueño',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.sleepHours })),
+    },
+  ]
+
+  const wellbeingSeries: ChartSeries[] = [
+    {
+      label: 'Estrés',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.stress })),
+    },
+    {
+      label: 'Estimulantes',
+      color: 'var(--chart-secondary)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.stimulants })),
+    },
+    {
+      label: 'Fatiga',
+      color: 'var(--chart-tertiary)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.fatigue })),
+    },
+  ]
 
   return (
     <div className="page">
@@ -381,18 +488,63 @@ export function ProgressPage() {
             </option>
           ))}
         </select>
-        {trendPoints.length === 0 ? (
-          <p className="empty-hint">Sin historial para este ejercicio en este periodo.</p>
+        <LineChart domainDates={domainDates} series={e1rmSeries} unit=" e1RM" />
+      </section>
+
+      <section>
+        <h2>Peso corporal</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={bodyWeightSeries}
+          unit=" kg"
+          markedDates={trainingDayDates}
+        />
+      </section>
+
+      <section>
+        <h2>Balance calórico</h2>
+        {!profileComplete ? (
+          <p className="empty-hint">
+            Completa tu perfil en Registro (estatura, fecha de nacimiento y
+            sexo) para ver el gasto calórico estimado.
+          </p>
         ) : (
-          <ul className="trend-list">
-            {trendPoints.map((p, i) => (
-              <li key={i} className="trend-row">
-                <span>{formatDate(p.date)}</span>
-                <span className="numeric">{Math.round(p.e1rm)}</span>
-              </li>
-            ))}
-          </ul>
+          <LineChart
+            domainDates={domainDates}
+            series={expenditureSeries}
+            unit=" kcal"
+            markedDates={trainingDayDates}
+          />
         )}
+      </section>
+
+      <section>
+        <h2>Macronutrientes</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={macroSeries}
+          unit=" g"
+          markedDates={trainingDayDates}
+        />
+      </section>
+
+      <section>
+        <h2>Sueño</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={sleepSeries}
+          unit=" h"
+          markedDates={trainingDayDates}
+        />
+      </section>
+
+      <section>
+        <h2>Estrés, estimulantes y fatiga</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={wellbeingSeries}
+          markedDates={trainingDayDates}
+        />
       </section>
     </div>
   )
