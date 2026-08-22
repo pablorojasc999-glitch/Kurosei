@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from '../../../shared/db/database'
 import {
   createDay,
@@ -39,12 +39,44 @@ function formatDate(iso: string): string {
   })
 }
 
-export function PeriodizationPage() {
+interface PeriodizationPageProps {
+  jumpToDayId?: string | null
+  onJumpHandled?: () => void
+}
+
+export function PeriodizationPage({
+  jumpToDayId,
+  onJumpHandled,
+}: PeriodizationPageProps) {
   const [macrocycleId, setMacrocycleId] = useState<string | null>(null)
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
   const [dayId, setDayId] = useState<string | null>(null)
   const [dayView, setDayView] = useState<'plan' | 'session' | 'cardio'>('plan')
+
+  useEffect(() => {
+    if (!jumpToDayId) return
+    let cancelled = false
+    async function resolveAndJump() {
+      const day = await db.training_days.get(jumpToDayId as string)
+      if (!day || cancelled) return
+      const week = day.weekId ? await db.training_weeks.get(day.weekId) : null
+      const mesocycle = week
+        ? await db.training_mesocycles.get(week.mesocycleId)
+        : null
+      if (cancelled) return
+      setMacrocycleId(mesocycle?.macrocycleId ?? null)
+      setMesocycleId(week?.mesocycleId ?? null)
+      setWeekId(day.weekId)
+      setDayId(day.id)
+      setDayView('session')
+      onJumpHandled?.()
+    }
+    resolveAndJump()
+    return () => {
+      cancelled = true
+    }
+  }, [jumpToDayId, onJumpHandled])
 
   const macrocycles = useLiveQuery(
     () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),

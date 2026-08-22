@@ -10,7 +10,10 @@ import {
   reopenSession,
   startSession,
 } from '../db/executionRepository'
+import { DeloadAlert } from './DeloadAlert'
+import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
+import { SessionSummary } from './SessionSummary'
 import type { SessionExercise } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
@@ -189,6 +192,8 @@ export function SessionView({ dayId }: SessionViewProps) {
         )}
       </div>
 
+      <SessionSummary sessionId={session.id} />
+
       <ul className="planned-exercise-list">
         {sessionExercises?.map((se) => {
           const sets =
@@ -206,6 +211,8 @@ export function SessionView({ dayId }: SessionViewProps) {
                   Quitar
                 </button>
               </div>
+
+              <DeloadAlert exerciseId={se.exerciseId} />
 
               <ul className="sets-list">
                 {sets.map((s) => (
@@ -239,7 +246,12 @@ export function SessionView({ dayId }: SessionViewProps) {
               )}
 
               {!session.endedAt && (
-                <div className="set-form set-form--execution">
+                <>
+                  {form.reps && (
+                    <RepHistory exerciseId={se.exerciseId} reps={Number(form.reps)} />
+                  )}
+
+                  <div className="set-form set-form--execution">
                   <label>
                     Peso (kg)
                     <input
@@ -319,7 +331,8 @@ export function SessionView({ dayId }: SessionViewProps) {
                   >
                     + Registrar serie {nextSetNumber}
                   </button>
-                </div>
+                  </div>
+                </>
               )}
             </li>
           )

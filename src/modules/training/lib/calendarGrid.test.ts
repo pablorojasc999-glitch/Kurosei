@@ -1,0 +1,45 @@
+import { describe, expect, it } from 'vitest'
+import { addMonths, buildMonthGrid, startOfMonth, toDateKey } from './calendarGrid'
+
+describe('toDateKey', () => {
+  it('formats as zero-padded YYYY-MM-DD regardless of locale', () => {
+    expect(toDateKey(new Date(2026, 0, 5))).toBe('2026-01-05')
+    expect(toDateKey(new Date(2026, 11, 31))).toBe('2026-12-31')
+  })
+})
+
+describe('startOfMonth / addMonths', () => {
+  it('normalizes to the 1st of the month', () => {
+    expect(startOfMonth(new Date(2026, 7, 22)).getDate()).toBe(1)
+  })
+
+  it('shifts months and wraps across year boundaries', () => {
+    const dec2026 = startOfMonth(new Date(2026, 11, 1))
+    const jan2027 = addMonths(dec2026, 1)
+    expect(jan2027.getFullYear()).toBe(2027)
+    expect(jan2027.getMonth()).toBe(0)
+
+    const nov2026 = addMonths(dec2026, -1)
+    expect(nov2026.getFullYear()).toBe(2026)
+    expect(nov2026.getMonth()).toBe(10)
+  })
+})
+
+describe('buildMonthGrid', () => {
+  it('always returns 42 days (6 Monday-first weeks)', () => {
+    const grid = buildMonthGrid(startOfMonth(new Date(2026, 1, 1)))
+    expect(grid).toHaveLength(42)
+  })
+
+  it('starts on a Monday', () => {
+    const grid = buildMonthGrid(startOfMonth(new Date(2026, 7, 1)))
+    expect(grid[0].getDay()).toBe(1)
+  })
+
+  it('includes every day of the target month', () => {
+    const monthStart = startOfMonth(new Date(2026, 1, 1)) // Feb 2026, 28 days
+    const grid = buildMonthGrid(monthStart)
+    const daysInMonth = grid.filter((d) => d.getMonth() === 1)
+    expect(daysInMonth).toHaveLength(28)
+  })
+})

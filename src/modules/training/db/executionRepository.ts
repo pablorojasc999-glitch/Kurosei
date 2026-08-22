@@ -154,3 +154,30 @@ export async function createExecutedSet(
 export async function deleteExecutedSet(id: string): Promise<void> {
   await db.training_executed_sets.update(id, { deletedAt: nowIso() })
 }
+
+/**
+ * All-time history for an exercise at a specific rep count, across every
+ * session — e.g. "show me every set of bench press I've done for 3 reps".
+ */
+export async function listExecutedSetsForExerciseByReps(
+  exerciseId: string,
+  reps: number,
+): Promise<ExecutedSet[]> {
+  const sessionExerciseIds = await db.training_session_exercises
+    .where('exerciseId')
+    .equals(exerciseId)
+    .filter((se) => se.deletedAt === null)
+    .primaryKeys()
+
+  if (sessionExerciseIds.length === 0) return []
+
+  const sets = await db.training_executed_sets
+    .where('sessionExerciseId')
+    .anyOf(sessionExerciseIds)
+    .filter((s) => s.deletedAt === null && s.reps === reps)
+    .toArray()
+
+  return sets.sort(
+    (a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
+  )
+}
