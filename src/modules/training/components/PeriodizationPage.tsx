@@ -171,6 +171,10 @@ export function PeriodizationPage({
   >({})
   const [editingSetId, setEditingSetId] = useState<Record<string, string | null>>({})
 
+  const [showMacroForm, setShowMacroForm] = useState(false)
+  const [showMesoForm, setShowMesoForm] = useState(false)
+  const [showDayForm, setShowDayForm] = useState(false)
+
   async function handleCreateMacrocycle(e: React.FormEvent) {
     e.preventDefault()
     if (!macroName || !macroStart || !macroEnd) return
@@ -184,6 +188,7 @@ export function PeriodizationPage({
     setMacroGoal('')
     setMacroStart('')
     setMacroEnd('')
+    setShowMacroForm(false)
     setMacrocycleId(m.id)
   }
 
@@ -201,6 +206,7 @@ export function PeriodizationPage({
     setMesoPhase('accumulation')
     setMesoStart('')
     setMesoEnd('')
+    setShowMesoForm(false)
     setMesocycleId(m.id)
   }
 
@@ -229,6 +235,7 @@ export function PeriodizationPage({
     setDayDate('')
     setDayLabel('')
     setCopyFromDayId('')
+    setShowDayForm(false)
   }
 
   async function handleAddPlannedExercise(e: React.FormEvent) {
@@ -296,13 +303,13 @@ export function PeriodizationPage({
       <h1>Periodización</h1>
 
       <nav className="breadcrumb">
-        <button type="button" onClick={() => { setMacrocycleId(null); setMesocycleId(null); setWeekId(null); setDayId(null) }}>
+        <button type="button" onClick={() => { setMacrocycleId(null); setMesocycleId(null); setWeekId(null); setDayId(null); setShowMacroForm(false); setShowMesoForm(false); setShowDayForm(false) }}>
           Macrociclos
         </button>
         {selectedMacrocycle && (
           <>
             {' / '}
-            <button type="button" onClick={() => { setMesocycleId(null); setWeekId(null); setDayId(null) }}>
+            <button type="button" onClick={() => { setMesocycleId(null); setWeekId(null); setDayId(null); setShowMesoForm(false); setShowDayForm(false) }}>
               {selectedMacrocycle.name}
             </button>
           </>
@@ -310,7 +317,7 @@ export function PeriodizationPage({
         {selectedMesocycle && (
           <>
             {' / '}
-            <button type="button" onClick={() => { setWeekId(null); setDayId(null) }}>
+            <button type="button" onClick={() => { setWeekId(null); setDayId(null); setShowDayForm(false) }}>
               {selectedMesocycle.name}
             </button>
           </>
@@ -318,7 +325,7 @@ export function PeriodizationPage({
         {selectedWeek && (
           <>
             {' / '}
-            <button type="button" onClick={() => setDayId(null)}>
+            <button type="button" onClick={() => { setDayId(null); setShowDayForm(false) }}>
               Semana {selectedWeek.order + 1}
             </button>
           </>
@@ -341,19 +348,24 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          <form onSubmit={handleCreateMacrocycle} className="entity-form">
-            <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
-            <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
-            <label>
-              Fecha de inicio
-              <input type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
-            </label>
-            <label>
-              Fecha de fin
-              <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
-            </label>
-            <button type="submit">Crear macrociclo</button>
-          </form>
+          {showMacroForm ? (
+            <form onSubmit={handleCreateMacrocycle} className="entity-form">
+              <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
+              <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
+              <label>
+                Fecha de inicio
+                <input type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
+              </label>
+              <label>
+                Fecha de fin
+                <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
+              </label>
+              <button type="submit">Crear macrociclo</button>
+              <button type="button" onClick={() => setShowMacroForm(false)}>Cancelar</button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setShowMacroForm(true)}>+ Agregar macrociclo</button>
+          )}
         </section>
       )}
 
@@ -373,23 +385,28 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          <form onSubmit={handleCreateMesocycle} className="entity-form">
-            <input value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
-            <select value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
-              {Object.entries(PHASE_LABELS).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
-            </select>
-            <label>
-              Fecha de inicio
-              <input type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
-            </label>
-            <label>
-              Fecha de fin
-              <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
-            </label>
-            <button type="submit">Crear mesociclo</button>
-          </form>
+          {showMesoForm ? (
+            <form onSubmit={handleCreateMesocycle} className="entity-form">
+              <input value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
+              <select value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
+                {Object.entries(PHASE_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <label>
+                Fecha de inicio
+                <input type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
+              </label>
+              <label>
+                Fecha de fin
+                <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
+              </label>
+              <button type="submit">Crear mesociclo</button>
+              <button type="button" onClick={() => setShowMesoForm(false)}>Cancelar</button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setShowMesoForm(true)}>+ Agregar mesociclo</button>
+          )}
         </section>
       )}
 
@@ -436,31 +453,36 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          <form onSubmit={handleCreateDay} className="entity-form">
-            <label>
-              Fecha
-              <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
-            </label>
-            <input value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
-            {plannedDayOptions && plannedDayOptions.length > 0 && (
+          {showDayForm ? (
+            <form onSubmit={handleCreateDay} className="entity-form">
               <label>
-                Copiar plan de un día ya planificado (opcional)
-                <select
-                  value={copyFromDayId}
-                  onChange={(e) => setCopyFromDayId(e.target.value)}
-                >
-                  <option value="">No copiar</option>
-                  {plannedDayOptions.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
-                      {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
-                    </option>
-                  ))}
-                </select>
+                Fecha
+                <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
               </label>
-            )}
-            <button type="submit">Agregar día</button>
-          </form>
+              <input value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
+              {plannedDayOptions && plannedDayOptions.length > 0 && (
+                <label>
+                  Copiar plan de un día ya planificado (opcional)
+                  <select
+                    value={copyFromDayId}
+                    onChange={(e) => setCopyFromDayId(e.target.value)}
+                  >
+                    <option value="">No copiar</option>
+                    {plannedDayOptions.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
+                        {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button type="submit">Agregar día</button>
+              <button type="button" onClick={() => setShowDayForm(false)}>Cancelar</button>
+            </form>
+          ) : (
+            <button type="button" onClick={() => setShowDayForm(true)}>+ Agregar día</button>
+          )}
         </section>
       )}
 
