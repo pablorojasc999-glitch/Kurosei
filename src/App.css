@@ -889,11 +889,17 @@ section {
 /* --- registro --- */
 
 .day-nav {
+  position: sticky;
+  top: calc(55px + env(safe-area-inset-top));
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin: 0 -16px 16px;
+  padding: 8px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
 }
 
 .day-nav button {
