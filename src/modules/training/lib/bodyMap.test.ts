@@ -14,6 +14,9 @@ describe('matchBodyRegion', () => {
     expect(matchBodyRegion('Isquios')).toBe('isquios')
     expect(matchBodyRegion('Gemelo')).toBe('gemelo')
     expect(matchBodyRegion('Antebrazos')).toBe('antebrazos')
+    expect(matchBodyRegion('Lumbar')).toBe('lumbar')
+    expect(matchBodyRegion('Cadera')).toBe('cadera')
+    expect(matchBodyRegion('Aductores')).toBe('aductores')
   })
 
   it('is accent- and case-insensitive', () => {
@@ -26,6 +29,9 @@ describe('matchBodyRegion', () => {
     expect(matchBodyRegion('Chest')).toBe('pecho')
     expect(matchBodyRegion('Hamstrings')).toBe('isquios')
     expect(matchBodyRegion('Calves')).toBe('gemelo')
+    expect(matchBodyRegion('Hips')).toBe('cadera')
+    expect(matchBodyRegion('Adductors')).toBe('aductores')
+    expect(matchBodyRegion('Lower back')).toBe('lumbar')
   })
 
   it('returns null for an unrecognized name', () => {

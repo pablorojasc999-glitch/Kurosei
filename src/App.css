@@ -210,6 +210,12 @@ section {
   padding-top: 12px;
 }
 
+.contributions-hint {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
 .contribution-row {
   display: flex;
   gap: 8px;

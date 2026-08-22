@@ -1,11 +1,14 @@
 export type BodyRegionKey =
   | 'pecho'
   | 'espalda'
+  | 'lumbar'
   | 'triceps'
   | 'biceps'
   | 'hombro'
   | 'abdomen'
+  | 'cadera'
   | 'cuadriceps'
+  | 'aductores'
   | 'gluteos'
   | 'isquios'
   | 'gemelo'
@@ -14,11 +17,14 @@ export type BodyRegionKey =
 export const BODY_REGION_LABELS: Record<BodyRegionKey, string> = {
   pecho: 'Pecho',
   espalda: 'Espalda',
+  lumbar: 'Lumbar',
   triceps: 'Tríceps',
   biceps: 'Bíceps',
   hombro: 'Hombro',
   abdomen: 'Abdomen',
+  cadera: 'Cadera',
   cuadriceps: 'Cuádriceps',
+  aductores: 'Aductores',
   gluteos: 'Glúteos',
   isquios: 'Isquios',
   gemelo: 'Gemelo',
@@ -31,6 +37,10 @@ const REGION_ALIASES: Record<string, BodyRegionKey> = {
   espalda: 'espalda',
   back: 'espalda',
   dorsales: 'espalda',
+  lumbar: 'lumbar',
+  'zona lumbar': 'lumbar',
+  'espalda baja': 'lumbar',
+  'lower back': 'lumbar',
   triceps: 'triceps',
   biceps: 'biceps',
   hombro: 'hombro',
@@ -42,10 +52,18 @@ const REGION_ALIASES: Record<string, BodyRegionKey> = {
   abdomen: 'abdomen',
   abdominales: 'abdomen',
   core: 'abdomen',
+  cadera: 'cadera',
+  caderas: 'cadera',
+  hip: 'cadera',
+  hips: 'cadera',
   cuadriceps: 'cuadriceps',
   quad: 'cuadriceps',
   quads: 'cuadriceps',
   quadriceps: 'cuadriceps',
+  aductores: 'aductores',
+  aductor: 'aductores',
+  adductors: 'aductores',
+  adductor: 'aductores',
   gluteos: 'gluteos',
   gluteo: 'gluteos',
   glutes: 'gluteos',

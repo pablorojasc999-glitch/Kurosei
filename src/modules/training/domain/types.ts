@@ -22,7 +22,7 @@ export interface Exercise extends SyncedEntity {
 export interface ExerciseMuscleContribution extends SyncedEntity {
   exerciseId: string
   muscleGroupId: string
-  percentage: number
+  factor: number
 }
 
 export type PhaseType =

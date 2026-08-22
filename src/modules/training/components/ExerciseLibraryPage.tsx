@@ -37,15 +37,15 @@ export function ExerciseLibraryPage() {
   const [exerciseType, setExerciseType] = useState<ExerciseType>('strength')
   const [exerciseCategory, setExerciseCategory] =
     useState<ExerciseCategory | ''>('')
-  const [percentages, setPercentages] = useState<Record<string, string>>({})
+  const [factors, setFactors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     ensureCanonicalMuscleGroups().then(setCanonicalGroups)
   }, [])
 
-  function updatePercentage(muscleGroupId: string, value: string) {
-    setPercentages((prev) => ({ ...prev, [muscleGroupId]: value }))
+  function updateFactor(muscleGroupId: string, value: string) {
+    setFactors((prev) => ({ ...prev, [muscleGroupId]: value }))
   }
 
   async function handleAddExercise(e: React.FormEvent) {
@@ -55,9 +55,9 @@ export function ExerciseLibraryPage() {
       const muscleContributions = canonicalGroups
         .map((g) => ({
           muscleGroupId: g.id,
-          percentage: Number(percentages[g.id]) || 0,
+          factor: Number(factors[g.id]) || 0,
         }))
-        .filter((c) => c.percentage > 0)
+        .filter((c) => c.factor > 0)
 
       await createExercise({
         name: exerciseName.trim(),
@@ -68,7 +68,7 @@ export function ExerciseLibraryPage() {
       setExerciseName('')
       setExerciseType('strength')
       setExerciseCategory('')
-      setPercentages({})
+      setFactors({})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido')
     }
@@ -124,19 +124,22 @@ export function ExerciseLibraryPage() {
 
           {exerciseType === 'strength' && (
             <div className="contributions">
-              <h3>% de contribución por grupo muscular</h3>
+              <h3>Factor de contribución por grupo muscular</h3>
+              <p className="contributions-hint">
+                Ej. sentadilla: cuádriceps 1, glúteos 1, isquios 0.5. Dejá en
+                0 los grupos que no participan.
+              </p>
               {canonicalGroups.map((g) => (
                 <div key={g.id} className="contribution-row">
                   <span className="contribution-row-label">{g.name}</span>
                   <input
                     type="number"
                     min={0}
-                    max={100}
-                    value={percentages[g.id] ?? ''}
-                    onChange={(e) => updatePercentage(g.id, e.target.value)}
+                    step={0.25}
+                    value={factors[g.id] ?? ''}
+                    onChange={(e) => updateFactor(g.id, e.target.value)}
                     placeholder="0"
                   />
-                  <span>%</span>
                 </div>
               ))}
             </div>
@@ -166,7 +169,7 @@ export function ExerciseLibraryPage() {
                     ?.filter((c) => c.exerciseId === ex.id)
                     .map((c) => (
                       <span key={c.id} className="contribution-chip">
-                        {muscleGroupName(c.muscleGroupId)} {c.percentage}%
+                        {muscleGroupName(c.muscleGroupId)} ×{c.factor}
                       </span>
                     ))}
                 </div>

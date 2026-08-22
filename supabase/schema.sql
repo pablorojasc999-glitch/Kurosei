@@ -52,7 +52,7 @@ create table if not exists "training_exercise_muscle_contributions" (
   "userId" uuid not null references auth.users(id) on delete cascade,
   "exerciseId" uuid not null,
   "muscleGroupId" uuid not null,
-  "percentage" double precision not null,
+  "factor" double precision not null,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz

@@ -1,8 +1,6 @@
-const PERCENTAGE_TOLERANCE = 0.01
-
 export interface ContributionInput {
   muscleGroupId: string
-  percentage: number
+  factor: number
 }
 
 export interface ContributionValidationResult {
@@ -22,11 +20,10 @@ export function validateMuscleContributions(
     return { valid: false, error: 'Debe asignar al menos un grupo muscular.' }
   }
 
-  const total = contributions.reduce((sum, c) => sum + c.percentage, 0)
-  if (Math.abs(total - 100) > PERCENTAGE_TOLERANCE) {
+  if (contributions.some((c) => c.factor <= 0)) {
     return {
       valid: false,
-      error: `Los porcentajes deben sumar 100% (suman ${total}%).`,
+      error: 'Cada grupo muscular asignado debe tener un factor mayor a 0.',
     }
   }
 

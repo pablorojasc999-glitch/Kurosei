@@ -79,7 +79,7 @@ export async function listContributionsForExercise(
     .toArray()
   return rows.map((r) => ({
     muscleGroupId: r.muscleGroupId,
-    percentage: r.percentage,
+    factor: r.factor,
   }))
 }
 
@@ -128,7 +128,7 @@ export async function createExercise(
           id: generateId(),
           exerciseId: exercise.id,
           muscleGroupId: c.muscleGroupId,
-          percentage: c.percentage,
+          factor: c.factor,
           createdAt: timestamp,
           updatedAt: timestamp,
           deletedAt: null,

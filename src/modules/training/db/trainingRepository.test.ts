@@ -22,16 +22,19 @@ describe('createMuscleGroup', () => {
 })
 
 describe('ensureCanonicalMuscleGroups', () => {
-  it('creates the 11 body-map regions when none exist yet', async () => {
+  it('creates the 14 body-map regions when none exist yet', async () => {
     const groups = await ensureCanonicalMuscleGroups()
     expect(groups.map((g) => g.name)).toEqual([
       'Pecho',
       'Espalda',
+      'Lumbar',
       'Tríceps',
       'Bíceps',
       'Hombro',
       'Abdomen',
+      'Cadera',
       'Cuádriceps',
+      'Aductores',
       'Glúteos',
       'Isquios',
       'Gemelo',
@@ -43,7 +46,7 @@ describe('ensureCanonicalMuscleGroups', () => {
     const chest = await createMuscleGroup('pecho')
     const groups = await ensureCanonicalMuscleGroups()
     expect(groups.find((g) => g.name === 'pecho')).toMatchObject({ id: chest.id })
-    expect(groups).toHaveLength(11)
+    expect(groups).toHaveLength(14)
   })
 
   it('is idempotent across repeated calls', async () => {
@@ -59,7 +62,7 @@ describe('createExercise', () => {
     const input = {
       type: 'strength' as const,
       category: null,
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     }
     await createExercise({ ...input, name: 'Press banca' })
     await expect(
@@ -72,7 +75,7 @@ describe('createExercise', () => {
     const input = {
       type: 'strength' as const,
       category: null,
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     }
     await createExercise({ ...input, name: 'Press banca' })
     await expect(

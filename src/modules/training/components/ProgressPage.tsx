@@ -89,11 +89,11 @@ export function ProgressPage() {
   )
   const contributionsByExercise = new Map<
     string,
-    { muscleGroupId: string; percentage: number }[]
+    { muscleGroupId: string; factor: number }[]
   >()
   for (const c of contributions) {
     const list = contributionsByExercise.get(c.exerciseId) ?? []
-    list.push({ muscleGroupId: c.muscleGroupId, percentage: c.percentage })
+    list.push({ muscleGroupId: c.muscleGroupId, factor: c.factor })
     contributionsByExercise.set(c.exerciseId, list)
   }
   const volumeByGroup = [

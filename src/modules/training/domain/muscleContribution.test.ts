@@ -2,19 +2,19 @@ import { describe, expect, it } from 'vitest'
 import { validateMuscleContributions } from './muscleContribution'
 
 describe('validateMuscleContributions', () => {
-  it('accepts strength contributions that sum to 100%', () => {
+  it('accepts strength contributions with any positive factors (no sum requirement)', () => {
     const result = validateMuscleContributions('strength', [
-      { muscleGroupId: 'chest', percentage: 60 },
-      { muscleGroupId: 'triceps', percentage: 25 },
-      { muscleGroupId: 'shoulders', percentage: 15 },
+      { muscleGroupId: 'cuadriceps', factor: 1 },
+      { muscleGroupId: 'gluteos', factor: 1 },
+      { muscleGroupId: 'isquios', factor: 0.5 },
     ])
     expect(result.valid).toBe(true)
   })
 
-  it('rejects strength contributions that do not sum to 100%', () => {
+  it('rejects a contribution with a zero or negative factor', () => {
     const result = validateMuscleContributions('strength', [
-      { muscleGroupId: 'chest', percentage: 60 },
-      { muscleGroupId: 'triceps', percentage: 25 },
+      { muscleGroupId: 'cuadriceps', factor: 1 },
+      { muscleGroupId: 'gluteos', factor: 0 },
     ])
     expect(result.valid).toBe(false)
   })

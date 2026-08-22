@@ -14,7 +14,7 @@ export function relativeIntensity(weightKg: number, e1rm: number): number {
 
 export interface MuscleContribution {
   muscleGroupId: string
-  percentage: number
+  factor: number
 }
 
 export interface SetWithExercise {
@@ -22,10 +22,11 @@ export interface SetWithExercise {
 }
 
 /**
- * Weighted-set volume per muscle group: a set counts fractionally toward
- * each muscle group by the exercise's contribution %, so a compound lift
- * contributes partial volume to several groups instead of full credit to
- * each (e.g. bench at 60% chest / 25% triceps / 15% front delt).
+ * Weighted-set volume per muscle group: a set counts toward each muscle
+ * group it trains by the exercise's contribution factor, so a compound
+ * lift contributes partial credit to several groups instead of full credit
+ * to each (e.g. a squat at factor 1 for cuádriceps, 1 for glúteos, 0.5 for
+ * isquios).
  */
 export function muscleGroupVolume(
   sets: SetWithExercise[],
@@ -36,7 +37,7 @@ export function muscleGroupVolume(
     const contributions = contributionsByExercise.get(set.exerciseId) ?? []
     for (const c of contributions) {
       const prior = volumeByGroup.get(c.muscleGroupId) ?? 0
-      volumeByGroup.set(c.muscleGroupId, prior + c.percentage / 100)
+      volumeByGroup.set(c.muscleGroupId, prior + c.factor)
     }
   }
   return volumeByGroup
@@ -48,9 +49,9 @@ export interface SetWithExerciseAndRpe extends SetWithExercise {
 
 /**
  * Contribution-weighted Stress Index per muscle group: each set contributes
- * its RPE's Stress Index fractionally to every muscle group the exercise
- * trains, same weighting as muscleGroupVolume. A set with no RPE logged
- * contributes nothing (there's no RPE to look up).
+ * its RPE's Stress Index to every muscle group the exercise trains, scaled
+ * by that group's contribution factor, same weighting as muscleGroupVolume.
+ * A set with no RPE logged contributes nothing (there's no RPE to look up).
  */
 export function muscleGroupStressIndex(
   sets: SetWithExerciseAndRpe[],
@@ -64,10 +65,7 @@ export function muscleGroupStressIndex(
     const contributions = contributionsByExercise.get(set.exerciseId) ?? []
     for (const c of contributions) {
       const prior = stressByGroup.get(c.muscleGroupId) ?? 0
-      stressByGroup.set(
-        c.muscleGroupId,
-        prior + setStress * (c.percentage / 100),
-      )
+      stressByGroup.set(c.muscleGroupId, prior + setStress * c.factor)
     }
   }
   return stressByGroup

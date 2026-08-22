@@ -47,7 +47,7 @@ async function seedExercise() {
     name: 'Press banca',
     type: 'strength',
     category: 'bench',
-    muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+    muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
   })
 }
 

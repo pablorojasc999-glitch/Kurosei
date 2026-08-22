@@ -82,7 +82,7 @@ describe('duplicateWeek', () => {
       name: 'Press banca',
       type: 'strength',
       category: 'bench',
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     })
     const plannedExercise = await createPlannedExercise({
       dayId: day.id,
@@ -205,7 +205,7 @@ describe('listPlannedDaysWithExercises', () => {
       name: 'Press banca',
       type: 'strength',
       category: 'bench',
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     })
 
     const dayWithExercise = await createDay({
@@ -252,7 +252,7 @@ describe('deleteDay', () => {
       name: 'Press banca',
       type: 'strength',
       category: 'bench',
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     })
     const day = await createDay({
       weekId: week.id,
@@ -297,7 +297,7 @@ describe('deleteDay', () => {
       name: 'Press banca',
       type: 'strength',
       category: 'bench',
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     })
     const cardioExercise = await createExercise({
       name: 'Cinta',
@@ -371,7 +371,7 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
       name: 'Press banca',
       type: 'strength',
       category: 'bench',
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     })
     const day = await createDay({
       weekId: week.id,
@@ -466,7 +466,7 @@ describe('copyPlannedExercisesToDay', () => {
       name: 'Press banca',
       type: 'strength',
       category: 'bench',
-      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
     })
     const sourceDay = await createDay({
       weekId: week.id,
