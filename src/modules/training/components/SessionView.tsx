@@ -10,11 +10,15 @@ import {
   reopenSession,
   startSession,
 } from '../db/executionRepository'
+import {
+  listPlannedDaysWithExercises,
+  listPlannedExercises,
+} from '../db/planningRepository'
 import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
 import { SessionSummary } from './SessionSummary'
-import { formatRestMinutes } from '../lib/format'
+import { formatDate, formatRestMinutes } from '../lib/format'
 import type { SessionExercise } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
@@ -93,6 +97,10 @@ export function SessionView({ dayId }: SessionViewProps) {
     () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
     [],
   )
+  const plannedDayOptions = useLiveQuery(
+    () => listPlannedDaysWithExercises(),
+    [],
+  )
 
   const [runningElapsed, setRunningElapsed] = useState(0)
   useEffect(() => {
@@ -116,6 +124,12 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [newExerciseId, setNewExerciseId] = useState('')
   const [setForms, setSetForms] = useState<Record<string, SetFormState>>({})
   const [restTargets, setRestTargets] = useState<Record<string, number>>({})
+  const [pickedSourceDayId, setPickedSourceDayId] = useState('')
+  const [historyReps, setHistoryReps] = useState<Record<string, string>>({})
+
+  const otherPlannedDays = (plannedDayOptions ?? []).filter(
+    (d) => d.id !== dayId,
+  )
 
   function exerciseName(id: string): string {
     return exercisesLibrary?.find((e) => e.id === id)?.name ?? '?'
@@ -156,6 +170,36 @@ export function SessionView({ dayId }: SessionViewProps) {
         notes: pe.notes,
       })
     }
+  }
+
+  async function handleStartSessionFromPickedDay() {
+    if (!pickedSourceDayId) return
+    const newSession = await startSession(dayId)
+    const sourceExercises = await listPlannedExercises(pickedSourceDayId)
+    for (const pe of sourceExercises) {
+      await addSessionExercise({
+        sessionId: newSession.id,
+        exerciseId: pe.exerciseId,
+        notes: pe.notes,
+      })
+    }
+    setPickedSourceDayId('')
+  }
+
+  async function handleLoadPlanFromPickedDay() {
+    if (!session || !pickedSourceDayId) return
+    const sourceExercises = await listPlannedExercises(pickedSourceDayId)
+    const missing = sourceExercises.filter(
+      (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),
+    )
+    for (const pe of missing) {
+      await addSessionExercise({
+        sessionId: session.id,
+        exerciseId: pe.exerciseId,
+        notes: pe.notes,
+      })
+    }
+    setPickedSourceDayId('')
   }
 
   async function handleAddSet(sessionExerciseId: string) {
@@ -202,6 +246,33 @@ export function SessionView({ dayId }: SessionViewProps) {
             ? 'Iniciar sesión y cargar plan'
             : 'Iniciar sesión'}
         </button>
+
+        {otherPlannedDays.length > 0 && (
+          <div className="load-plan-picker">
+            <label>
+              O cargar un día ya planificado
+              <select
+                value={pickedSourceDayId}
+                onChange={(e) => setPickedSourceDayId(e.target.value)}
+              >
+                <option value="">Elegir día planificado</option>
+                {otherPlannedDays.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
+                    {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={!pickedSourceDayId}
+              onClick={handleStartSessionFromPickedDay}
+            >
+              Iniciar sesión con ese plan
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -230,6 +301,33 @@ export function SessionView({ dayId }: SessionViewProps) {
         </button>
       )}
 
+      {!session.endedAt && otherPlannedDays.length > 0 && (
+        <div className="load-plan-picker">
+          <label>
+            Cargar ejercicios de otro día planificado
+            <select
+              value={pickedSourceDayId}
+              onChange={(e) => setPickedSourceDayId(e.target.value)}
+            >
+              <option value="">Elegir día planificado</option>
+              {otherPlannedDays.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
+                  {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={!pickedSourceDayId}
+            onClick={handleLoadPlanFromPickedDay}
+          >
+            Cargar ejercicios
+          </button>
+        </div>
+      )}
+
       <ul className="planned-exercise-list">
         {sessionExercises?.map((se) => {
           const sets =
@@ -246,6 +344,9 @@ export function SessionView({ dayId }: SessionViewProps) {
                 (ps) => ps.plannedExerciseId === plannedExercise.id,
               )
             : undefined
+          const historyRepsValue =
+            historyReps[se.id] ??
+            (targetSets?.[0] ? String(targetSets[0].targetReps) : lastSet ? String(lastSet.reps) : '')
 
           return (
             <li key={se.id} className="planned-exercise-item">
@@ -278,6 +379,30 @@ export function SessionView({ dayId }: SessionViewProps) {
               )}
 
               <DeloadAlert exerciseId={se.exerciseId} />
+
+              <div className="rep-history-picker">
+                <label>
+                  Ver historial a
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={historyRepsValue}
+                    onChange={(e) =>
+                      setHistoryReps((prev) => ({
+                        ...prev,
+                        [se.id]: e.target.value,
+                      }))
+                    }
+                  />
+                  reps
+                </label>
+              </div>
+              {historyRepsValue && (
+                <RepHistory
+                  exerciseId={se.exerciseId}
+                  reps={Number(historyRepsValue)}
+                />
+              )}
 
               <ul className="sets-list">
                 {sets.map((s) => (
@@ -312,10 +437,6 @@ export function SessionView({ dayId }: SessionViewProps) {
 
               {!session.endedAt && (
                 <>
-                  {form.reps && (
-                    <RepHistory exerciseId={se.exerciseId} reps={Number(form.reps)} />
-                  )}
-
                   <div className="set-form set-form--execution">
                   <label>
                     Peso (kg)

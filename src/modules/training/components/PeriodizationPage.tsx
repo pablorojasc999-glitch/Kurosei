@@ -12,6 +12,7 @@ import {
   deletePlannedSet,
   duplicateWeek,
 } from '../db/planningRepository'
+import { parseDateInput } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import type {
   Day,
@@ -157,8 +158,8 @@ export function PeriodizationPage({
     const m = await createMacrocycle({
       name: macroName,
       goal: macroGoal,
-      startDate: new Date(macroStart).toISOString(),
-      endDate: new Date(macroEnd).toISOString(),
+      startDate: parseDateInput(macroStart).toISOString(),
+      endDate: parseDateInput(macroEnd).toISOString(),
     })
     setMacroName('')
     setMacroGoal('')
@@ -174,8 +175,8 @@ export function PeriodizationPage({
       macrocycleId,
       name: mesoName,
       phaseType: mesoPhase,
-      startDate: new Date(mesoStart).toISOString(),
-      endDate: new Date(mesoEnd).toISOString(),
+      startDate: parseDateInput(mesoStart).toISOString(),
+      endDate: parseDateInput(mesoEnd).toISOString(),
     })
     setMesoName('')
     setMesoPhase('accumulation')
@@ -200,7 +201,7 @@ export function PeriodizationPage({
     if (!weekId || !dayDate) return
     const d = await createDay({
       weekId,
-      date: new Date(dayDate).toISOString(),
+      date: parseDateInput(dayDate).toISOString(),
       label: dayLabel,
     })
     setDayDate('')

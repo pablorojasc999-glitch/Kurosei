@@ -1,3 +1,13 @@
+/**
+ * Parses a `YYYY-MM-DD` value from an `<input type="date">` as local
+ * midnight. `new Date('YYYY-MM-DD')` parses as UTC midnight instead, which
+ * silently shifts to the previous calendar day in negative-UTC timezones.
+ */
+export function parseDateInput(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day)
+}
+
 export function toDateKey(date: Date): string {
   const pad = (n: number) => n.toString().padStart(2, '0')
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`

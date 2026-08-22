@@ -302,6 +302,40 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
   return newWeek
 }
 
+export interface PlannedDaySummary {
+  id: string
+  date: string
+  label: string
+  exerciseCount: number
+}
+
+/**
+ * All planned Days (weekId set, i.e. built from Periodización) that have at
+ * least one planned exercise — used to let a Registro session load any
+ * previously planned day's routine, not just the one matching today's date.
+ */
+export async function listPlannedDaysWithExercises(): Promise<PlannedDaySummary[]> {
+  const [days, plannedExercises] = await Promise.all([
+    db.training_days
+      .filter((d) => d.deletedAt === null && d.weekId !== null)
+      .toArray(),
+    db.training_planned_exercises.filter((pe) => pe.deletedAt === null).toArray(),
+  ])
+  const countByDay = new Map<string, number>()
+  for (const pe of plannedExercises) {
+    countByDay.set(pe.dayId, (countByDay.get(pe.dayId) ?? 0) + 1)
+  }
+  return days
+    .map((d) => ({
+      id: d.id,
+      date: d.date,
+      label: d.label,
+      exerciseCount: countByDay.get(d.id) ?? 0,
+    }))
+    .filter((d) => d.exerciseCount > 0)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
 /** Finds the Day (if any) whose date falls on the same calendar day as `date`. */
 export async function findDayByDate(date: Date): Promise<Day | null> {
   const dateKey = date.toDateString()

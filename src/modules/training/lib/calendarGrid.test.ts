@@ -3,6 +3,7 @@ import {
   addDays,
   addMonths,
   buildMonthGrid,
+  parseDateInput,
   startOfDay,
   startOfMonth,
   toDateKey,
@@ -47,6 +48,18 @@ describe('startOfDay / addDays', () => {
     const back = addDays(sep1, -1)
     expect(back.getMonth()).toBe(7)
     expect(back.getDate()).toBe(31)
+  })
+})
+
+describe('parseDateInput', () => {
+  it('parses a YYYY-MM-DD value as local midnight, not UTC midnight', () => {
+    const d = parseDateInput('2026-08-22')
+    expect([d.getFullYear(), d.getMonth(), d.getDate()]).toEqual([2026, 7, 22])
+    expect([d.getHours(), d.getMinutes()]).toEqual([0, 0])
+  })
+
+  it('round-trips through toDateKey', () => {
+    expect(toDateKey(parseDateInput('2026-01-05'))).toBe('2026-01-05')
   })
 })
 

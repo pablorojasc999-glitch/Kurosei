@@ -12,6 +12,7 @@ import {
   findDayByDate,
   getOrCreateDayForDate,
   listDays,
+  listPlannedDaysWithExercises,
   listPlannedExercises,
   listPlannedSets,
   listWeeks,
@@ -177,5 +178,52 @@ describe('getOrCreateDayForDate', () => {
 
     const second = await getOrCreateDayForDate(date)
     expect(second.id).toBe(result.id)
+  })
+})
+
+describe('listPlannedDaysWithExercises', () => {
+  it('only returns planned (weekId set) days that have at least one exercise', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, percentage: 100 }],
+    })
+
+    const dayWithExercise = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    await createPlannedExercise({
+      dayId: dayWithExercise.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+
+    // planned day with no exercises yet: excluded
+    await createDay({
+      weekId: week.id,
+      date: '2026-01-06T00:00:00.000Z',
+      label: 'Vacío',
+    })
+    // ad-hoc day (no weekId) with an exercise: excluded, it's not a plan
+    const adHocDay = await getOrCreateDayForDate(new Date('2026-01-07T12:00:00.000Z'))
+    await createPlannedExercise({
+      dayId: adHocDay.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+
+    const result = await listPlannedDaysWithExercises()
+    expect(result).toHaveLength(1)
+    expect(result[0]).toMatchObject({
+      id: dayWithExercise.id,
+      label: 'Tren superior',
+      exerciseCount: 1,
+    })
   })
 })
