@@ -35,15 +35,26 @@ const EMPTY_LOG_INPUT = {
 
 describe('listDailyMetricsInRange', () => {
   it('returns one row per calendar day in range, with the bitácora entry merged in', async () => {
-    await upsertDailyLog('2026-01-02', { ...EMPTY_LOG_INPUT, bodyWeightKg: 80, sleepHours: 7 })
+    await upsertDailyLog('2026-01-02', {
+      ...EMPTY_LOG_INPUT,
+      bodyWeightKg: 80,
+      sleepHours: 7,
+      creatineTaken: true,
+    })
 
     const range = inclusiveRange('2026-01-01T00:00:00.000Z', '2026-01-03T00:00:00.000Z')
     const result = await listDailyMetricsInRange(range)
 
     expect(result.map((r) => r.date)).toEqual(['2026-01-01', '2026-01-02', '2026-01-03'])
-    expect(result[0]).toMatchObject({ bodyWeightKg: null, hadStrengthSession: false })
-    expect(result[1]).toMatchObject({ bodyWeightKg: 80, sleepHours: 7 })
-    expect(result[2]).toMatchObject({ bodyWeightKg: null })
+    expect(result[0]).toMatchObject({ hasLog: false, bodyWeightKg: null, hadStrengthSession: false })
+    expect(result[1]).toMatchObject({
+      hasLog: true,
+      bodyWeightKg: 80,
+      sleepHours: 7,
+      creatineTaken: true,
+      omega3Taken: false,
+    })
+    expect(result[2]).toMatchObject({ hasLog: false, bodyWeightKg: null })
   })
 
   it('sums that day\'s cardio calories and flags/measures its strength session', async () => {

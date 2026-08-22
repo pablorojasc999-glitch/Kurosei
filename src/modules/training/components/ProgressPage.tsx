@@ -325,6 +325,29 @@ export function ProgressPage() {
     },
   ]
 
+  const stepsSeries: ChartSeries[] = [
+    {
+      label: 'Pasos',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.steps })),
+    },
+  ]
+
+  const waterSeries: ChartSeries[] = [
+    {
+      label: 'Agua',
+      color: 'var(--accent)',
+      points: dailyMetrics.map((m) => ({ date: m.date, value: m.waterLiters })),
+    },
+  ]
+
+  const loggedDays = dailyMetrics.filter((m) => m.hasLog)
+  const supplementAdherence = [
+    { label: 'Creatina', days: loggedDays.filter((m) => m.creatineTaken).length },
+    { label: 'Omega 3', days: loggedDays.filter((m) => m.omega3Taken).length },
+    { label: 'Vitamina D', days: loggedDays.filter((m) => m.vitaminDTaken).length },
+  ]
+
   return (
     <div className="page">
       <h1>Progreso</h1>
@@ -545,6 +568,44 @@ export function ProgressPage() {
           series={wellbeingSeries}
           markedDates={trainingDayDates}
         />
+      </section>
+
+      <section>
+        <h2>Pasos</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={stepsSeries}
+          unit=" pasos"
+          markedDates={trainingDayDates}
+        />
+      </section>
+
+      <section>
+        <h2>Agua</h2>
+        <LineChart
+          domainDates={domainDates}
+          series={waterSeries}
+          unit=" L"
+          markedDates={trainingDayDates}
+        />
+      </section>
+
+      <section>
+        <h2>Suplementos</h2>
+        {loggedDays.length === 0 ? (
+          <p className="empty-hint">Sin bitácora registrada en este periodo.</p>
+        ) : (
+          <ul className="supplement-adherence">
+            {supplementAdherence.map((s) => (
+              <li key={s.label} className="supplement-adherence-row">
+                <span>{s.label}</span>
+                <span className="numeric">
+                  {s.days} de {loggedDays.length} día{loggedDays.length === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </div>
   )

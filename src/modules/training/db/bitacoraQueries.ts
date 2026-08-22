@@ -4,6 +4,8 @@ import type { DateRange } from '../lib/progressScope'
 
 export interface DailyMetric {
   date: string
+  /** True if a bitácora entry exists for this date at all (regardless of which fields were filled). */
+  hasLog: boolean
   bodyWeightKg: number | null
   calories: number | null
   carbsG: number | null
@@ -15,6 +17,9 @@ export interface DailyMetric {
   stress: number | null
   stimulants: number | null
   fatigue: number | null
+  creatineTaken: boolean
+  omega3Taken: boolean
+  vitaminDTaken: boolean
   /** Sum of that day's CardioSession.caloriesBurned. */
   cardioCaloriesBurned: number
   /** Total minutes across that day's finished strength sessions. */
@@ -88,6 +93,7 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
     const log = dailyLogByDate.get(date) ?? null
     return {
       date,
+      hasLog: log !== null,
       bodyWeightKg: log?.bodyWeightKg ?? null,
       calories: log?.calories ?? null,
       carbsG: log?.carbsG ?? null,
@@ -99,6 +105,9 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
       stress: log?.stress ?? null,
       stimulants: log?.stimulants ?? null,
       fatigue: log?.fatigue ?? null,
+      creatineTaken: log?.creatineTaken ?? false,
+      omega3Taken: log?.omega3Taken ?? false,
+      vitaminDTaken: log?.vitaminDTaken ?? false,
       cardioCaloriesBurned: cardioCaloriesByDate.get(date) ?? 0,
       strengthSessionDurationMinutes: strengthMinutesByDate.get(date) ?? 0,
       hadStrengthSession: hadStrengthSessionDates.has(date),
