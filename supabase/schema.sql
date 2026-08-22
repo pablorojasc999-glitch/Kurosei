@@ -202,6 +202,46 @@ create table if not exists "training_cardio_sessions" (
 );
 
 -- ---------------------------------------------------------------------
+-- Bitácora (daily wellness/nutrition log) and profile
+-- ---------------------------------------------------------------------
+
+create table if not exists "training_user_profile" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "heightCm" double precision,
+  "birthDate" text,
+  "sex" text,
+  "bodyFatPercent" double precision,
+  "muscleMassPercent" double precision,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "training_daily_logs" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "date" text not null,
+  "bodyWeightKg" double precision,
+  "calories" double precision,
+  "carbsG" double precision,
+  "proteinG" double precision,
+  "fatG" double precision,
+  "sleepHours" double precision,
+  "creatineTaken" boolean not null,
+  "omega3Taken" boolean not null,
+  "vitaminDTaken" boolean not null,
+  "waterLiters" double precision,
+  "stress" double precision,
+  "stimulants" double precision,
+  "fatigue" double precision,
+  "steps" double precision,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+-- ---------------------------------------------------------------------
 -- Indexes — every sync pull filters by (userId, updatedAt)
 -- ---------------------------------------------------------------------
 
@@ -218,6 +258,8 @@ create index if not exists "training_sessions_sync_idx" on "training_sessions" (
 create index if not exists "training_session_exercises_sync_idx" on "training_session_exercises" ("userId", "updatedAt");
 create index if not exists "training_executed_sets_sync_idx" on "training_executed_sets" ("userId", "updatedAt");
 create index if not exists "training_cardio_sessions_sync_idx" on "training_cardio_sessions" ("userId", "updatedAt");
+create index if not exists "training_user_profile_sync_idx" on "training_user_profile" ("userId", "updatedAt");
+create index if not exists "training_daily_logs_sync_idx" on "training_daily_logs" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
 -- Row Level Security — every user only ever sees/writes their own rows
@@ -240,7 +282,9 @@ begin
     'training_sessions',
     'training_session_exercises',
     'training_executed_sets',
-    'training_cardio_sessions'
+    'training_cardio_sessions',
+    'training_user_profile',
+    'training_daily_logs'
   ]
   loop
     execute format('alter table %I enable row level security', tbl);

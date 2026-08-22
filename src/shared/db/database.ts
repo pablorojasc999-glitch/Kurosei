@@ -1,7 +1,8 @@
 import Dexie, { type EntityTable } from 'dexie'
-import { TRAINING_STORES_V1 } from '../../modules/training/db/schema'
+import { TRAINING_STORES_V1, TRAINING_STORES_V2 } from '../../modules/training/db/schema'
 import type {
   CardioSession,
+  DailyLog,
   Day,
   ExecutedSet,
   Exercise,
@@ -13,6 +14,7 @@ import type {
   PlannedSet,
   SessionExercise,
   StrengthSession,
+  UserProfile,
   Week,
 } from '../../modules/training/domain/types'
 
@@ -33,11 +35,16 @@ export class KuroseiDatabase extends Dexie {
   training_session_exercises!: EntityTable<SessionExercise, 'id'>
   training_executed_sets!: EntityTable<ExecutedSet, 'id'>
   training_cardio_sessions!: EntityTable<CardioSession, 'id'>
+  training_user_profile!: EntityTable<UserProfile, 'id'>
+  training_daily_logs!: EntityTable<DailyLog, 'id'>
 
   constructor() {
     super('kurosei')
     this.version(1).stores({
       ...TRAINING_STORES_V1,
+    })
+    this.version(2).stores({
+      ...TRAINING_STORES_V2,
     })
   }
 }
