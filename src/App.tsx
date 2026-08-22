@@ -12,6 +12,7 @@ import { Logo } from './modules/training/components/Logo'
 import { PeriodizationPage } from './modules/training/components/PeriodizationPage'
 import { ProgressPage } from './modules/training/components/ProgressPage'
 import { RegistroPage } from './modules/training/components/RegistroPage'
+import { AccountPanel } from './modules/sync/components/AccountPanel'
 import './App.css'
 
 type Tab = 'registro' | 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca'
@@ -34,7 +35,10 @@ function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Logo />
+        <div className="app-header-inner">
+          <Logo />
+          <AccountPanel />
+        </div>
       </header>
       <main className="app-content">
         <div hidden={tab !== 'registro'}>
