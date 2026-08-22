@@ -484,11 +484,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                   <div className="set-form set-form--execution">
                   <label>
                     Peso
-                    {matchingPlannedSet?.targetWeightKg != null && (
-                      <span className="planned-hint">
-                        planificado: {matchingPlannedSet.targetWeightKg}
-                      </span>
-                    )}
+                    <span className="planned-hint">
+                      {matchingPlannedSet?.targetWeightKg != null
+                        ? `plan: ${matchingPlannedSet.targetWeightKg}`
+                        : ' '}
+                    </span>
                     <input
                       type="number"
                       inputMode="decimal"
@@ -503,11 +503,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                   </label>
                   <label>
                     Reps
-                    {matchingPlannedSet && (
-                      <span className="planned-hint">
-                        planificado: {matchingPlannedSet.targetReps}
-                      </span>
-                    )}
+                    <span className="planned-hint">
+                      {matchingPlannedSet
+                        ? `plan: ${matchingPlannedSet.targetReps}`
+                        : ' '}
+                    </span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -522,11 +522,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                   </label>
                   <label>
                     @
-                    {matchingPlannedSet?.targetRpe != null && (
-                      <span className="planned-hint">
-                        planificado: {matchingPlannedSet.targetRpe}
-                      </span>
-                    )}
+                    <span className="planned-hint">
+                      {matchingPlannedSet?.targetRpe != null
+                        ? `plan: ${matchingPlannedSet.targetRpe}`
+                        : ' '}
+                    </span>
                     <input
                       type="number"
                       inputMode="decimal"
@@ -542,6 +542,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                   </label>
                   <label>
                     EVA
+                    <span className="planned-hint">{' '}</span>
                     <input
                       type="number"
                       inputMode="numeric"

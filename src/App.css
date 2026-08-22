@@ -622,8 +622,17 @@ section {
   grid-template-columns: repeat(4, 1fr);
 }
 
+.set-form--execution label {
+  text-align: center;
+}
+
 .set-form--execution input {
   padding: 8px 6px;
+  text-align: center;
+}
+
+.set-form--execution .planned-hint {
+  white-space: nowrap;
 }
 
 .set-form-notes {
