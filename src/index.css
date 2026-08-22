@@ -40,6 +40,15 @@
   box-sizing: border-box;
 }
 
+/* A <select>/<input> with no explicit width sizes to its content by
+   default — a long option label can then force it (and the whole
+   page) wider than the viewport instead of just clipping. */
+select,
+input,
+textarea {
+  max-width: 100%;
+}
+
 body {
   margin: 0;
   color: var(--text);

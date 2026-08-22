@@ -183,6 +183,10 @@ section {
   margin-top: 24px;
 }
 
+.week-select {
+  width: 100%;
+}
+
 .exercise-form {
   display: flex;
   flex-direction: column;

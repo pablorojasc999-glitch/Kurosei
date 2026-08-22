@@ -99,9 +99,13 @@ export function ProgressPage() {
 
   const personalRecords = exerciseIdsWithHistory.map((exerciseId) => {
     const sets = setsWithE1rm.filter((s) => s.exerciseId === exerciseId)
+    const maxWeight = Math.max(...sets.map((s) => s.weightKg ?? 0))
+    const maxWeightSet = sets.find((s) => (s.weightKg ?? 0) === maxWeight)
     return {
       exerciseId,
-      maxWeight: Math.max(...sets.map((s) => s.weightKg ?? 0)),
+      maxWeight,
+      maxWeightReps: maxWeightSet?.reps ?? null,
+      maxWeightRpe: maxWeightSet?.rpe ?? null,
       maxE1rm: Math.max(...sets.map((s) => s.e1rm)),
     }
   })
@@ -156,7 +160,11 @@ export function ProgressPage() {
           {personalRecords.map((pr) => (
             <li key={pr.exerciseId} className="pr-row">
               <span>{exerciseName(pr.exerciseId)}</span>
-              <span className="numeric">{pr.maxWeight} kg</span>
+              <span className="numeric">
+                {pr.maxWeight} kg
+                {pr.maxWeightReps !== null && ` × ${pr.maxWeightReps}`}
+                {pr.maxWeightRpe !== null && ` · RPE ${pr.maxWeightRpe}`}
+              </span>
               <span className="numeric">e1RM {Math.round(pr.maxE1rm)}</span>
             </li>
           ))}
@@ -172,6 +180,7 @@ export function ProgressPage() {
           </p>
         ) : (
           <select
+            className="week-select"
             value={activeWeekId}
             onChange={(e) => setSelectedWeekId(e.target.value)}
           >

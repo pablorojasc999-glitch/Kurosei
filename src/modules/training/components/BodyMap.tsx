@@ -71,17 +71,15 @@ export function BodyMap({ valuesByRegion, maxValue }: BodyMapProps) {
           <Region region="pecho" value={v('pecho')} maxValue={maxValue} x={31} y={34} width={38} height={26} rx={8} />
           <Region region="hombro" value={v('hombro')} maxValue={maxValue} cx={27} cy={38} r={10} />
           <Region region="hombro" value={v('hombro')} maxValue={maxValue} cx={73} cy={38} r={10} />
-          <Region region="abdomen" value={v('abdomen')} maxValue={maxValue} x={36} y={61} width={28} height={22} rx={6} />
-          <Region region="cadera" value={v('cadera')} maxValue={maxValue} x={33} y={83} width={34} height={8} rx={4} />
+          <Region region="abdomen" value={v('abdomen')} maxValue={maxValue} x={36} y={61} width={28} height={26} rx={6} />
           <Region region="biceps" value={v('biceps')} maxValue={maxValue} x={11} y={40} width={13} height={30} rx={6} />
           <Region region="biceps" value={v('biceps')} maxValue={maxValue} x={76} y={40} width={13} height={30} rx={6} />
           <Region region="antebrazos" value={v('antebrazos')} maxValue={maxValue} x={8} y={72} width={12} height={32} rx={5} />
           <Region region="antebrazos" value={v('antebrazos')} maxValue={maxValue} x={80} y={72} width={12} height={32} rx={5} />
-          <Region region="cuadriceps" value={v('cuadriceps')} maxValue={maxValue} x={32} y={91} width={12} height={44} rx={6} />
-          <Region region="cuadriceps" value={v('cuadriceps')} maxValue={maxValue} x={56} y={91} width={12} height={44} rx={6} />
-          <Region region="aductores" value={v('aductores')} maxValue={maxValue} x={45} y={91} width={11} height={44} rx={5} />
-          <rect x={33} y={137} width={12} height={40} rx={6} className="body-map-neutral" />
-          <rect x={55} y={137} width={12} height={40} rx={6} className="body-map-neutral" />
+          <Region region="cuadriceps" value={v('cuadriceps')} maxValue={maxValue} x={34} y={89} width={15} height={46} rx={7} />
+          <Region region="cuadriceps" value={v('cuadriceps')} maxValue={maxValue} x={51} y={89} width={15} height={46} rx={7} />
+          <rect x={35} y={137} width={13} height={40} rx={6} className="body-map-neutral" />
+          <rect x={52} y={137} width={13} height={40} rx={6} className="body-map-neutral" />
         </svg>
         <span className="body-map-caption">Frente</span>
       </div>
@@ -92,8 +90,7 @@ export function BodyMap({ valuesByRegion, maxValue }: BodyMapProps) {
           <rect x={44} y={22} width={12} height={8} className="body-map-neutral" />
           <circle cx={27} cy={38} r={10} className="body-map-neutral" />
           <circle cx={73} cy={38} r={10} className="body-map-neutral" />
-          <Region region="espalda" value={v('espalda')} maxValue={maxValue} x={30} y={32} width={40} height={50} rx={10} />
-          <Region region="lumbar" value={v('lumbar')} maxValue={maxValue} x={34} y={82} width={32} height={8} rx={4} />
+          <Region region="espalda" value={v('espalda')} maxValue={maxValue} x={30} y={32} width={40} height={56} rx={10} />
           <Region region="triceps" value={v('triceps')} maxValue={maxValue} x={11} y={40} width={13} height={30} rx={6} />
           <Region region="triceps" value={v('triceps')} maxValue={maxValue} x={76} y={40} width={13} height={30} rx={6} />
           <rect x={8} y={72} width={12} height={32} rx={5} className="body-map-neutral" />
