@@ -619,7 +619,11 @@ section {
 }
 
 .set-form--execution {
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.set-form--execution input {
+  padding: 8px 6px;
 }
 
 .set-form-notes {

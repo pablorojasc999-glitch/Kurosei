@@ -361,8 +361,9 @@ export function SessionView({ dayId }: SessionViewProps) {
 
       <ul className="planned-exercise-list">
         {sessionExercises?.map((se) => {
-          const sets =
+          const sets = (
             executedSets?.filter((s) => s.sessionExerciseId === se.id) ?? []
+          ).sort((a, b) => a.setNumber - b.setNumber)
           const form = setForms[se.id] ?? EMPTY_SET_FORM
           const nextSetNumber = sets.length + 1
           const lastSet = sets.at(-1)
@@ -371,9 +372,9 @@ export function SessionView({ dayId }: SessionViewProps) {
             (pe) => pe.exerciseId === se.exerciseId,
           )
           const targetSets = plannedExercise
-            ? plannedSets?.filter(
-                (ps) => ps.plannedExerciseId === plannedExercise.id,
-              )
+            ? plannedSets
+                ?.filter((ps) => ps.plannedExerciseId === plannedExercise.id)
+                .sort((a, b) => a.setNumber - b.setNumber)
             : undefined
           const historyRepsValue =
             historyReps[se.id] ??
@@ -482,7 +483,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                 <>
                   <div className="set-form set-form--execution">
                   <label>
-                    Peso (kg)
+                    Peso
                     {matchingPlannedSet?.targetWeightKg != null && (
                       <span className="planned-hint">
                         planificado: {matchingPlannedSet.targetWeightKg}
@@ -520,7 +521,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     />
                   </label>
                   <label>
-                    RPE
+                    @
                     {matchingPlannedSet?.targetRpe != null && (
                       <span className="planned-hint">
                         planificado: {matchingPlannedSet.targetRpe}
@@ -540,7 +541,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     />
                   </label>
                   <label>
-                    EVA (0-10)
+                    EVA
                     <input
                       type="number"
                       inputMode="numeric"
