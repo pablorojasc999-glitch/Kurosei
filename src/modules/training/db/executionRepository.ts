@@ -84,12 +84,24 @@ export async function addSessionExercise(
     id: generateId(),
     ...input,
     order: nextOrder,
+    closedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
   }
   await db.training_session_exercises.add(sessionExercise)
   return sessionExercise
+}
+
+/** Closes or reopens a session exercise, locking/unlocking its set-log form. */
+export async function setSessionExerciseClosed(
+  id: string,
+  closed: boolean,
+): Promise<void> {
+  await db.training_session_exercises.update(id, {
+    closedAt: closed ? nowIso() : null,
+    updatedAt: nowIso(),
+  })
 }
 
 export async function deleteSessionExercise(id: string): Promise<void> {
@@ -158,6 +170,24 @@ export async function createExecutedSet(
   }
   await db.training_executed_sets.add(executedSet)
   return executedSet
+}
+
+export interface UpdateExecutedSetInput {
+  weightKg: number | null
+  reps: number
+  rpe: number | null
+  eva: number | null
+  notes: string
+}
+
+export async function updateExecutedSet(
+  id: string,
+  input: UpdateExecutedSetInput,
+): Promise<void> {
+  await db.training_executed_sets.update(id, {
+    ...input,
+    updatedAt: nowIso(),
+  })
 }
 
 export async function deleteExecutedSet(id: string): Promise<void> {

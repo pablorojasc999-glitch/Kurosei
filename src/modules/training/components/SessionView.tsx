@@ -9,7 +9,9 @@ import {
   deleteSessionExercise,
   endSession,
   reopenSession,
+  setSessionExerciseClosed,
   startSession,
+  updateExecutedSet,
 } from '../db/executionRepository'
 import {
   listPlannedDaysWithExercises,
@@ -21,7 +23,7 @@ import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
 import { SessionSummary } from './SessionSummary'
 import { formatDate, formatRestMinutes } from '../lib/format'
-import type { SessionExercise } from '../domain/types'
+import type { ExecutedSet, SessionExercise } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
 
@@ -130,6 +132,7 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [pickedSourceDayId, setPickedSourceDayId] = useState('')
   const [historyReps, setHistoryReps] = useState<Record<string, string>>({})
   const [confirmingReopen, setConfirmingReopen] = useState(false)
+  const [editingSetId, setEditingSetId] = useState<Record<string, string | null>>({})
 
   const otherPlannedDays = (plannedDayOptions ?? []).filter(
     (d) => d.id !== dayId,
@@ -207,18 +210,43 @@ export function SessionView({ dayId }: SessionViewProps) {
     setPickedSourceDayId('')
   }
 
-  async function handleAddSet(sessionExerciseId: string) {
+  async function handleSubmitSet(sessionExerciseId: string) {
     const form = setForms[sessionExerciseId] ?? EMPTY_SET_FORM
     if (!form.reps) return
-    await createExecutedSet({
-      sessionExerciseId,
+    const input = {
       weightKg: form.weight ? Number(form.weight) : null,
       reps: Number(form.reps),
       rpe: form.rpe ? Number(form.rpe) : null,
       eva: form.eva ? Number(form.eva) : null,
       notes: form.notes,
-    })
+    }
+    const editingId = editingSetId[sessionExerciseId]
+    if (editingId) {
+      await updateExecutedSet(editingId, input)
+    } else {
+      await createExecutedSet({ sessionExerciseId, ...input })
+    }
     setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
+    setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
+  }
+
+  function startEditExecutedSet(sessionExerciseId: string, s: ExecutedSet) {
+    setSetForms((prev) => ({
+      ...prev,
+      [sessionExerciseId]: {
+        weight: s.weightKg !== null ? String(s.weightKg) : '',
+        reps: String(s.reps),
+        rpe: s.rpe !== null ? String(s.rpe) : '',
+        eva: s.eva !== null ? String(s.eva) : '',
+        notes: s.notes,
+      },
+    }))
+    setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: s.id }))
+  }
+
+  function cancelEditExecutedSet(sessionExerciseId: string) {
+    setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
+    setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
   }
 
   function restTargetFor(
@@ -382,11 +410,22 @@ export function SessionView({ dayId }: SessionViewProps) {
           const matchingPlannedSet = targetSets?.find(
             (ps) => ps.setNumber === nextSetNumber,
           )
+          const exerciseClosed = se.closedAt !== null
+          const locked = Boolean(session.endedAt) || exerciseClosed
+          const editingId = editingSetId[se.id]
 
           return (
             <li key={se.id} className="planned-exercise-item">
               <div className="planned-exercise-header">
                 <strong>{exerciseName(se.exerciseId)}</strong>
+                {!session.endedAt && (
+                  <button
+                    type="button"
+                    onClick={() => setSessionExerciseClosed(se.id, !exerciseClosed)}
+                  >
+                    {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
+                  </button>
+                )}
                 {!session.endedAt && (
                   <ConfirmDeleteButton
                     label="Quitar"
@@ -415,7 +454,7 @@ export function SessionView({ dayId }: SessionViewProps) {
 
               <DeloadAlert exerciseId={se.exerciseId} />
 
-              {!session.endedAt && (
+              {!locked && (
                 <>
                   <div className="rep-history-picker">
                     <label>
@@ -456,20 +495,30 @@ export function SessionView({ dayId }: SessionViewProps) {
                         {s.eva !== null && ` · EVA ${s.eva}`}
                         {s.notes && ` · ${s.notes}`}
                       </span>
-                      {!session.endedAt && (
-                        <ConfirmDeleteButton
-                          variant="icon"
-                          label="Eliminar serie"
-                          confirmMessage="¿Eliminar esta serie?"
-                          onConfirm={() => deleteExecutedSet(s.id)}
-                        />
+                      {!locked && (
+                        <>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label="Editar serie"
+                            onClick={() => startEditExecutedSet(se.id, s)}
+                          >
+                            ✎
+                          </button>
+                          <ConfirmDeleteButton
+                            variant="icon"
+                            label="Eliminar serie"
+                            confirmMessage="¿Eliminar esta serie?"
+                            onConfirm={() => deleteExecutedSet(s.id)}
+                          />
+                        </>
                       )}
                     </li>
                   ))}
                 </ul>
               )}
 
-              {lastSet && !session.endedAt && (
+              {lastSet && !locked && (
                 <RestTimer
                   key={lastSet.id}
                   targetSeconds={target}
@@ -479,7 +528,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                 />
               )}
 
-              {!session.endedAt && (
+              {!locked && (
                 <>
                   <div className="set-form set-form--execution">
                   <label>
@@ -573,10 +622,19 @@ export function SessionView({ dayId }: SessionViewProps) {
                   <button
                     type="button"
                     className="add-set-button"
-                    onClick={() => handleAddSet(se.id)}
+                    onClick={() => handleSubmitSet(se.id)}
                   >
-                    + Registrar serie {nextSetNumber}
+                    {editingId ? 'Guardar cambios' : `+ Registrar serie ${nextSetNumber}`}
                   </button>
+                  {editingId && (
+                    <button
+                      type="button"
+                      className="set-form-cancel"
+                      onClick={() => cancelEditExecutedSet(se.id)}
+                    >
+                      Cancelar
+                    </button>
+                  )}
                   </div>
                 </>
               )}

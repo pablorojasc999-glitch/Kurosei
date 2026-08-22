@@ -8,7 +8,9 @@ import {
   endSession,
   getSessionForDay,
   reopenSession,
+  setSessionExerciseClosed,
   startSession,
+  updateExecutedSet,
 } from './executionRepository'
 
 beforeEach(async () => {
@@ -147,5 +149,68 @@ describe('createExecutedSet', () => {
     })
     expect(second.restTakenSeconds).toBeGreaterThanOrEqual(179)
     expect(second.restTakenSeconds).toBeLessThanOrEqual(182)
+  })
+})
+
+describe('updateExecutedSet', () => {
+  it('overwrites a set\'s logged values in place, keeping its setNumber', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exercise = await seedExercise()
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    const set = await createExecutedSet({
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '',
+    })
+
+    await updateExecutedSet(set.id, {
+      weightKg: 105,
+      reps: 4,
+      rpe: 9,
+      eva: 3,
+      notes: 'ajustado',
+    })
+
+    const updated = await db.training_executed_sets.get(set.id)
+    expect(updated).toMatchObject({
+      setNumber: 1,
+      weightKg: 105,
+      reps: 4,
+      rpe: 9,
+      eva: 3,
+      notes: 'ajustado',
+    })
+  })
+})
+
+describe('setSessionExerciseClosed', () => {
+  it('sets and clears closedAt', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exercise = await seedExercise()
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    expect(sessionExercise.closedAt).toBeNull()
+
+    await setSessionExerciseClosed(sessionExercise.id, true)
+    expect(
+      (await db.training_session_exercises.get(sessionExercise.id))?.closedAt,
+    ).not.toBeNull()
+
+    await setSessionExerciseClosed(sessionExercise.id, false)
+    expect(
+      (await db.training_session_exercises.get(sessionExercise.id))?.closedAt,
+    ).toBeNull()
   })
 })

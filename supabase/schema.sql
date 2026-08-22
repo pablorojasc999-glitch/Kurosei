@@ -159,6 +159,7 @@ create table if not exists "training_session_exercises" (
   "exerciseId" uuid not null,
   "order" integer not null,
   "notes" text not null,
+  "closedAt" timestamptz,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz

@@ -88,6 +88,7 @@ export interface SessionExercise extends SyncedEntity {
   exerciseId: string
   order: number
   notes: string
+  closedAt: string | null
 }
 
 export interface ExecutedSet extends SyncedEntity {

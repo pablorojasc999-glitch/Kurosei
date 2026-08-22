@@ -631,6 +631,11 @@ section {
   text-align: center;
 }
 
+.set-form--execution .set-form-notes,
+.set-form--execution .set-form-notes input {
+  text-align: left;
+}
+
 .set-form--execution .planned-hint {
   white-space: nowrap;
 }
