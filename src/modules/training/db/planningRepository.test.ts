@@ -19,6 +19,7 @@ import {
   getOrCreateDayForDate,
   listDays,
   listMesocycles,
+  listMesocyclesWithContext,
   listPlannedDaysWithExercises,
   listPlannedExercises,
   listPlannedSets,
@@ -274,6 +275,42 @@ describe('listWeeksWithContext', () => {
 
     const result = await listWeeksWithContext()
     expect(result.map((w) => w.id)).toEqual([earlierWeek.id, laterWeek.id])
+  })
+})
+
+describe('listMesocyclesWithContext', () => {
+  it('annotates each mesocycle with its macrocycle name, sorted by start date', async () => {
+    const macrocycle = await createMacrocycle({
+      name: 'Prep',
+      goal: 'Competencia',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-06-01T00:00:00.000Z',
+    })
+    const later = await createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: 'Bloque 2',
+      phaseType: 'intensification',
+      startDate: '2026-02-01T00:00:00.000Z',
+      endDate: '2026-03-01T00:00:00.000Z',
+    })
+    const earlier = await createMesocycle({
+      macrocycleId: macrocycle.id,
+      name: 'Bloque 1',
+      phaseType: 'accumulation',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-02-01T00:00:00.000Z',
+    })
+
+    const result = await listMesocyclesWithContext()
+    expect(result.map((m) => m.id)).toEqual([earlier.id, later.id])
+    expect(result[0]).toMatchObject({
+      id: earlier.id,
+      macrocycleName: 'Prep',
+      name: 'Bloque 1',
+      phaseType: 'accumulation',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-02-01T00:00:00.000Z',
+    })
   })
 })
 
