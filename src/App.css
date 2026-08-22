@@ -1315,6 +1315,8 @@ section {
   height: 120px;
   display: block;
   overflow: visible;
+  touch-action: none;
+  cursor: crosshair;
 }
 
 .line-chart-mark {
@@ -1323,12 +1325,50 @@ section {
   opacity: 0.6;
 }
 
+.line-chart-crosshair {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
 .line-chart-range {
   display: flex;
   justify-content: space-between;
   margin-top: 6px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.line-chart-tooltip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-height: 20px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.line-chart-tooltip-hint {
+  color: var(--text-muted);
+}
+
+.line-chart-tooltip-date {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.line-chart-tooltip-value {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+}
+
+.line-chart-tooltip-extra {
+  color: var(--accent-2);
 }
 
 .supplement-adherence {

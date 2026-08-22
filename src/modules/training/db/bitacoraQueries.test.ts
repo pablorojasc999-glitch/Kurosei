@@ -91,6 +91,7 @@ describe('listDailyMetricsInRange', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0].cardioCaloriesBurned).toBe(380)
+    expect(result[0].cardioDistanceKm).toBe(6)
     expect(result[0].hadStrengthSession).toBe(true)
     expect(result[0].strengthSessionDurationMinutes).toBeCloseTo(60)
   })
