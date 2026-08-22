@@ -24,3 +24,53 @@ export interface ExerciseMuscleContribution extends SyncedEntity {
   muscleGroupId: string
   percentage: number
 }
+
+export type PhaseType =
+  | 'accumulation'
+  | 'intensification'
+  | 'peaking'
+  | 'deload'
+  | 'custom'
+
+export interface Macrocycle extends SyncedEntity {
+  name: string
+  goal: string
+  startDate: string
+  endDate: string
+}
+
+export interface Mesocycle extends SyncedEntity {
+  macrocycleId: string
+  name: string
+  phaseType: PhaseType
+  order: number
+  startDate: string
+  endDate: string
+}
+
+export interface Week extends SyncedEntity {
+  mesocycleId: string
+  order: number
+}
+
+export interface Day extends SyncedEntity {
+  weekId: string | null
+  date: string
+  label: string
+}
+
+export interface PlannedExercise extends SyncedEntity {
+  dayId: string
+  exerciseId: string
+  order: number
+  notes: string
+}
+
+export interface PlannedSet extends SyncedEntity {
+  plannedExerciseId: string
+  setNumber: number
+  targetWeightKg: number | null
+  targetReps: number
+  targetRpe: number | null
+  restSecondsTarget: number | null
+}
