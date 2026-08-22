@@ -472,6 +472,18 @@ section {
   flex: 1;
 }
 
+.set-row--editing {
+  outline: 1px solid var(--accent-border);
+  outline-offset: -1px;
+}
+
+.set-form-cancel {
+  grid-column: 1 / -1;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
 .icon-button {
   min-height: auto;
   width: 28px;

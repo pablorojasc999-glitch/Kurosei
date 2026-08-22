@@ -17,6 +17,9 @@ import {
   deleteWeek,
   duplicateWeek,
   listPlannedDaysWithExercises,
+  setDayPlanClosed,
+  setPlannedExerciseClosed,
+  updatePlannedSet,
 } from '../db/planningRepository'
 import { parseDateInput } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
@@ -26,6 +29,7 @@ import type {
   Mesocycle,
   PhaseType,
   PlannedExercise,
+  PlannedSet,
   Week,
 } from '../domain/types'
 
@@ -141,6 +145,8 @@ export function PeriodizationPage({
   const selectedMacrocycle = macrocycles?.find((m) => m.id === macrocycleId)
   const selectedMesocycle = mesocycles?.find((m) => m.id === mesocycleId)
   const selectedWeek = weeks?.find((w) => w.id === weekId)
+  const selectedDay = days?.find((d) => d.id === dayId)
+  const dayLocked = selectedDay?.planClosedAt != null
 
   // --- forms state ---
   const [macroName, setMacroName] = useState('')
@@ -163,6 +169,7 @@ export function PeriodizationPage({
   const [setForms, setSetForms] = useState<
     Record<string, { weight: string; reps: string; rpe: string; rest: string }>
   >({})
+  const [editingSetId, setEditingSetId] = useState<Record<string, string | null>>({})
 
   async function handleCreateMacrocycle(e: React.FormEvent) {
     e.preventDefault()
@@ -236,20 +243,48 @@ export function PeriodizationPage({
     setNewExerciseNotes('')
   }
 
-  async function handleAddPlannedSet(plannedExerciseId: string) {
+  async function handleSubmitPlannedSet(plannedExerciseId: string) {
     const form = setForms[plannedExerciseId]
     if (!form || !form.reps) return
-    await createPlannedSet({
-      plannedExerciseId,
+    const input = {
       targetWeightKg: form.weight ? Number(form.weight) : null,
       targetReps: Number(form.reps),
       targetRpe: form.rpe ? Number(form.rpe) : null,
       restSecondsTarget: form.rest ? Math.round(Number(form.rest) * 60) : null,
-    })
+    }
+    const editingId = editingSetId[plannedExerciseId]
+    if (editingId) {
+      await updatePlannedSet(editingId, input)
+    } else {
+      await createPlannedSet({ plannedExerciseId, ...input })
+    }
     setSetForms((prev) => ({
       ...prev,
       [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '' },
     }))
+    setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+  }
+
+  function startEditPlannedSet(plannedExerciseId: string, s: PlannedSet) {
+    setSetForms((prev) => ({
+      ...prev,
+      [plannedExerciseId]: {
+        weight: s.targetWeightKg !== null ? String(s.targetWeightKg) : '',
+        reps: String(s.targetReps),
+        rpe: s.targetRpe !== null ? String(s.targetRpe) : '',
+        rest:
+          s.restSecondsTarget !== null ? String(s.restSecondsTarget / 60) : '',
+      },
+    }))
+    setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: s.id }))
+  }
+
+  function cancelEditPlannedSet(plannedExerciseId: string) {
+    setSetForms((prev) => ({
+      ...prev,
+      [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '' },
+    }))
+    setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
   }
 
   function exerciseName(id: string): string {
@@ -431,16 +466,37 @@ export function PeriodizationPage({
 
       {dayId && (
         <section>
-          <h2>Plan del día</h2>
+          <div className="planned-exercise-header">
+            <h2>Plan del día</h2>
+            <button
+              type="button"
+              onClick={() => setDayPlanClosed(dayId, !dayLocked)}
+            >
+              {dayLocked ? 'Reabrir día' : 'Cerrar día'}
+            </button>
+          </div>
           <ul className="planned-exercise-list">
             {plannedExercises?.map((pe) => {
-              const sets = plannedSets?.filter((ps) => ps.plannedExerciseId === pe.id) ?? []
+              const sets = (
+                plannedSets?.filter((ps) => ps.plannedExerciseId === pe.id) ?? []
+              ).sort((a, b) => a.setNumber - b.setNumber)
               const form = setForms[pe.id] ?? { weight: '', reps: '', rpe: '', rest: '' }
+              const exerciseClosed = pe.closedAt !== null
+              const locked = dayLocked || exerciseClosed
+              const editingId = editingSetId[pe.id]
               return (
                 <li key={pe.id} className="planned-exercise-item">
                   <div className="planned-exercise-header">
                     <strong>{exerciseName(pe.exerciseId)}</strong>
                     {pe.notes && <span className="notes"> — {pe.notes}</span>}
+                    {!dayLocked && (
+                      <button
+                        type="button"
+                        onClick={() => setPlannedExerciseClosed(pe.id, !exerciseClosed)}
+                      >
+                        {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
+                      </button>
+                    )}
                     <ConfirmDeleteButton
                       label="Quitar"
                       confirmMessage="¿Quitar este ejercicio del plan?"
@@ -449,7 +505,12 @@ export function PeriodizationPage({
                   </div>
                   <ul className="sets-list">
                     {sets.map((s) => (
-                      <li key={s.id} className="set-row">
+                      <li
+                        key={s.id}
+                        className={
+                          editingId === s.id ? 'set-row set-row--editing' : 'set-row'
+                        }
+                      >
                         <span className="set-number">{s.setNumber}</span>
                         <span className="set-summary">
                           {s.targetWeightKg ?? '-'} kg × {s.targetReps}
@@ -457,52 +518,82 @@ export function PeriodizationPage({
                           {s.restSecondsTarget !== null &&
                             ` · ${formatRestMinutes(s.restSecondsTarget)}`}
                         </span>
-                        <ConfirmDeleteButton
-                          variant="icon"
-                          label="Eliminar serie planificada"
-                          confirmMessage="¿Eliminar esta serie planificada?"
-                          onConfirm={() => deletePlannedSet(s.id)}
-                        />
+                        {!locked && (
+                          <>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              aria-label="Editar serie planificada"
+                              onClick={() => startEditPlannedSet(pe.id, s)}
+                            >
+                              ✎
+                            </button>
+                            <ConfirmDeleteButton
+                              variant="icon"
+                              label="Eliminar serie planificada"
+                              confirmMessage="¿Eliminar esta serie planificada?"
+                              onConfirm={() => deletePlannedSet(s.id)}
+                            />
+                          </>
+                        )}
                       </li>
                     ))}
                   </ul>
 
-                  <div className="set-form">
-                    <label>
-                      Peso (kg)
-                      <input type="number" inputMode="decimal" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
-                    </label>
-                    <label>
-                      Reps
-                      <input type="number" inputMode="numeric" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
-                    </label>
-                    <label>
-                      RPE
-                      <input type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
-                    </label>
-                    <label>
-                      Descanso (min)
-                      <input type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
-                    </label>
-                    <button type="button" className="add-set-button" onClick={() => handleAddPlannedSet(pe.id)}>
-                      + Agregar serie {sets.length + 1}
-                    </button>
-                  </div>
+                  {!locked && (
+                    <div className="set-form">
+                      <label>
+                        Peso (kg)
+                        <input type="number" inputMode="decimal" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
+                      </label>
+                      <label>
+                        Reps
+                        <input type="number" inputMode="numeric" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
+                      </label>
+                      <label>
+                        RPE
+                        <input type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
+                      </label>
+                      <label>
+                        Descanso (min)
+                        <input type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
+                      </label>
+                      <button type="button" className="add-set-button" onClick={() => handleSubmitPlannedSet(pe.id)}>
+                        {editingId ? 'Guardar cambios' : `+ Agregar serie ${sets.length + 1}`}
+                      </button>
+                      {editingId && (
+                        <button
+                          type="button"
+                          className="set-form-cancel"
+                          onClick={() => cancelEditPlannedSet(pe.id)}
+                        >
+                          Cancelar
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </li>
               )
             })}
           </ul>
 
-          <form onSubmit={handleAddPlannedExercise} className="entity-form">
-            <select value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} required>
-              <option value="">Elegir ejercicio</option>
-              {exercisesLibrary?.map((ex) => (
-                <option key={ex.id} value={ex.id}>{ex.name}</option>
-              ))}
-            </select>
-            <input value={newExerciseNotes} onChange={(e) => setNewExerciseNotes(e.target.value)} placeholder="Notas (opcional)" />
-            <button type="submit">Agregar ejercicio al día</button>
-          </form>
+          {dayLocked ? (
+            <p className="empty-hint">
+              El plan de este día está cerrado. Tocá "Reabrir día" para
+              seguir editándolo.
+            </p>
+          ) : (
+            <form onSubmit={handleAddPlannedExercise} className="entity-form">
+              <select value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} required>
+                <option value="">Elegir ejercicio</option>
+                {exercisesLibrary?.map((ex) => (
+                  <option key={ex.id} value={ex.id}>{ex.name}</option>
+                ))}
+              </select>
+              <input value={newExerciseNotes} onChange={(e) => setNewExerciseNotes(e.target.value)} placeholder="Notas (opcional)" />
+              <button type="submit">Agregar ejercicio al día</button>
+            </form>
+          )}
         </section>
       )}
     </div>

@@ -126,12 +126,21 @@ export async function createDay(input: CreateDayInput): Promise<Day> {
   const day: Day = {
     id: generateId(),
     ...input,
+    planClosedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
   }
   await db.training_days.add(day)
   return day
+}
+
+/** Closes or reopens a Day's plan, locking/unlocking every planned exercise and set inside it. */
+export async function setDayPlanClosed(id: string, closed: boolean): Promise<void> {
+  await db.training_days.update(id, {
+    planClosedAt: closed ? nowIso() : null,
+    updatedAt: nowIso(),
+  })
 }
 
 /** True if a strength session or cardio session was already logged for this day. */
@@ -240,12 +249,24 @@ export async function createPlannedExercise(
     id: generateId(),
     ...input,
     order: nextOrder,
+    closedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
   }
   await db.training_planned_exercises.add(plannedExercise)
   return plannedExercise
+}
+
+/** Closes or reopens a single planned exercise, independent of its Day's plan lock. */
+export async function setPlannedExerciseClosed(
+  id: string,
+  closed: boolean,
+): Promise<void> {
+  await db.training_planned_exercises.update(id, {
+    closedAt: closed ? nowIso() : null,
+    updatedAt: nowIso(),
+  })
 }
 
 export async function listPlannedSets(
@@ -284,6 +305,23 @@ export async function createPlannedSet(
   }
   await db.training_planned_sets.add(plannedSet)
   return plannedSet
+}
+
+export interface UpdatePlannedSetInput {
+  targetWeightKg: number | null
+  targetReps: number
+  targetRpe: number | null
+  restSecondsTarget: number | null
+}
+
+export async function updatePlannedSet(
+  id: string,
+  input: UpdatePlannedSetInput,
+): Promise<void> {
+  await db.training_planned_sets.update(id, {
+    ...input,
+    updatedAt: nowIso(),
+  })
 }
 
 export async function deletePlannedSet(id: string): Promise<void> {
@@ -336,6 +374,7 @@ export async function copyPlannedExercisesToDay(
           exerciseId: sourcePe.exerciseId,
           order: sourcePe.order,
           notes: sourcePe.notes,
+          closedAt: null,
           createdAt: timestamp,
           updatedAt: timestamp,
           deletedAt: null,
@@ -379,6 +418,7 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
       new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS,
     ).toISOString(),
     label: sourceDay.label,
+    planClosedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,

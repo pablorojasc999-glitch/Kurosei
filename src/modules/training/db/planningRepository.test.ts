@@ -24,6 +24,9 @@ import {
   listPlannedSets,
   listWeeks,
   listWeeksWithContext,
+  setDayPlanClosed,
+  setPlannedExerciseClosed,
+  updatePlannedSet,
 } from './planningRepository'
 import {
   addSessionExercise,
@@ -271,6 +274,95 @@ describe('listWeeksWithContext', () => {
 
     const result = await listWeeksWithContext()
     expect(result.map((w) => w.id)).toEqual([earlierWeek.id, laterWeek.id])
+  })
+})
+
+describe('setDayPlanClosed', () => {
+  it('sets and clears planClosedAt', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
+    expect(day.planClosedAt).toBeNull()
+
+    await setDayPlanClosed(day.id, true)
+    expect((await db.training_days.get(day.id))?.planClosedAt).not.toBeNull()
+
+    await setDayPlanClosed(day.id, false)
+    expect((await db.training_days.get(day.id))?.planClosedAt).toBeNull()
+  })
+})
+
+describe('setPlannedExerciseClosed', () => {
+  it('sets and clears closedAt', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const plannedExercise = await createPlannedExercise({
+      dayId: day.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    expect(plannedExercise.closedAt).toBeNull()
+
+    await setPlannedExerciseClosed(plannedExercise.id, true)
+    expect(
+      (await db.training_planned_exercises.get(plannedExercise.id))?.closedAt,
+    ).not.toBeNull()
+
+    await setPlannedExerciseClosed(plannedExercise.id, false)
+    expect(
+      (await db.training_planned_exercises.get(plannedExercise.id))?.closedAt,
+    ).toBeNull()
+  })
+})
+
+describe('updatePlannedSet', () => {
+  it('overwrites a planned set\'s targets in place, keeping its setNumber', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const plannedExercise = await createPlannedExercise({
+      dayId: day.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    const plannedSet = await createPlannedSet({
+      plannedExerciseId: plannedExercise.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 120,
+    })
+
+    await updatePlannedSet(plannedSet.id, {
+      targetWeightKg: 110,
+      targetReps: 3,
+      targetRpe: 9,
+      restSecondsTarget: 180,
+    })
+
+    const updated = await db.training_planned_sets.get(plannedSet.id)
+    expect(updated).toMatchObject({
+      setNumber: 1,
+      targetWeightKg: 110,
+      targetReps: 3,
+      targetRpe: 9,
+      restSecondsTarget: 180,
+    })
   })
 })
 

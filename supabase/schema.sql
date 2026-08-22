@@ -104,6 +104,7 @@ create table if not exists "training_days" (
   "weekId" uuid,
   "date" timestamptz not null,
   "label" text not null,
+  "planClosedAt" timestamptz,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz
@@ -116,6 +117,7 @@ create table if not exists "training_planned_exercises" (
   "exerciseId" uuid not null,
   "order" integer not null,
   "notes" text not null,
+  "closedAt" timestamptz,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz

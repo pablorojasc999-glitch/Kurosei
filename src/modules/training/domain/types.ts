@@ -57,6 +57,7 @@ export interface Day extends SyncedEntity {
   weekId: string | null
   date: string
   label: string
+  planClosedAt: string | null
 }
 
 export interface PlannedExercise extends SyncedEntity {
@@ -64,6 +65,7 @@ export interface PlannedExercise extends SyncedEntity {
   exerciseId: string
   order: number
   notes: string
+  closedAt: string | null
 }
 
 export interface PlannedSet extends SyncedEntity {
