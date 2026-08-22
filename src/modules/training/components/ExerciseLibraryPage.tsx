@@ -16,6 +16,14 @@ const CATEGORY_LABELS: Record<ExerciseCategory, string> = {
   deadlift: 'Peso muerto',
 }
 
+// Factor de contribución: solo décimas entre 0,1 y 1,0. El valor va con
+// punto (parseable con Number()); la etiqueta se muestra con coma, como
+// corresponde al formato decimal chileno.
+const FACTOR_OPTIONS = Array.from({ length: 10 }, (_, i) => {
+  const value = ((i + 1) / 10).toFixed(1)
+  return { value, label: value.replace('.', ',') }
+})
+
 export function ExerciseLibraryPage() {
   const muscleGroups = useLiveQuery(
     () => db.training_muscle_groups.filter((g) => g.deletedAt === null).sortBy('name'),
@@ -153,20 +161,23 @@ export function ExerciseLibraryPage() {
             <div className="contributions">
               <h3>Factor de contribución por grupo muscular</h3>
               <p className="contributions-hint">
-                Ej. sentadilla: cuádriceps 1, glúteos 1, isquios 0.5. Dejá en
-                0 los grupos que no participan.
+                Ej. sentadilla: cuádriceps 1,0, glúteos 1,0, isquios 0,5. Dejá
+                "Sin participación" en los grupos que no participan.
               </p>
               {canonicalGroups.map((g) => (
                 <div key={g.id} className="contribution-row">
                   <span className="contribution-row-label">{g.name}</span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.25}
+                  <select
                     value={factors[g.id] ?? ''}
                     onChange={(e) => updateFactor(g.id, e.target.value)}
-                    placeholder="0"
-                  />
+                  >
+                    <option value="">Sin participación</option>
+                    {FACTOR_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ))}
             </div>
@@ -203,7 +214,7 @@ export function ExerciseLibraryPage() {
                     ?.filter((c) => c.exerciseId === ex.id)
                     .map((c) => (
                       <span key={c.id} className="contribution-chip">
-                        {muscleGroupName(c.muscleGroupId)} ×{c.factor}
+                        {muscleGroupName(c.muscleGroupId)} ×{String(c.factor).replace('.', ',')}
                       </span>
                     ))}
                 </div>
