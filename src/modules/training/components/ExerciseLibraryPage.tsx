@@ -26,7 +26,11 @@ const FACTOR_OPTIONS = Array.from({ length: 10 }, (_, i) => {
 
 export function ExerciseLibraryPage() {
   const exercises = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
+    () =>
+      db.training_exercises
+        .filter((e) => e.deletedAt === null)
+        .toArray()
+        .then((list) => list.sort((a, b) => a.name.localeCompare(b.name, 'es'))),
     [],
   )
   const contributions = useLiveQuery(
