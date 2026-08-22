@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../../shared/db/database'
+import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
 import { calculateE1rm } from '../lib/e1rm'
 import { isNewPR, muscleGroupVolume, tonnage } from '../lib/metrics'
 
@@ -8,15 +9,7 @@ interface SessionSummaryProps {
 }
 
 export function SessionSummary({ sessionId }: SessionSummaryProps) {
-  const allSessionExercises = useLiveQuery(
-    () =>
-      db.training_session_exercises.filter((se) => se.deletedAt === null).toArray(),
-    [],
-  )
-  const allExecutedSets = useLiveQuery(
-    () => db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
-    [],
-  )
+  const allExecutedSets = useLiveQuery(() => listAllExecutedSetsWithContext(), [])
   const exercises = useLiveQuery(
     () => db.training_exercises.filter((e) => e.deletedAt === null).toArray(),
     [],
@@ -33,21 +26,12 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
     [],
   )
 
-  if (!allSessionExercises || !allExecutedSets || !exercises || !contributions) {
+  if (!allExecutedSets || !exercises || !contributions) {
     return null
   }
 
-  const sessionExerciseIdToExerciseId = new Map(
-    allSessionExercises.map((se) => [se.id, se.exerciseId]),
-  )
-  const sessionExerciseIdToSessionId = new Map(
-    allSessionExercises.map((se) => [se.id, se.sessionId]),
-  )
-
   const setsWithContext = allExecutedSets.map((s) => ({
     ...s,
-    exerciseId: sessionExerciseIdToExerciseId.get(s.sessionExerciseId) ?? '',
-    sessionId: sessionExerciseIdToSessionId.get(s.sessionExerciseId) ?? '',
     e1rm: calculateE1rm({ weightKg: s.weightKg ?? 0, reps: s.reps, rpe: s.rpe ?? undefined }),
   }))
 

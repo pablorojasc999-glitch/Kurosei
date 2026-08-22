@@ -147,6 +147,17 @@ export function SessionView({ dayId }: SessionViewProps) {
     }
   }
 
+  async function handleStartSession() {
+    const newSession = await startSession(dayId)
+    for (const pe of plannedExercises ?? []) {
+      await addSessionExercise({
+        sessionId: newSession.id,
+        exerciseId: pe.exerciseId,
+        notes: pe.notes,
+      })
+    }
+  }
+
   async function handleAddSet(sessionExerciseId: string) {
     const form = setForms[sessionExerciseId] ?? EMPTY_SET_FORM
     if (!form.reps) return
@@ -186,8 +197,10 @@ export function SessionView({ dayId }: SessionViewProps) {
     return (
       <div>
         <p className="empty-hint">Todavía no iniciaste la sesión de este día.</p>
-        <button type="button" onClick={() => startSession(dayId)}>
-          Iniciar sesión
+        <button type="button" onClick={handleStartSession}>
+          {plannedExercises?.length
+            ? 'Iniciar sesión y cargar plan'
+            : 'Iniciar sesión'}
         </button>
       </div>
     )

@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { addMonths, buildMonthGrid, startOfMonth, toDateKey } from './calendarGrid'
+import {
+  addDays,
+  addMonths,
+  buildMonthGrid,
+  startOfDay,
+  startOfMonth,
+  toDateKey,
+} from './calendarGrid'
 
 describe('toDateKey', () => {
   it('formats as zero-padded YYYY-MM-DD regardless of locale', () => {
@@ -22,6 +29,24 @@ describe('startOfMonth / addMonths', () => {
     const nov2026 = addMonths(dec2026, -1)
     expect(nov2026.getFullYear()).toBe(2026)
     expect(nov2026.getMonth()).toBe(10)
+  })
+})
+
+describe('startOfDay / addDays', () => {
+  it('strips the time of day', () => {
+    const d = startOfDay(new Date(2026, 7, 22, 23, 59, 59))
+    expect([d.getHours(), d.getMinutes(), d.getSeconds()]).toEqual([0, 0, 0])
+  })
+
+  it('shifts days and wraps across month boundaries', () => {
+    const aug31 = startOfDay(new Date(2026, 7, 31))
+    const sep1 = addDays(aug31, 1)
+    expect(sep1.getMonth()).toBe(8)
+    expect(sep1.getDate()).toBe(1)
+
+    const back = addDays(sep1, -1)
+    expect(back.getMonth()).toBe(7)
+    expect(back.getDate()).toBe(31)
   })
 })
 

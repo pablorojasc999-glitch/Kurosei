@@ -12,8 +12,6 @@ import {
   deletePlannedSet,
   duplicateWeek,
 } from '../db/planningRepository'
-import { CardioView } from './CardioView'
-import { SessionView } from './SessionView'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import type {
   Day,
@@ -33,20 +31,17 @@ const PHASE_LABELS: Record<PhaseType, string> = {
 
 interface PeriodizationPageProps {
   jumpToDayId?: string | null
-  jumpToView?: 'plan' | 'session'
   onJumpHandled?: () => void
 }
 
 export function PeriodizationPage({
   jumpToDayId,
-  jumpToView = 'session',
   onJumpHandled,
 }: PeriodizationPageProps) {
   const [macrocycleId, setMacrocycleId] = useState<string | null>(null)
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
   const [dayId, setDayId] = useState<string | null>(null)
-  const [dayView, setDayView] = useState<'plan' | 'session' | 'cardio'>('plan')
 
   useEffect(() => {
     if (!jumpToDayId) return
@@ -63,14 +58,13 @@ export function PeriodizationPage({
       setMesocycleId(week?.mesocycleId ?? null)
       setWeekId(day.weekId)
       setDayId(day.id)
-      setDayView(jumpToView)
       onJumpHandled?.()
     }
     resolveAndJump()
     return () => {
       cancelled = true
     }
-  }, [jumpToDayId, jumpToView, onJumpHandled])
+  }, [jumpToDayId, onJumpHandled])
 
   const macrocycles = useLiveQuery(
     () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
@@ -383,37 +377,6 @@ export function PeriodizationPage({
       )}
 
       {dayId && (
-        <section>
-          <div className="sub-tabs">
-            <button
-              type="button"
-              className={dayView === 'plan' ? 'active' : ''}
-              onClick={() => setDayView('plan')}
-            >
-              Plan
-            </button>
-            <button
-              type="button"
-              className={dayView === 'session' ? 'active' : ''}
-              onClick={() => setDayView('session')}
-            >
-              Sesión
-            </button>
-            <button
-              type="button"
-              className={dayView === 'cardio' ? 'active' : ''}
-              onClick={() => setDayView('cardio')}
-            >
-              Cardio
-            </button>
-          </div>
-
-          {dayView === 'session' && <SessionView dayId={dayId} />}
-          {dayView === 'cardio' && <CardioView dayId={dayId} />}
-        </section>
-      )}
-
-      {dayId && dayView === 'plan' && (
         <section>
           <h2>Plan del día</h2>
           <ul className="planned-exercise-list">

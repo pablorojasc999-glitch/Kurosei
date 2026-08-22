@@ -14,7 +14,7 @@ import {
   createExecutedSet,
   startSession,
 } from './executionRepository'
-import { getRecentRpeDeviations } from './metricsQueries'
+import { getRecentRpeDeviations, listAllExecutedSetsWithContext } from './metricsQueries'
 
 beforeEach(async () => {
   await db.transaction(
@@ -122,5 +122,45 @@ describe('getRecentRpeDeviations', () => {
 
     const deviations = await getRecentRpeDeviations(exercise.id, 2)
     expect(deviations).toEqual([2, 1])
+  })
+})
+
+describe('listAllExecutedSetsWithContext', () => {
+  it('joins executed sets up to their exerciseId and sessionId', async () => {
+    const mesocycle = await seedMesocycle()
+    const exercise = await seedExercise()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const session = await startSession(day.id)
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    await createExecutedSet({
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '',
+    })
+
+    const sets = await listAllExecutedSetsWithContext()
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({
+      exerciseId: exercise.id,
+      sessionId: session.id,
+      weightKg: 100,
+      reps: 5,
+    })
+  })
+
+  it('returns an empty list when nothing has been executed', async () => {
+    expect(await listAllExecutedSetsWithContext()).toEqual([])
   })
 })

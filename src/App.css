@@ -636,25 +636,37 @@ section {
   color: var(--text-muted);
 }
 
-/* --- today --- */
+/* --- registro --- */
 
-.today-header {
+.day-nav {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 20px;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
-.today-date {
-  font-size: 17px;
+.day-nav button {
+  min-width: 44px;
+  font-size: 18px;
+}
+
+.day-nav-label {
+  font-size: 15px;
   font-weight: 600;
+  color: var(--text);
+  min-width: 200px;
+  text-align: center;
 }
 
-.today-hint {
-  font-size: 13px;
+.edit-plan-link {
+  display: block;
+  width: 100%;
+  margin-bottom: 16px;
+  background: none;
+  border: 1px dashed var(--border);
   color: var(--text-muted);
-  margin-top: 2px;
+  font-size: 13px;
 }
 
 /* --- calendar --- */
@@ -708,11 +720,6 @@ section {
   border: 1px solid transparent;
   min-height: 0;
   color: var(--text);
-}
-
-.calendar-cell:disabled {
-  background: transparent;
-  opacity: 0.35;
 }
 
 .calendar-cell--outside {
@@ -771,4 +778,92 @@ section {
 .calendar-dot--planned {
   background: transparent;
   border: 1px solid var(--text-muted);
+}
+
+/* --- progress --- */
+
+.pr-table {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.pr-row span:first-child {
+  flex: 1;
+  color: var(--text);
+}
+
+.volume-bars {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.volume-bar-row {
+  display: grid;
+  grid-template-columns: 90px 1fr 48px;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.volume-bar-label {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.volume-bar-track {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.volume-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.volume-bar-value {
+  color: var(--text-muted);
+  text-align: right;
+}
+
+.trend-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trend-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 13px;
 }

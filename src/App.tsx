@@ -2,68 +2,82 @@ import { useState } from 'react'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { ExerciseLibraryPage } from './modules/training/components/ExerciseLibraryPage'
 import { PeriodizationPage } from './modules/training/components/PeriodizationPage'
-import { TodayPage } from './modules/training/components/TodayPage'
+import { ProgressPage } from './modules/training/components/ProgressPage'
+import { RegistroPage } from './modules/training/components/RegistroPage'
 import './App.css'
 
-type Tab = 'today' | 'library' | 'periodization' | 'calendar'
+type Tab = 'registro' | 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca'
 
 function App() {
-  const [tab, setTab] = useState<Tab>('today')
+  const [tab, setTab] = useState<Tab>('registro')
+  const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
-  const [jumpToView, setJumpToView] = useState<'plan' | 'session'>('session')
 
-  function handleOpenDay(dayId: string, view: 'plan' | 'session' = 'session') {
+  function handleOpenDay(date: Date) {
+    setJumpToDate(date)
+    setTab('registro')
+  }
+
+  function handleEditPlan(dayId: string) {
     setJumpToDayId(dayId)
-    setJumpToView(view)
-    setTab('periodization')
+    setTab('periodizacion')
   }
 
   return (
     <div className="app-shell">
       <main className="app-content">
-        <div hidden={tab !== 'today'}>
-          <TodayPage onEditPlan={(dayId) => handleOpenDay(dayId, 'plan')} />
+        <div hidden={tab !== 'registro'}>
+          <RegistroPage jumpToDate={jumpToDate} onEditPlan={handleEditPlan} />
         </div>
-        <div hidden={tab !== 'periodization'}>
+        <div hidden={tab !== 'periodizacion'}>
           <PeriodizationPage
             jumpToDayId={jumpToDayId}
-            jumpToView={jumpToView}
             onJumpHandled={() => setJumpToDayId(null)}
           />
         </div>
-        <div hidden={tab !== 'calendar'}>
+        <div hidden={tab !== 'calendario'}>
           <CalendarPage onOpenDay={handleOpenDay} />
         </div>
-        <div hidden={tab !== 'library'}>
+        <div hidden={tab !== 'progreso'}>
+          <ProgressPage />
+        </div>
+        <div hidden={tab !== 'biblioteca'}>
           <ExerciseLibraryPage />
         </div>
       </main>
       <nav className="tabs">
         <button
           type="button"
-          className={tab === 'today' ? 'active' : ''}
-          onClick={() => setTab('today')}
+          className={tab === 'registro' ? 'active' : ''}
+          onClick={() => setTab('registro')}
         >
-          Hoy
+          Registro
         </button>
         <button
           type="button"
-          className={tab === 'periodization' ? 'active' : ''}
-          onClick={() => setTab('periodization')}
+          className={tab === 'periodizacion' ? 'active' : ''}
+          onClick={() => setTab('periodizacion')}
         >
-          Periodización
+          Plan
         </button>
         <button
           type="button"
-          className={tab === 'calendar' ? 'active' : ''}
-          onClick={() => setTab('calendar')}
+          className={tab === 'calendario' ? 'active' : ''}
+          onClick={() => setTab('calendario')}
         >
           Calendario
         </button>
         <button
           type="button"
-          className={tab === 'library' ? 'active' : ''}
-          onClick={() => setTab('library')}
+          className={tab === 'progreso' ? 'active' : ''}
+          onClick={() => setTab('progreso')}
+        >
+          Progreso
+        </button>
+        <button
+          type="button"
+          className={tab === 'biblioteca' ? 'active' : ''}
+          onClick={() => setTab('biblioteca')}
         >
           Biblioteca
         </button>

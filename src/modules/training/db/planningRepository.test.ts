@@ -9,7 +9,8 @@ import {
   createPlannedSet,
   createWeek,
   duplicateWeek,
-  findTodayOrNearestDay,
+  findDayByDate,
+  getOrCreateDayForDate,
   listDays,
   listPlannedExercises,
   listPlannedSets,
@@ -113,58 +114,68 @@ describe('duplicateWeek', () => {
   })
 })
 
-function daysFromNow(offset: number): string {
+function daysFromNow(offset: number): Date {
   const d = new Date()
   d.setDate(d.getDate() + offset)
-  return d.toISOString()
+  return d
 }
 
-describe('findTodayOrNearestDay', () => {
-  it('returns null when no days exist', async () => {
-    expect(await findTodayOrNearestDay()).toBeNull()
+describe('findDayByDate', () => {
+  it('returns null when no day matches the date', async () => {
+    expect(await findDayByDate(new Date())).toBeNull()
   })
 
-  it('prefers an exact match for today over other days', async () => {
+  it('finds a day matching the calendar date regardless of time of day', async () => {
     const mesocycle = await seedMesocycle()
     const week = await createWeek(mesocycle.id)
-    await createDay({ weekId: week.id, date: daysFromNow(-3), label: 'Pasado' })
-    const todayDay = await createDay({
+    const today = daysFromNow(0)
+    const created = await createDay({
       weekId: week.id,
-      date: daysFromNow(0),
-      label: 'Hoy',
+      date: today.toISOString(),
+      label: 'Tren superior',
     })
-    await createDay({ weekId: week.id, date: daysFromNow(3), label: 'Futuro' })
 
-    const result = await findTodayOrNearestDay()
-    expect(result?.id).toBe(todayDay.id)
+    const lookupTime = new Date(today)
+    lookupTime.setHours(23, 59, 0, 0)
+    const result = await findDayByDate(lookupTime)
+    expect(result?.id).toBe(created.id)
   })
 
-  it('falls back to the nearest upcoming day when none is today', async () => {
+  it('does not match a different calendar day', async () => {
     const mesocycle = await seedMesocycle()
     const week = await createWeek(mesocycle.id)
-    await createDay({ weekId: week.id, date: daysFromNow(-3), label: 'Pasado' })
-    const nearFuture = await createDay({
+    await createDay({
       weekId: week.id,
-      date: daysFromNow(2),
-      label: 'Cercano',
+      date: daysFromNow(-1).toISOString(),
+      label: 'Ayer',
     })
-    await createDay({ weekId: week.id, date: daysFromNow(5), label: 'Lejano' })
 
-    const result = await findTodayOrNearestDay()
-    expect(result?.id).toBe(nearFuture.id)
+    expect(await findDayByDate(daysFromNow(0))).toBeNull()
+  })
+})
+
+describe('getOrCreateDayForDate', () => {
+  it('returns the existing day for that date instead of creating a duplicate', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const today = daysFromNow(0)
+    const created = await createDay({
+      weekId: week.id,
+      date: today.toISOString(),
+      label: 'Tren superior',
+    })
+
+    const result = await getOrCreateDayForDate(today)
+    expect(result.id).toBe(created.id)
   })
 
-  it('falls back to the most recent past day when nothing is upcoming', async () => {
-    const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
-    await createDay({ weekId: week.id, date: daysFromNow(-10), label: 'Muy pasado' })
-    const recentPast = await createDay({
-      weekId: week.id,
-      date: daysFromNow(-2),
-      label: 'Reciente',
-    })
+  it('creates an ad-hoc day (no week) when none exists for that date', async () => {
+    const date = daysFromNow(0)
+    const result = await getOrCreateDayForDate(date)
+    expect(result.weekId).toBeNull()
+    expect(new Date(result.date).toDateString()).toBe(date.toDateString())
 
-    const result = await findTodayOrNearestDay()
-    expect(result?.id).toBe(recentPast.id)
+    const second = await getOrCreateDayForDate(date)
+    expect(second.id).toBe(result.id)
   })
 })

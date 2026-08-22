@@ -1,5 +1,28 @@
 import { db } from '../../../shared/db/database'
 import { averageRpeDeviation, type RpePair } from '../lib/metrics'
+import type { ExecutedSet } from '../domain/types'
+
+export interface ExecutedSetWithContext extends ExecutedSet {
+  exerciseId: string
+  sessionId: string
+}
+
+/** Every executed set across all sessions, joined up to its exerciseId/sessionId. */
+export async function listAllExecutedSetsWithContext(): Promise<
+  ExecutedSetWithContext[]
+> {
+  const [sets, sessionExercises] = await Promise.all([
+    db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
+    db.training_session_exercises.filter((se) => se.deletedAt === null).toArray(),
+  ])
+  const sessionExerciseById = new Map(sessionExercises.map((se) => [se.id, se]))
+
+  return sets.flatMap((s) => {
+    const se = sessionExerciseById.get(s.sessionExerciseId)
+    if (!se) return []
+    return [{ ...s, exerciseId: se.exerciseId, sessionId: se.sessionId }]
+  })
+}
 
 /**
  * Per-day average RPE deviation (actual - planned) for one exercise, most

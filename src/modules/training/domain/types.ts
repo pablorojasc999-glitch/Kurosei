@@ -106,7 +106,6 @@ export interface CardioSession extends SyncedEntity {
   startedAt: string
   durationMinutes: number
   distanceKm: number | null
-  rpe: number | null
-  eva: number | null
+  caloriesBurned: number | null
   notes: string
 }

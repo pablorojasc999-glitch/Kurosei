@@ -11,6 +11,16 @@ export function addMonths(date: Date, delta: number): Date {
   return new Date(date.getFullYear(), date.getMonth() + delta, 1)
 }
 
+export function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+export function addDays(date: Date, delta: number): Date {
+  const d = new Date(date)
+  d.setDate(d.getDate() + delta)
+  return d
+}
+
 /** Monday-first 6-week (42-day) grid covering the month plus lead/trail days. */
 export function buildMonthGrid(monthStart: Date): Date[] {
   const jsWeekday = monthStart.getDay()

@@ -6,7 +6,7 @@ import { addMonths, buildMonthGrid, startOfMonth, toDateKey } from '../lib/calen
 const WEEKDAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
 interface CalendarPageProps {
-  onOpenDay: (dayId: string) => void
+  onOpenDay: (date: Date) => void
 }
 
 export function CalendarPage({ onOpenDay }: CalendarPageProps) {
@@ -95,7 +95,6 @@ export function CalendarPage({ onOpenDay }: CalendarPageProps) {
             <button
               key={dateKey}
               type="button"
-              disabled={!day}
               className={[
                 'calendar-cell',
                 !isCurrentMonth && 'calendar-cell--outside',
@@ -105,7 +104,7 @@ export function CalendarPage({ onOpenDay }: CalendarPageProps) {
               ]
                 .filter(Boolean)
                 .join(' ')}
-              onClick={() => day && onOpenDay(day.id)}
+              onClick={() => onOpenDay(date)}
             >
               <span className="calendar-cell-number numeric">{date.getDate()}</span>
               {day?.label && isCurrentMonth && (

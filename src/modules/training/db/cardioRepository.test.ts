@@ -59,8 +59,7 @@ describe('createCardioSession / listCardioSessions', () => {
       startedAt: '2026-01-05T06:30:00.000Z',
       durationMinutes: 30,
       distanceKm: 5,
-      rpe: 6,
-      eva: null,
+      caloriesBurned: 320,
       notes: 'trote suave',
     })
     // logged for late night, same day
@@ -70,8 +69,7 @@ describe('createCardioSession / listCardioSessions', () => {
       startedAt: '2026-01-05T22:00:00.000Z',
       durationMinutes: 20,
       distanceKm: null,
-      rpe: null,
-      eva: null,
+      caloriesBurned: null,
       notes: '',
     })
 
@@ -90,8 +88,7 @@ describe('createCardioSession / listCardioSessions', () => {
       startedAt: '2026-01-05T06:30:00.000Z',
       durationMinutes: 30,
       distanceKm: null,
-      rpe: null,
-      eva: null,
+      caloriesBurned: null,
       notes: '',
     })
 

@@ -302,31 +302,23 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
   return newWeek
 }
 
+/** Finds the Day (if any) whose date falls on the same calendar day as `date`. */
+export async function findDayByDate(date: Date): Promise<Day | null> {
+  const dateKey = date.toDateString()
+  const day = await db.training_days
+    .filter((d) => d.deletedAt === null && new Date(d.date).toDateString() === dateKey)
+    .first()
+  return day ?? null
+}
+
 /**
- * Resolves which day the "Hoy" view should open: an exact date match for
- * today, else the nearest upcoming planned day, else the most recent past
- * one (so there is always something to land on once at least one day
- * exists), else null.
+ * Returns the Day for `date`, creating an unplanned/ad-hoc one (weekId
+ * null) on the fly if none exists yet — used when logging a session or
+ * cardio for a day that was never planned.
  */
-export async function findTodayOrNearestDay(): Promise<Day | null> {
-  const days = await db.training_days
-    .filter((d) => d.deletedAt === null)
-    .toArray()
-  if (days.length === 0) return null
-
-  const todayKey = new Date().toDateString()
-  const exactMatch = days.find((d) => new Date(d.date).toDateString() === todayKey)
-  if (exactMatch) return exactMatch
-
-  const nowMs = Date.now()
-  const upcoming = days
-    .filter((d) => new Date(d.date).getTime() >= nowMs)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-  if (upcoming.length > 0) return upcoming[0]
-
-  const past = days.sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
-  )
-  return past[0]
+export async function getOrCreateDayForDate(date: Date): Promise<Day> {
+  const existing = await findDayByDate(date)
+  if (existing) return existing
+  return createDay({ weekId: null, date: date.toISOString(), label: '' })
 }
 

@@ -44,8 +44,7 @@ export function CardioView({ dayId }: CardioViewProps) {
   )
   const [duration, setDuration] = useState('')
   const [distance, setDistance] = useState('')
-  const [rpe, setRpe] = useState('')
-  const [eva, setEva] = useState('')
+  const [calories, setCalories] = useState('')
   const [notes, setNotes] = useState('')
 
   function exerciseName(id: string): string {
@@ -61,16 +60,14 @@ export function CardioView({ dayId }: CardioViewProps) {
       startedAt: new Date(startedAt).toISOString(),
       durationMinutes: Number(duration),
       distanceKm: distance ? Number(distance) : null,
-      rpe: rpe ? Number(rpe) : null,
-      eva: eva ? Number(eva) : null,
+      caloriesBurned: calories ? Number(calories) : null,
       notes,
     })
     setExerciseId('')
     setStartedAt(toDatetimeLocalValue(new Date()))
     setDuration('')
     setDistance('')
-    setRpe('')
-    setEva('')
+    setCalories('')
     setNotes('')
   }
 
@@ -93,8 +90,7 @@ export function CardioView({ dayId }: CardioViewProps) {
               <div className="cardio-summary">
                 {formatTime(s.startedAt)} · {s.durationMinutes} min
                 {s.distanceKm !== null && ` · ${s.distanceKm} km`}
-                {s.rpe !== null && ` · RPE ${s.rpe}`}
-                {s.eva !== null && ` · EVA ${s.eva}`}
+                {s.caloriesBurned !== null && ` · ${s.caloriesBurned} kcal`}
                 {s.notes && ` · ${s.notes}`}
               </div>
             </div>
@@ -151,24 +147,12 @@ export function CardioView({ dayId }: CardioViewProps) {
           />
         </label>
         <label>
-          RPE (opcional)
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.5"
-            value={rpe}
-            onChange={(e) => setRpe(e.target.value)}
-          />
-        </label>
-        <label>
-          EVA (0-10, opcional)
+          Calorías (kcal, opcional)
           <input
             type="number"
             inputMode="numeric"
-            min={0}
-            max={10}
-            value={eva}
-            onChange={(e) => setEva(e.target.value)}
+            value={calories}
+            onChange={(e) => setCalories(e.target.value)}
           />
         </label>
         <input
