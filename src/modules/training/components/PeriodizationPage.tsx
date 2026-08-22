@@ -352,50 +352,41 @@ export function PeriodizationPage() {
                     {pe.notes && <span className="notes"> — {pe.notes}</span>}
                     <button type="button" onClick={() => deletePlannedExercise(pe.id)}>Quitar</button>
                   </div>
-                  <table className="sets-table">
-                    <thead>
-                      <tr>
-                        <th>Serie</th>
-                        <th>Peso (kg)</th>
-                        <th>Reps</th>
-                        <th>RPE</th>
-                        <th>Descanso (s)</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sets.map((s) => (
-                        <tr key={s.id}>
-                          <td>{s.setNumber}</td>
-                          <td>{s.targetWeightKg ?? '-'}</td>
-                          <td>{s.targetReps}</td>
-                          <td>{s.targetRpe ?? '-'}</td>
-                          <td>{s.restSecondsTarget ?? '-'}</td>
-                          <td>
-                            <button type="button" onClick={() => deletePlannedSet(s.id)}>x</button>
-                          </td>
-                        </tr>
-                      ))}
-                      <tr>
-                        <td>{sets.length + 1}</td>
-                        <td>
-                          <input type="number" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
-                        </td>
-                        <td>
-                          <input type="number" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
-                        </td>
-                        <td>
-                          <input type="number" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
-                        </td>
-                        <td>
-                          <input type="number" value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
-                        </td>
-                        <td>
-                          <button type="button" onClick={() => handleAddPlannedSet(pe.id)}>+</button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
+                  <ul className="sets-list">
+                    {sets.map((s) => (
+                      <li key={s.id} className="set-row">
+                        <span className="set-number">{s.setNumber}</span>
+                        <span className="set-summary">
+                          {s.targetWeightKg ?? '-'} kg × {s.targetReps}
+                          {s.targetRpe !== null && ` · RPE ${s.targetRpe}`}
+                          {s.restSecondsTarget !== null && ` · ${s.restSecondsTarget}s`}
+                        </span>
+                        <button type="button" className="icon-button" onClick={() => deletePlannedSet(s.id)}>×</button>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="set-form">
+                    <label>
+                      Peso (kg)
+                      <input type="number" inputMode="decimal" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
+                    </label>
+                    <label>
+                      Reps
+                      <input type="number" inputMode="numeric" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
+                    </label>
+                    <label>
+                      RPE
+                      <input type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
+                    </label>
+                    <label>
+                      Descanso (s)
+                      <input type="number" inputMode="numeric" value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
+                    </label>
+                    <button type="button" className="add-set-button" onClick={() => handleAddPlannedSet(pe.id)}>
+                      + Agregar serie {sets.length + 1}
+                    </button>
+                  </div>
                 </li>
               )
             })}

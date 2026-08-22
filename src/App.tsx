@@ -9,7 +9,15 @@ function App() {
   const [tab, setTab] = useState<Tab>('periodization')
 
   return (
-    <div>
+    <div className="app-shell">
+      <main className="app-content">
+        <div hidden={tab !== 'periodization'}>
+          <PeriodizationPage />
+        </div>
+        <div hidden={tab !== 'library'}>
+          <ExerciseLibraryPage />
+        </div>
+      </main>
       <nav className="tabs">
         <button
           type="button"
@@ -23,10 +31,9 @@ function App() {
           className={tab === 'library' ? 'active' : ''}
           onClick={() => setTab('library')}
         >
-          Biblioteca de ejercicios
+          Biblioteca
         </button>
       </nav>
-      {tab === 'periodization' ? <PeriodizationPage /> : <ExerciseLibraryPage />}
     </div>
   )
 }
