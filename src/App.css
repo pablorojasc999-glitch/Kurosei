@@ -1236,7 +1236,25 @@ section {
 }
 
 .bitacora-log-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
   margin-bottom: 16px;
+}
+
+.bitacora-log-form > label {
+  gap: 4px;
+}
+
+.bitacora-supplements {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+}
+
+.bitacora-log-form > button[type='submit'] {
+  grid-column: 1 / -1;
 }
 
 .bitacora-expenditure {

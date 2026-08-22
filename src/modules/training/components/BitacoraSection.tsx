@@ -405,34 +405,38 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             ))}
           </select>
         </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={logForm.creatineTaken}
-            onChange={(e) =>
-              setLogForm((prev) => ({ ...prev, creatineTaken: e.target.checked }))
-            }
-          />
-          Creatina
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={logForm.omega3Taken}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, omega3Taken: e.target.checked }))}
-          />
-          Omega 3
-        </label>
-        <label className="checkbox-row">
-          <input
-            type="checkbox"
-            checked={logForm.vitaminDTaken}
-            onChange={(e) =>
-              setLogForm((prev) => ({ ...prev, vitaminDTaken: e.target.checked }))
-            }
-          />
-          Vitamina D
-        </label>
+        <div className="bitacora-supplements">
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={logForm.creatineTaken}
+              onChange={(e) =>
+                setLogForm((prev) => ({ ...prev, creatineTaken: e.target.checked }))
+              }
+            />
+            Creatina
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={logForm.omega3Taken}
+              onChange={(e) =>
+                setLogForm((prev) => ({ ...prev, omega3Taken: e.target.checked }))
+              }
+            />
+            Omega 3
+          </label>
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={logForm.vitaminDTaken}
+              onChange={(e) =>
+                setLogForm((prev) => ({ ...prev, vitaminDTaken: e.target.checked }))
+              }
+            />
+            Vitamina D
+          </label>
+        </div>
         <button type="submit">Guardar bitácora</button>
       </form>
 
