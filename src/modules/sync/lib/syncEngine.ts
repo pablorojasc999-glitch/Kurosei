@@ -21,6 +21,8 @@ export const SYNC_TABLE_NAMES = [
   'training_cardio_sessions',
   'training_user_profile',
   'training_daily_logs',
+  'org_categories',
+  'org_time_blocks',
 ] as const
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]

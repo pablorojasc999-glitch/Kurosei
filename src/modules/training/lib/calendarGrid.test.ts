@@ -3,6 +3,7 @@ import {
   addDays,
   addMonths,
   buildMonthGrid,
+  formatDayHeader,
   parseDateInput,
   startOfDay,
   startOfMonth,
@@ -60,6 +61,21 @@ describe('parseDateInput', () => {
 
   it('round-trips through toDateKey', () => {
     expect(toDateKey(parseDateInput('2026-01-05'))).toBe('2026-01-05')
+  })
+})
+
+describe('formatDayHeader', () => {
+  it('labels today, yesterday and tomorrow relative to now', () => {
+    const today = startOfDay(new Date())
+    expect(formatDayHeader(today)).toMatch(/^Hoy · /)
+    expect(formatDayHeader(addDays(today, -1))).toMatch(/^Ayer · /)
+    expect(formatDayHeader(addDays(today, 1))).toMatch(/^Mañana · /)
+  })
+
+  it('falls back to a plain weekday/date label further out', () => {
+    const today = startOfDay(new Date())
+    const label = formatDayHeader(addDays(today, 10))
+    expect(label).not.toMatch(/^(Hoy|Ayer|Mañana) ·/)
   })
 })
 

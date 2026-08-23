@@ -1,4 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { ORGANIZATION_STORES_V3 } from '../../modules/organization/db/schema'
+import type { TimeBlock, TimeBlockCategory } from '../../modules/organization/domain/types'
 import { TRAINING_STORES_V1, TRAINING_STORES_V2 } from '../../modules/training/db/schema'
 import type {
   CardioSession,
@@ -37,6 +39,8 @@ export class KuroseiDatabase extends Dexie {
   training_cardio_sessions!: EntityTable<CardioSession, 'id'>
   training_user_profile!: EntityTable<UserProfile, 'id'>
   training_daily_logs!: EntityTable<DailyLog, 'id'>
+  org_categories!: EntityTable<TimeBlockCategory, 'id'>
+  org_time_blocks!: EntityTable<TimeBlock, 'id'>
 
   constructor() {
     super('kurosei')
@@ -45,6 +49,9 @@ export class KuroseiDatabase extends Dexie {
     })
     this.version(2).stores({
       ...TRAINING_STORES_V2,
+    })
+    this.version(3).stores({
+      ...ORGANIZATION_STORES_V3,
     })
   }
 }
