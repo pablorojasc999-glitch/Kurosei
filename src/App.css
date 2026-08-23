@@ -5,6 +5,33 @@
   min-height: 100dvh;
 }
 
+.update-toast {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  background: var(--accent-dark);
+  border-bottom: 1px solid var(--accent-border);
+  padding: 10px 16px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.update-toast button {
+  min-height: 32px;
+  padding: 4px 14px;
+  background: var(--text);
+  color: var(--bg);
+  border: none;
+  font-weight: 600;
+}
+
 .app-header {
   position: sticky;
   top: 0;
@@ -1333,6 +1360,44 @@ section {
 .bitacora-expenditure-value {
   font-size: 18px;
   font-weight: 600;
+  color: var(--accent-2);
+}
+
+/* --- calculadora de e1RM --- */
+
+.calc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
+
+.calc-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.calc-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 4px;
+}
+
+.calc-result-value {
+  font-size: 20px;
+  font-weight: 700;
   color: var(--accent-2);
 }
 

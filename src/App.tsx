@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { CalendarPage } from './modules/training/components/CalendarPage'
+import { E1rmCalculatorPage } from './modules/training/components/E1rmCalculatorPage'
 import { ExerciseLibraryPage } from './modules/training/components/ExerciseLibraryPage'
 import {
+  IconCalculator,
   IconCalendar,
   IconLibrary,
   IconPlan,
@@ -12,10 +14,17 @@ import { Logo } from './modules/training/components/Logo'
 import { PeriodizationPage } from './modules/training/components/PeriodizationPage'
 import { ProgressPage } from './modules/training/components/ProgressPage'
 import { RegistroPage } from './modules/training/components/RegistroPage'
+import { ReloadPrompt } from './modules/training/components/ReloadPrompt'
 import { AccountPanel } from './modules/sync/components/AccountPanel'
 import './App.css'
 
-type Tab = 'registro' | 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca'
+type Tab =
+  | 'registro'
+  | 'periodizacion'
+  | 'calendario'
+  | 'progreso'
+  | 'biblioteca'
+  | 'calculadora'
 
 function App() {
   const [tab, setTab] = useState<Tab>('registro')
@@ -34,6 +43,7 @@ function App() {
 
   return (
     <div className="app-shell">
+      <ReloadPrompt />
       <header className="app-header">
         <div className="app-header-inner">
           <Logo />
@@ -58,6 +68,9 @@ function App() {
         </div>
         <div hidden={tab !== 'biblioteca'}>
           <ExerciseLibraryPage />
+        </div>
+        <div hidden={tab !== 'calculadora'}>
+          <E1rmCalculatorPage />
         </div>
       </main>
       <nav className="tabs">
@@ -100,6 +113,14 @@ function App() {
         >
           <IconLibrary />
           Biblioteca
+        </button>
+        <button
+          type="button"
+          className={tab === 'calculadora' ? 'active' : ''}
+          onClick={() => setTab('calculadora')}
+        >
+          <IconCalculator />
+          Calc.
         </button>
       </nav>
     </div>
