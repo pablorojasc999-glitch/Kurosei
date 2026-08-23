@@ -95,6 +95,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
 
   const [logForm, setLogForm] = useState<DailyLogFormState>(EMPTY_LOG_FORM)
   const [appliedLogKey, setAppliedLogKey] = useState<string | null>(null)
+  const [isEditingLog, setIsEditingLog] = useState(false)
 
   const { isSubmitting: isSubmittingProfile, guard: guardProfile } = useSubmitGuard()
   const { isSubmitting: isSubmittingLog, guard: guardLog } = useSubmitGuard()
@@ -118,6 +119,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
   const logLoadKey = dailyLog === undefined ? null : `${dateKey}:${dailyLog?.id ?? 'empty'}`
   if (logLoadKey !== null && logLoadKey !== appliedLogKey) {
     setAppliedLogKey(logLoadKey)
+    setIsEditingLog(false)
     setLogForm(
       dailyLog
         ? {
@@ -177,7 +179,32 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         fatigue: parseNum(logForm.fatigue),
         steps: parseNum(logForm.steps),
       })
+      setIsEditingLog(false)
     })
+  }
+
+  function cancelEditLog() {
+    setLogForm(
+      dailyLog
+        ? {
+            bodyWeightKg: dailyLog.bodyWeightKg?.toString() ?? '',
+            calories: dailyLog.calories?.toString() ?? '',
+            carbsG: dailyLog.carbsG?.toString() ?? '',
+            proteinG: dailyLog.proteinG?.toString() ?? '',
+            fatG: dailyLog.fatG?.toString() ?? '',
+            sleepHours: dailyLog.sleepHours?.toString() ?? '',
+            creatineTaken: dailyLog.creatineTaken,
+            omega3Taken: dailyLog.omega3Taken,
+            vitaminDTaken: dailyLog.vitaminDTaken,
+            waterLiters: dailyLog.waterLiters?.toString() ?? '',
+            stress: dailyLog.stress?.toString() ?? '',
+            stimulants: dailyLog.stimulants?.toString() ?? '',
+            fatigue: dailyLog.fatigue?.toString() ?? '',
+            steps: dailyLog.steps?.toString() ?? '',
+          }
+        : EMPTY_LOG_FORM,
+    )
+    setIsEditingLog(false)
   }
 
   const profileSummary = profile
@@ -199,6 +226,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     session?.startedAt && session?.endedAt
       ? (new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 60000
       : 0
+
+  const logLocked = dailyLog !== null && !isEditingLog
 
   const profileComplete =
     profile?.heightCm != null && profile?.birthDate != null && profile?.sex != null
@@ -305,6 +334,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.bodyWeightKg}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, bodyWeightKg: e.target.value }))}
           />
         </label>
@@ -314,6 +344,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.calories}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, calories: e.target.value }))}
           />
         </label>
@@ -323,6 +354,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.carbsG}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, carbsG: e.target.value }))}
           />
         </label>
@@ -332,6 +364,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.proteinG}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, proteinG: e.target.value }))}
           />
         </label>
@@ -341,6 +374,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.fatG}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, fatG: e.target.value }))}
           />
         </label>
@@ -350,6 +384,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.sleepHours}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, sleepHours: e.target.value }))}
           />
         </label>
@@ -359,6 +394,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="decimal"
             value={logForm.waterLiters}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, waterLiters: e.target.value }))}
           />
         </label>
@@ -368,6 +404,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             type="number"
             inputMode="numeric"
             value={logForm.steps}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, steps: e.target.value }))}
           />
         </label>
@@ -375,6 +412,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           Estrés (0 a 5)
           <select
             value={logForm.stress}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, stress: e.target.value }))}
           >
             <option value="">Sin registrar</option>
@@ -389,6 +427,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           Estimulantes (0 a 5)
           <select
             value={logForm.stimulants}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, stimulants: e.target.value }))}
           >
             <option value="">Sin registrar</option>
@@ -403,6 +442,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           Fatiga (0 a 5)
           <select
             value={logForm.fatigue}
+            disabled={logLocked}
             onChange={(e) => setLogForm((prev) => ({ ...prev, fatigue: e.target.value }))}
           >
             <option value="">Sin registrar</option>
@@ -418,6 +458,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <input
               type="checkbox"
               checked={logForm.creatineTaken}
+              disabled={logLocked}
               onChange={(e) =>
                 setLogForm((prev) => ({ ...prev, creatineTaken: e.target.checked }))
               }
@@ -428,6 +469,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <input
               type="checkbox"
               checked={logForm.omega3Taken}
+              disabled={logLocked}
               onChange={(e) =>
                 setLogForm((prev) => ({ ...prev, omega3Taken: e.target.checked }))
               }
@@ -438,6 +480,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <input
               type="checkbox"
               checked={logForm.vitaminDTaken}
+              disabled={logLocked}
               onChange={(e) =>
                 setLogForm((prev) => ({ ...prev, vitaminDTaken: e.target.checked }))
               }
@@ -445,7 +488,22 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             Vitamina D
           </label>
         </div>
-        <button type="submit" disabled={isSubmittingLog}>Guardar bitácora</button>
+        {logLocked ? (
+          <button type="button" onClick={() => setIsEditingLog(true)}>
+            Editar bitácora
+          </button>
+        ) : (
+          <>
+            <button type="submit" disabled={isSubmittingLog}>
+              Guardar bitácora
+            </button>
+            {dailyLog !== null && (
+              <button type="button" onClick={cancelEditLog}>
+                Cancelar
+              </button>
+            )}
+          </>
+        )}
       </form>
 
       <div className="bitacora-expenditure">
