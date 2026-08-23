@@ -11,6 +11,7 @@ import {
   endSession,
   getSessionForDay,
   reopenSession,
+  reorderSessionExercise,
   setSessionExerciseClosed,
   startSession,
   updateExecutedSet,
@@ -79,12 +80,7 @@ export function SessionView({ dayId }: SessionViewProps) {
   )
 
   const plannedExercises = useLiveQuery(
-    () =>
-      db.training_planned_exercises
-        .where('dayId')
-        .equals(dayId)
-        .filter((pe) => pe.deletedAt === null)
-        .toArray(),
+    () => listPlannedExercises(dayId),
     [dayId],
   )
   const plannedSets = useLiveQuery(
@@ -429,43 +425,112 @@ export function SessionView({ dayId }: SessionViewProps) {
           const exerciseClosed = se.closedAt !== null
           const locked = Boolean(session.endedAt) || exerciseClosed
           const editingId = editingSetId[se.id]
+          const exerciseIndex = sessionExercises?.findIndex((x) => x.id === se.id) ?? -1
+          const showComparison = Boolean(session.endedAt)
 
           return (
-            <li key={se.id} className="planned-exercise-item">
+            <li
+              key={se.id}
+              className={`planned-exercise-item ${
+                exerciseClosed ? 'planned-exercise-item--closed' : 'planned-exercise-item--open'
+              }`}
+            >
               <div className="planned-exercise-header">
                 <strong>{exerciseName(se.exerciseId)}</strong>
                 {!session.endedAt && (
-                  <button
-                    type="button"
-                    onClick={() => setSessionExerciseClosed(se.id, !exerciseClosed)}
-                  >
-                    {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
-                  </button>
-                )}
-                {!session.endedAt && (
-                  <ConfirmDeleteButton
-                    label="Quitar"
-                    confirmMessage="¿Quitar este ejercicio de la sesión?"
-                    onConfirm={() => deleteSessionExercise(se.id)}
-                  />
+                  <>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Subir ejercicio"
+                      disabled={exerciseIndex <= 0}
+                      onClick={() => reorderSessionExercise(se.id, 'up')}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label="Bajar ejercicio"
+                      disabled={
+                        exerciseIndex === -1 ||
+                        exerciseIndex === (sessionExercises?.length ?? 0) - 1
+                      }
+                      onClick={() => reorderSessionExercise(se.id, 'down')}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSessionExerciseClosed(se.id, !exerciseClosed)}
+                    >
+                      {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
+                    </button>
+                    <ConfirmDeleteButton
+                      label="Quitar"
+                      confirmMessage="¿Quitar este ejercicio de la sesión?"
+                      onConfirm={() => deleteSessionExercise(se.id)}
+                    />
+                  </>
                 )}
               </div>
 
-              {targetSets && targetSets.length > 0 && (
-                <ul className="plan-target-list">
-                  <li className="plan-target-title">Objetivo</li>
-                  {targetSets.map((ps) => (
-                    <li key={ps.id} className="plan-target-row">
-                      <span className="set-number">{ps.setNumber}</span>
-                      <span>
-                        {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
-                        {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
-                        {ps.restSecondsTarget !== null &&
-                          ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
+              {showComparison ? (
+                (targetSets && targetSets.length > 0) || sets.length > 0 ? (
+                  <ul className="set-compare-list">
+                    {Array.from(
+                      { length: Math.max(targetSets?.length ?? 0, sets.length) },
+                      (_, i) => i + 1,
+                    ).map((setNumber) => {
+                      const planned = targetSets?.find((ps) => ps.setNumber === setNumber)
+                      const actual = sets.find((s) => s.setNumber === setNumber)
+                      return (
+                        <li key={setNumber} className="set-compare-row">
+                          <span className="set-number">{setNumber}</span>
+                          <span className="set-compare-text">
+                            {actual ? (
+                              <>
+                                {actual.weightKg ?? '-'} kg × {actual.reps}
+                                {actual.rpe !== null && ` · RPE ${actual.rpe}`}
+                                {actual.eva !== null && ` · EVA ${actual.eva}`}
+                                {actual.notes && ` · ${actual.notes}`}
+                              </>
+                            ) : (
+                              'Sin registrar'
+                            )}
+                            {planned && (
+                              <span className="set-compare-planned">
+                                {' '}
+                                (obj: {planned.targetWeightKg ?? '-'} kg × {planned.targetReps}
+                                {planned.targetRpe !== null && ` · RPE ${planned.targetRpe}`})
+                              </span>
+                            )}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : (
+                  <p className="empty-hint">Sin series registradas.</p>
+                )
+              ) : (
+                targetSets &&
+                targetSets.length > 0 && (
+                  <ul className="plan-target-list">
+                    <li className="plan-target-title">Objetivo</li>
+                    {targetSets.map((ps) => (
+                      <li key={ps.id} className="plan-target-row">
+                        <span className="set-number">{ps.setNumber}</span>
+                        <span>
+                          {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
+                          {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
+                          {ps.restSecondsTarget !== null &&
+                            ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )
               )}
 
               <DeloadAlert exerciseId={se.exerciseId} />
@@ -498,9 +563,10 @@ export function SessionView({ dayId }: SessionViewProps) {
                 </>
               )}
 
-              {sets.length === 0 ? (
-                <p className="empty-hint">Sin series registradas.</p>
-              ) : (
+              {!showComparison && (
+                sets.length === 0 ? (
+                  <p className="empty-hint">Sin series registradas.</p>
+                ) : (
                 <ul className="sets-list">
                   {sets.map((s) => (
                     <li key={s.id} className="set-row">
@@ -532,6 +598,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     </li>
                   ))}
                 </ul>
+                )
               )}
 
               {lastSet && !locked && (

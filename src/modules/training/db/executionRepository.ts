@@ -112,6 +112,36 @@ export async function addSessionExercise(
   return sessionExercise
 }
 
+/**
+ * Swaps a session exercise's position with its previous ('up') or next
+ * ('down') sibling within the same session. A no-op at either end of the
+ * list.
+ */
+export async function reorderSessionExercise(
+  id: string,
+  direction: 'up' | 'down',
+): Promise<void> {
+  const sessionExercise = await db.training_session_exercises.get(id)
+  if (!sessionExercise) return
+  const siblings = await listSessionExercises(sessionExercise.sessionId)
+  const index = siblings.findIndex((se) => se.id === id)
+  const targetIndex = direction === 'up' ? index - 1 : index + 1
+  const target = siblings[targetIndex]
+  if (!target) return
+
+  const timestamp = nowIso()
+  await db.transaction('rw', db.training_session_exercises, async () => {
+    await db.training_session_exercises.update(sessionExercise.id, {
+      order: target.order,
+      updatedAt: timestamp,
+    })
+    await db.training_session_exercises.update(target.id, {
+      order: sessionExercise.order,
+      updatedAt: timestamp,
+    })
+  })
+}
+
 /** Closes or reopens a session exercise, locking/unlocking its set-log form. */
 export async function setSessionExerciseClosed(
   id: string,

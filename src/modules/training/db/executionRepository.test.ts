@@ -9,6 +9,7 @@ import {
   endSession,
   getSessionForDay,
   reopenSession,
+  reorderSessionExercise,
   setSessionExerciseClosed,
   startSession,
   updateExecutedSet,
@@ -251,5 +252,54 @@ describe('setSessionExerciseClosed', () => {
     expect(
       (await db.training_session_exercises.get(sessionExercise.id))?.closedAt,
     ).toBeNull()
+  })
+})
+
+describe('reorderSessionExercise', () => {
+  it('swaps order with the neighbor', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exerciseA = await seedExercise()
+    const legs = await createMuscleGroup('Piernas')
+    const exerciseB = await createExercise({
+      name: 'Sentadilla',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: legs.id, factor: 1 }],
+    })
+    const seA = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exerciseA.id,
+      notes: '',
+    })
+    const seB = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exerciseB.id,
+      notes: '',
+    })
+
+    await reorderSessionExercise(seB.id, 'up')
+
+    const reordered = await db.training_session_exercises
+      .where('sessionId')
+      .equals(session.id)
+      .filter((se) => se.deletedAt === null)
+      .sortBy('order')
+    expect(reordered.map((se) => se.id)).toEqual([seB.id, seA.id])
+  })
+
+  it('is a no-op reordering past either end', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exercise = await seedExercise()
+    const se = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+
+    await reorderSessionExercise(se.id, 'up')
+    const unchanged = await db.training_session_exercises.get(se.id)
+    expect(unchanged?.order).toBe(se.order)
   })
 })
