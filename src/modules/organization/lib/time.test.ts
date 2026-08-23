@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { formatTimeRange, minutesToTimeInput, roundToStep, timeInputToMinutes } from './time'
+import {
+  formatDuration,
+  formatTimeRange,
+  minutesToTimeInput,
+  roundToStep,
+  timeInputToMinutes,
+} from './time'
 
 describe('minutesToTimeInput / timeInputToMinutes', () => {
   it('round-trips a normal time of day', () => {
@@ -26,6 +32,24 @@ describe('formatTimeRange', () => {
   it('wraps an overnight endMinutes past 1440 back to a time of day', () => {
     // 22:00 -> 06:00 the next day, stored as startMinutes=1320, endMinutes=1800
     expect(formatTimeRange(22 * 60, 24 * 60 + 6 * 60)).toBe('22:00 – 06:00')
+  })
+})
+
+describe('formatDuration', () => {
+  it('formats minutes-only durations under an hour', () => {
+    expect(formatDuration(30)).toBe('30 min')
+  })
+
+  it('formats whole-hour durations without a minutes part', () => {
+    expect(formatDuration(120)).toBe('2 h')
+  })
+
+  it('formats mixed hour-and-minute durations', () => {
+    expect(formatDuration(90)).toBe('1 h 30 min')
+  })
+
+  it('formats an overnight-length duration past 24h worth of minutes', () => {
+    expect(formatDuration(8 * 60)).toBe('8 h')
   })
 })
 

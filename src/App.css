@@ -1082,7 +1082,17 @@ section {
 .day-nav-label {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.day-nav-label-line {
+  max-width: 100%;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text);
   text-align: center;
@@ -1811,6 +1821,12 @@ section {
 .time-select-colon {
   color: var(--text-muted);
   font-weight: 700;
+}
+
+.block-duration {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-2);
 }
 
 .category-card-main {

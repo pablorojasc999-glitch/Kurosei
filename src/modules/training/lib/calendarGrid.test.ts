@@ -4,6 +4,7 @@ import {
   addMonths,
   buildMonthGrid,
   formatDayHeader,
+  formatDayHeaderLines,
   parseDateInput,
   startOfDay,
   startOfMonth,
@@ -76,6 +77,27 @@ describe('formatDayHeader', () => {
     const today = startOfDay(new Date())
     const label = formatDayHeader(addDays(today, 10))
     expect(label).not.toMatch(/^(Hoy|Ayer|Mañana) ·/)
+  })
+})
+
+describe('formatDayHeaderLines', () => {
+  it('splits into a relative+weekday top line and a day/month bottom line', () => {
+    const today = startOfDay(new Date())
+    const [top, bottom] = formatDayHeaderLines(today)
+    expect(top).toMatch(/^Hoy · /)
+    expect(bottom).not.toMatch(/Hoy|Ayer|Mañana/)
+  })
+
+  it('joins back into the same string formatDayHeader produces', () => {
+    const today = startOfDay(new Date())
+    const [top, bottom] = formatDayHeaderLines(today)
+    expect(`${top}, ${bottom}`).toBe(formatDayHeader(today))
+  })
+
+  it('has no relative prefix on the top line further out', () => {
+    const today = startOfDay(new Date())
+    const [top] = formatDayHeaderLines(addDays(today, 10))
+    expect(top).not.toMatch(/^(Hoy|Ayer|Mañana) ·/)
   })
 })
 

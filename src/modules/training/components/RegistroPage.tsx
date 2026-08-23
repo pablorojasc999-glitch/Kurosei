@@ -10,6 +10,7 @@ import {
 import { addDays, formatDayHeader, startOfDay } from '../lib/calendarGrid'
 import { BitacoraSection } from './BitacoraSection'
 import { CardioView } from './CardioView'
+import { DayHeaderLabel } from './DayHeaderLabel'
 import { SessionView } from './SessionView'
 
 const SWIPE_THRESHOLD_PX = 50
@@ -92,7 +93,9 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
         <button type="button" onClick={goToPreviousDay} aria-label="Día anterior">
           ‹
         </button>
-        <span className="day-nav-label">{formatDayHeader(selectedDate)}</span>
+        <span className="day-nav-label" aria-label={formatDayHeader(selectedDate)}>
+          <DayHeaderLabel date={selectedDate} />
+        </span>
         <button type="button" onClick={goToNextDay} aria-label="Día siguiente">
           ›
         </button>

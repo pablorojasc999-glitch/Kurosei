@@ -29,3 +29,12 @@ export function formatTimeRange(startMinutes: number, endMinutes: number): strin
 export function roundToStep(minutes: number, step = 15): number {
   return Math.round(minutes / step) * step
 }
+
+/** "1 h 30 min" / "45 min" / "2 h" — a block's duration, in minutes. */
+export function formatDuration(totalMinutes: number): string {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  if (hours === 0) return `${minutes} min`
+  if (minutes === 0) return `${hours} h`
+  return `${hours} h ${minutes} min`
+}
