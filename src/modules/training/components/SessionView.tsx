@@ -426,7 +426,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           const locked = Boolean(session.endedAt) || exerciseClosed
           const editingId = editingSetId[se.id]
           const exerciseIndex = sessionExercises?.findIndex((x) => x.id === se.id) ?? -1
-          const showComparison = Boolean(session.endedAt)
+          const showComparison = exerciseClosed
 
           return (
             <li
