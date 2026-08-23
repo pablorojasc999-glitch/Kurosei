@@ -488,21 +488,22 @@ export function SessionView({ dayId }: SessionViewProps) {
                         <li key={setNumber} className="set-compare-row">
                           <span className="set-number">{setNumber}</span>
                           <span className="set-compare-text">
-                            {actual ? (
-                              <>
-                                {actual.weightKg ?? '-'} kg × {actual.reps}
-                                {actual.rpe !== null && ` · RPE ${actual.rpe}`}
-                                {actual.eva !== null && ` · EVA ${actual.eva}`}
-                                {actual.notes && ` · ${actual.notes}`}
-                              </>
-                            ) : (
-                              'Sin registrar'
-                            )}
+                            <span className="set-compare-actual">
+                              {actual ? (
+                                <>
+                                  {actual.weightKg ?? '-'} kg × {actual.reps}
+                                  {actual.rpe !== null && ` · RPE ${actual.rpe}`}
+                                  {actual.eva !== null && ` · EVA ${actual.eva}`}
+                                  {actual.notes && ` · ${actual.notes}`}
+                                </>
+                              ) : (
+                                'Sin registrar'
+                              )}
+                            </span>
                             {planned && (
                               <span className="set-compare-planned">
-                                {' '}
-                                (obj: {planned.targetWeightKg ?? '-'} kg × {planned.targetReps}
-                                {planned.targetRpe !== null && ` · RPE ${planned.targetRpe}`})
+                                obj: {planned.targetWeightKg ?? '-'} kg × {planned.targetReps}
+                                {planned.targetRpe !== null && ` · RPE ${planned.targetRpe}`}
                               </span>
                             )}
                           </span>
