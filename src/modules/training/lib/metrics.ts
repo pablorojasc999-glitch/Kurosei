@@ -21,19 +21,27 @@ export interface SetWithExercise {
   exerciseId: string
 }
 
+export interface SetWithExerciseAndRpe extends SetWithExercise {
+  rpe: number | null
+}
+
+/** Sets below this RPE (or with no RPE logged) don't count as training volume — too light to be real stimulus. */
+export const MIN_RPE_FOR_VOLUME = 6
+
 /**
  * Weighted-set volume per muscle group: a set counts toward each muscle
  * group it trains by the exercise's contribution factor, so a compound
  * lift contributes partial credit to several groups instead of full credit
  * to each (e.g. a squat at factor 1 for cuádriceps, 1 for glúteos, 0.5 for
- * isquios).
+ * isquios). Only sets logged at RPE >= 6 count.
  */
 export function muscleGroupVolume(
-  sets: SetWithExercise[],
+  sets: SetWithExerciseAndRpe[],
   contributionsByExercise: Map<string, MuscleContribution[]>,
 ): Map<string, number> {
   const volumeByGroup = new Map<string, number>()
   for (const set of sets) {
+    if (set.rpe === null || set.rpe < MIN_RPE_FOR_VOLUME) continue
     const contributions = contributionsByExercise.get(set.exerciseId) ?? []
     for (const c of contributions) {
       const prior = volumeByGroup.get(c.muscleGroupId) ?? 0
@@ -41,10 +49,6 @@ export function muscleGroupVolume(
     }
   }
   return volumeByGroup
-}
-
-export interface SetWithExerciseAndRpe extends SetWithExercise {
-  rpe: number | null
 }
 
 /**

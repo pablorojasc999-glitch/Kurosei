@@ -51,9 +51,9 @@ describe('muscleGroupVolume', () => {
 
     const result = muscleGroupVolume(
       [
-        { exerciseId: 'squat' },
-        { exerciseId: 'squat' },
-        { exerciseId: 'leg-curl' },
+        { exerciseId: 'squat', rpe: 8 },
+        { exerciseId: 'squat', rpe: 8 },
+        { exerciseId: 'leg-curl', rpe: 8 },
       ],
       contributions,
     )
@@ -64,7 +64,28 @@ describe('muscleGroupVolume', () => {
   })
 
   it('ignores exercises with no known contribution mapping', () => {
-    const result = muscleGroupVolume([{ exerciseId: 'unknown' }], new Map())
+    const result = muscleGroupVolume([{ exerciseId: 'unknown', rpe: 8 }], new Map())
+    expect(result.size).toBe(0)
+  })
+
+  it('excludes sets below RPE 6', () => {
+    const contributions = new Map([['squat', [{ muscleGroupId: 'cuadriceps', factor: 1 }]]])
+
+    const result = muscleGroupVolume(
+      [
+        { exerciseId: 'squat', rpe: 5.5 },
+        { exerciseId: 'squat', rpe: 6 },
+        { exerciseId: 'squat', rpe: 9 },
+      ],
+      contributions,
+    )
+
+    expect(result.get('cuadriceps')).toBeCloseTo(2) // only the RPE 6 and RPE 9 sets count
+  })
+
+  it('excludes sets with no RPE logged', () => {
+    const contributions = new Map([['squat', [{ muscleGroupId: 'cuadriceps', factor: 1 }]]])
+    const result = muscleGroupVolume([{ exerciseId: 'squat', rpe: null }], contributions)
     expect(result.size).toBe(0)
   })
 })
