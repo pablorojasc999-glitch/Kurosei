@@ -11,8 +11,11 @@ export interface TimeBlockCategory extends SyncedEntity {
 /**
  * One block on a day's timeline. `date` is a local calendar-day key
  * (yyyy-MM-dd, see toDateKey in training/lib/calendarGrid) rather than an
- * ISO timestamp — a block belongs to a day, not an instant. `startMinutes`/
- * `endMinutes` are minutes since midnight (0-1440) in that day's local time.
+ * ISO timestamp — a block belongs to the day it starts, not an instant.
+ * `startMinutes` is minutes since midnight (0-1439) on `date`. `endMinutes`
+ * is normally also 0-1439, but can go up to 2880 to represent a block that
+ * ends after midnight the next day (e.g. Dormir 22:00 -> 06:00): a value
+ * past 1440 means "that many minutes into the day after `date`".
  */
 export interface TimeBlock extends SyncedEntity {
   categoryId: string

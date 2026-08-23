@@ -8,16 +8,20 @@ import {
   deleteTimeBlock,
   ensureDefaultCategories,
   listCategories,
-  listTimeBlocksForDate,
+  listTimeBlockSegmentsForDate,
   updateTimeBlock,
 } from '../db/organizationRepository'
+import type { TimeBlock } from '../domain/types'
 import { layoutTimeBlocks } from '../lib/timelineLayout'
 import { formatTimeRange, minutesToTimeInput, roundToStep, timeInputToMinutes } from '../lib/time'
+import { TimeSelect } from './TimeSelect'
 
 const HOUR_HEIGHT = 56
 const TOTAL_HEIGHT = 24 * HOUR_HEIGHT
 const MIN_BLOCK_HEIGHT = 26
 const SWIPE_THRESHOLD_PX = 50
+const LONG_PRESS_MS = 350
+const DRAG_MOVE_THRESHOLD_PX = 6
 
 function minutesNow(date: Date): number {
   return date.getHours() * 60 + date.getMinutes()
@@ -29,6 +33,7 @@ interface BlockFormState {
   notes: string
   start: string
   end: string
+  date: string
 }
 
 export function TimeBlockingPage() {
@@ -41,7 +46,7 @@ export function TimeBlockingPage() {
   }, [])
 
   const categories = useLiveQuery(() => listCategories(), [])
-  const blocks = useLiveQuery(() => listTimeBlocksForDate(dateKey), [dateKey])
+  const segments = useLiveQuery(() => listTimeBlockSegmentsForDate(dateKey), [dateKey])
   const categoryById = new Map((categories ?? []).map((c) => [c.id, c]))
 
   const [form, setForm] = useState<BlockFormState | null>(null)
@@ -50,6 +55,26 @@ export function TimeBlockingPage() {
   const { isSubmitting, guard } = useSubmitGuard()
   const touchStartX = useRef<number | null>(null)
   const nowLineRef = useRef<HTMLDivElement | null>(null)
+
+  const [draggingBlockId, setDraggingBlockId] = useState<string | null>(null)
+  const [dragPreview, setDragPreview] = useState<{ start: number; end: number } | null>(null)
+  const dragInfo = useRef<{
+    blockId: string
+    startY: number
+    originalStart: number
+    originalEnd: number
+  } | null>(null)
+  const longPressTimer = useRef<number | null>(null)
+  /**
+   * Whether the touch gesture currently in progress (or that just ended)
+   * moved enough to count as a drag rather than a tap — read by onClick to
+   * suppress the click a real drag leaves behind. Reset at the start of
+   * *every* touch on *any* block (see handleBlockTouchStart/resetGesture),
+   * so it can never get stuck true: some browsers don't fire a click after
+   * a moved touch at all, which would otherwise leave a stale "suppress"
+   * flag to wrongly eat the next unrelated tap.
+   */
+  const gestureMovedRef = useRef(false)
 
   useEffect(() => {
     if (isToday) {
@@ -88,25 +113,20 @@ export function TimeBlockingPage() {
       notes: '',
       start: minutesToTimeInput(start),
       end: minutesToTimeInput(Math.min(start + 60, 1439)),
+      date: dateKey,
     })
     setError(null)
   }
 
-  function openEditBlockForm(block: {
-    id: string
-    categoryId: string
-    title: string
-    notes: string
-    startMinutes: number
-    endMinutes: number
-  }) {
+  function openEditBlockForm(block: TimeBlock) {
     setEditingBlockId(block.id)
     setForm({
       categoryId: block.categoryId,
       title: block.title,
       notes: block.notes,
       start: minutesToTimeInput(block.startMinutes),
-      end: minutesToTimeInput(block.endMinutes),
+      end: minutesToTimeInput(block.endMinutes % 1440),
+      date: block.date,
     })
     setError(null)
   }
@@ -124,20 +144,95 @@ export function TimeBlockingPage() {
     openBlockFormAt(rawMinutes)
   }
 
+  function clearLongPressTimer() {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }
+
+  /** Attached to every block (draggable or not) so a fresh gesture always starts from a clean slate. */
+  function resetGesture(e: React.TouchEvent) {
+    e.stopPropagation()
+    gestureMovedRef.current = false
+  }
+
+  function handleBlockTouchStart(e: React.TouchEvent, block: TimeBlock) {
+    resetGesture(e)
+    const touch = e.touches[0]
+    dragInfo.current = {
+      blockId: block.id,
+      startY: touch.clientY,
+      originalStart: block.startMinutes,
+      originalEnd: block.endMinutes,
+    }
+    clearLongPressTimer()
+    longPressTimer.current = window.setTimeout(() => {
+      if (!dragInfo.current || dragInfo.current.blockId !== block.id) return
+      setDraggingBlockId(block.id)
+      setDragPreview({ start: block.startMinutes, end: block.endMinutes })
+    }, LONG_PRESS_MS)
+  }
+
+  function handleBlockTouchMove(e: React.TouchEvent, block: TimeBlock) {
+    e.stopPropagation()
+    const info = dragInfo.current
+    if (!info || info.blockId !== block.id) return
+    const touch = e.touches[0]
+    const deltaY = touch.clientY - info.startY
+    if (Math.abs(deltaY) > DRAG_MOVE_THRESHOLD_PX) gestureMovedRef.current = true
+
+    if (draggingBlockId !== block.id) {
+      if (gestureMovedRef.current) {
+        clearLongPressTimer()
+        dragInfo.current = null
+      }
+      return
+    }
+    const duration = info.originalEnd - info.originalStart
+    const deltaMinutes = roundToStep((deltaY / HOUR_HEIGHT) * 60, 15)
+    const maxSpan = duration > 1440 ? 2880 : 1440
+    const newStart = Math.max(0, Math.min(maxSpan - duration, info.originalStart + deltaMinutes))
+    setDragPreview({ start: newStart, end: newStart + duration })
+  }
+
+  function handleBlockTouchEnd(e: React.TouchEvent, block: TimeBlock) {
+    e.stopPropagation()
+    clearLongPressTimer()
+    const wasDragging = draggingBlockId === block.id
+    dragInfo.current = null
+    if (!wasDragging) return
+    setDraggingBlockId(null)
+    const preview = dragPreview
+    setDragPreview(null)
+    if (preview && (preview.start !== block.startMinutes || preview.end !== block.endMinutes)) {
+      updateTimeBlock(block.id, {
+        categoryId: block.categoryId,
+        date: block.date,
+        startMinutes: preview.start,
+        endMinutes: preview.end,
+        title: block.title,
+        notes: block.notes,
+      })
+    }
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form) return
     setError(null)
     const startMinutes = timeInputToMinutes(form.start)
-    const endMinutes = timeInputToMinutes(form.end)
-    if (startMinutes === null || endMinutes === null) {
+    const rawEndMinutes = timeInputToMinutes(form.end)
+    if (startMinutes === null || rawEndMinutes === null) {
       setError('Revisa las horas.')
       return
     }
-    if (endMinutes <= startMinutes) {
-      setError('La hora de término debe ser posterior a la de inicio.')
+    if (rawEndMinutes === startMinutes) {
+      setError('La hora de término debe ser distinta a la de inicio.')
       return
     }
+    // An end time earlier than the start means it's the next day (e.g. Dormir 22:00 -> 06:00).
+    const endMinutes = rawEndMinutes < startMinutes ? rawEndMinutes + 1440 : rawEndMinutes
     const title = form.title.trim()
     if (!title) {
       setError('Ponle un título al bloque.')
@@ -146,7 +241,7 @@ export function TimeBlockingPage() {
     await guard(async () => {
       const input = {
         categoryId: form.categoryId,
-        date: dateKey,
+        date: form.date,
         startMinutes,
         endMinutes,
         title,
@@ -161,7 +256,12 @@ export function TimeBlockingPage() {
     })
   }
 
-  const layout = blocks ? layoutTimeBlocks(blocks) : []
+  const layoutInput = (segments ?? []).map((s) => ({
+    ...s,
+    startMinutes: s.segmentStart,
+    endMinutes: s.segmentEnd,
+  }))
+  const layout = layoutTimeBlocks(layoutInput)
   const nowTop = (minutesNow(new Date()) / 1440) * TOTAL_HEIGHT
 
   return (
@@ -195,38 +295,56 @@ export function TimeBlockingPage() {
             ))}
             {isToday && <div ref={nowLineRef} className="timeline-now-line" style={{ top: nowTop }} />}
             <div className="timeline-blocks">
-              {layout.map(({ block, column, columnCount }) => {
-                const category = categoryById.get(block.categoryId)
-                const top = (block.startMinutes / 1440) * TOTAL_HEIGHT
-                const height = Math.max(
-                  ((block.endMinutes - block.startMinutes) / 1440) * TOTAL_HEIGHT,
-                  MIN_BLOCK_HEIGHT,
-                )
+              {layout.map(({ block: seg, column, columnCount }) => {
+                const category = categoryById.get(seg.block.categoryId)
+                const isDragging = draggingBlockId === seg.block.id
+                const segStart = isDragging && dragPreview ? dragPreview.start : seg.segmentStart
+                const segEnd = isDragging && dragPreview ? dragPreview.end : seg.segmentEnd
+                const top = (segStart / 1440) * TOTAL_HEIGHT
+                const height = Math.max(((segEnd - segStart) / 1440) * TOTAL_HEIGHT, MIN_BLOCK_HEIGHT)
                 const widthPct = 100 / columnCount
+                const draggable = !seg.continuesFromPreviousDay
                 return (
                   <button
-                    key={block.id}
+                    key={`${seg.block.id}-${seg.continuesFromPreviousDay ? 'tail' : 'head'}`}
                     type="button"
-                    className="timeline-block"
+                    className={`timeline-block${draggable ? ' timeline-block--draggable' : ''}${isDragging ? ' timeline-block--dragging' : ''}`}
                     style={{
                       top,
                       height,
-                      width: `calc(${widthPct}% - 4px)`,
-                      left: `${column * widthPct}%`,
+                      width: isDragging ? 'calc(100% - 4px)' : `calc(${widthPct}% - 4px)`,
+                      left: isDragging ? '0%' : `${column * widthPct}%`,
                       background: category ? `${category.color}2e` : undefined,
                       borderColor: category?.color,
+                      borderTopLeftRadius: seg.continuesFromPreviousDay ? 0 : 8,
+                      borderTopRightRadius: seg.continuesFromPreviousDay ? 0 : 8,
+                      borderBottomLeftRadius: seg.continuesToNextDay && !isDragging ? 0 : 8,
+                      borderBottomRightRadius: seg.continuesToNextDay && !isDragging ? 0 : 8,
+                      borderTopStyle: seg.continuesFromPreviousDay ? 'dashed' : 'solid',
+                      borderBottomStyle: seg.continuesToNextDay && !isDragging ? 'dashed' : 'solid',
                     }}
+                    onTouchStart={draggable ? (e) => handleBlockTouchStart(e, seg.block) : resetGesture}
+                    onTouchMove={draggable ? (e) => handleBlockTouchMove(e, seg.block) : undefined}
+                    onTouchEnd={
+                      draggable ? (e) => handleBlockTouchEnd(e, seg.block) : (e) => e.stopPropagation()
+                    }
                     onClick={(e) => {
                       e.stopPropagation()
-                      openEditBlockForm(block)
+                      if (gestureMovedRef.current) {
+                        gestureMovedRef.current = false
+                        return
+                      }
+                      openEditBlockForm(seg.block)
                     }}
                   >
                     <span className="timeline-block-title">
-                      {category?.emoji} {block.title}
+                      {category?.emoji} {seg.block.title}
                     </span>
                     {height >= 40 && (
                       <span className="timeline-block-time">
-                        {formatTimeRange(block.startMinutes, block.endMinutes)}
+                        {isDragging && dragPreview
+                          ? formatTimeRange(dragPreview.start, dragPreview.end)
+                          : formatTimeRange(seg.block.startMinutes, seg.block.endMinutes)}
                       </span>
                     )}
                   </button>
@@ -277,23 +395,20 @@ export function TimeBlockingPage() {
                 />
               </label>
               <div className="category-form-row">
-                <label>
-                  Inicio
-                  <input
-                    type="time"
-                    value={form.start}
-                    onChange={(e) => setForm({ ...form, start: e.target.value })}
-                  />
-                </label>
-                <label>
-                  Término
-                  <input
-                    type="time"
-                    value={form.end}
-                    onChange={(e) => setForm({ ...form, end: e.target.value })}
-                  />
-                </label>
+                <TimeSelect
+                  label="Inicio"
+                  value={form.start}
+                  onChange={(v) => setForm({ ...form, start: v })}
+                />
+                <TimeSelect
+                  label="Término"
+                  value={form.end}
+                  onChange={(v) => setForm({ ...form, end: v })}
+                />
               </div>
+              <p className="empty-hint">
+                Si el término es antes que el inicio, se toma como esa hora del día siguiente.
+              </p>
               <label>
                 Notas
                 <input
