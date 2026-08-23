@@ -31,23 +31,42 @@ export function addDays(date: Date, delta: number): Date {
   return d
 }
 
-/** "Hoy · Domingo 23 de agosto" style header, relative to today for ±1 day. */
-export function formatDayHeader(date: Date): string {
+function relativeDayPrefix(date: Date): string | null {
   const todayKey = startOfDay(new Date()).getTime()
   const dateKey = startOfDay(date).getTime()
   const diffDays = Math.round((dateKey - todayKey) / (24 * 60 * 60 * 1000))
+  if (diffDays === 0) return 'Hoy'
+  if (diffDays === -1) return 'Ayer'
+  if (diffDays === 1) return 'Mañana'
+  return null
+}
 
-  const rawDateLabel = date.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  })
-  const dateLabel = rawDateLabel.charAt(0).toUpperCase() + rawDateLabel.slice(1)
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
 
-  if (diffDays === 0) return `Hoy · ${dateLabel}`
-  if (diffDays === -1) return `Ayer · ${dateLabel}`
-  if (diffDays === 1) return `Mañana · ${dateLabel}`
-  return dateLabel
+/**
+ * The day-nav header split into two short lines instead of one long one, so
+ * a narrow screen doesn't have to wrap or shrink the text to fit:
+ * ["Hoy · Domingo", "23 de agosto"].
+ */
+export function formatDayHeaderLines(date: Date): [string, string] {
+  const prefix = relativeDayPrefix(date)
+  const weekday = capitalize(date.toLocaleDateString('es-AR', { weekday: 'long' }))
+  // Built by hand rather than via `{ day: '2-digit', month: 'long' }` —
+  // that combination's es-AR CLDR pattern drops the "de" connector
+  // ("23-agosto"), unlike the combined weekday+day+month format below.
+  const day = date.getDate().toString().padStart(2, '0')
+  const month = date.toLocaleDateString('es-AR', { month: 'long' })
+  const dateOnly = `${day} de ${month}`
+  const topLine = prefix ? `${prefix} · ${weekday}` : weekday
+  return [topLine, dateOnly]
+}
+
+/** "Hoy · Domingo, 23 de agosto" style header, relative to today for ±1 day. */
+export function formatDayHeader(date: Date): string {
+  const [topLine, dateOnly] = formatDayHeaderLines(date)
+  return `${topLine}, ${dateOnly}`
 }
 
 /** Monday-first 6-week (42-day) grid covering the month plus lead/trail days. */

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
+import { DayHeaderLabel } from '../../training/components/DayHeaderLabel'
 import { addDays, formatDayHeader, startOfDay, toDateKey } from '../../training/lib/calendarGrid'
 import {
   createTimeBlock,
@@ -13,7 +14,13 @@ import {
 } from '../db/organizationRepository'
 import type { TimeBlock } from '../domain/types'
 import { layoutTimeBlocks } from '../lib/timelineLayout'
-import { formatTimeRange, minutesToTimeInput, roundToStep, timeInputToMinutes } from '../lib/time'
+import {
+  formatDuration,
+  formatTimeRange,
+  minutesToTimeInput,
+  roundToStep,
+  timeInputToMinutes,
+} from '../lib/time'
 import { TimeSelect } from './TimeSelect'
 
 const HOUR_HEIGHT = 56
@@ -264,14 +271,30 @@ export function TimeBlockingPage() {
   const layout = layoutTimeBlocks(layoutInput)
   const nowTop = (minutesNow(new Date()) / 1440) * TOTAL_HEIGHT
 
+  const formDurationLabel = (() => {
+    if (!form) return null
+    const startMinutes = timeInputToMinutes(form.start)
+    const rawEndMinutes = timeInputToMinutes(form.end)
+    if (startMinutes === null || rawEndMinutes === null || rawEndMinutes === startMinutes) {
+      return null
+    }
+    const endMinutes = rawEndMinutes < startMinutes ? rawEndMinutes + 1440 : rawEndMinutes
+    return formatDuration(endMinutes - startMinutes)
+  })()
+
   return (
     <div onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
       <div className="day-nav">
         <button type="button" onClick={goToPreviousDay} aria-label="Día anterior">
           ‹
         </button>
-        <button type="button" className="day-nav-label day-nav-label--button" onClick={goToToday}>
-          {formatDayHeader(selectedDate)}
+        <button
+          type="button"
+          className="day-nav-label day-nav-label--button"
+          aria-label={formatDayHeader(selectedDate)}
+          onClick={goToToday}
+        >
+          <DayHeaderLabel date={selectedDate} />
         </button>
         <button type="button" onClick={goToNextDay} aria-label="Día siguiente">
           ›
@@ -406,6 +429,7 @@ export function TimeBlockingPage() {
                   onChange={(v) => setForm({ ...form, end: v })}
                 />
               </div>
+              {formDurationLabel && <p className="block-duration">Duración: {formDurationLabel}</p>}
               <p className="empty-hint">
                 Si el término es antes que el inicio, se toma como esa hora del día siguiente.
               </p>
