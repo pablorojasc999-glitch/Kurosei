@@ -3,33 +3,48 @@ import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import type { ExecutedSet, SessionExercise, StrengthSession } from '../domain/types'
 
+/**
+ * The active StrengthSession for a day, if one exists. If more than one row
+ * somehow matches (a leftover duplicate from a race before `startSession`
+ * became transactional), the most recently updated one wins — an unsorted
+ * `.first()` would pick an arbitrary one by primary key instead.
+ */
 export async function getSessionForDay(
   dayId: string,
 ): Promise<StrengthSession | undefined> {
-  return db.training_sessions
+  const sessions = await db.training_sessions
     .where('dayId')
     .equals(dayId)
     .filter((s) => s.deletedAt === null)
-    .first()
+    .toArray()
+  if (sessions.length === 0) return undefined
+  return sessions.reduce((latest, s) => (s.updatedAt > latest.updatedAt ? s : latest))
 }
 
+/**
+ * Starts (or resumes) the session for a day. Runs as one transaction so two
+ * near-simultaneous calls (e.g. a fast double-tap on "Iniciar sesión")
+ * can't both pass the "doesn't exist yet" check and create two sessions.
+ */
 export async function startSession(dayId: string): Promise<StrengthSession> {
-  const existing = await getSessionForDay(dayId)
-  if (existing) {
-    return existing
-  }
-  const timestamp = nowIso()
-  const session: StrengthSession = {
-    id: generateId(),
-    dayId,
-    startedAt: timestamp,
-    endedAt: null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    deletedAt: null,
-  }
-  await db.training_sessions.add(session)
-  return session
+  return db.transaction('rw', db.training_sessions, async () => {
+    const existing = await getSessionForDay(dayId)
+    if (existing) {
+      return existing
+    }
+    const timestamp = nowIso()
+    const session: StrengthSession = {
+      id: generateId(),
+      dayId,
+      startedAt: timestamp,
+      endedAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+    }
+    await db.training_sessions.add(session)
+    return session
+  })
 }
 
 export async function endSession(sessionId: string): Promise<void> {

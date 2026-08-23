@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { createCardioSession, deleteCardioSession } from '../db/cardioRepository'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 
@@ -48,6 +49,7 @@ export function CardioView({ dayId }: CardioViewProps) {
   const [distance, setDistance] = useState('')
   const [calories, setCalories] = useState('')
   const [notes, setNotes] = useState('')
+  const { isSubmitting, guard } = useSubmitGuard()
 
   function exerciseName(id: string): string {
     return cardioExercises?.find((e) => e.id === id)?.name ?? '?'
@@ -56,22 +58,24 @@ export function CardioView({ dayId }: CardioViewProps) {
   async function handleAddCardioSession(e: React.FormEvent) {
     e.preventDefault()
     if (!exerciseId || !startedAt || !duration) return
-    await createCardioSession({
-      dayId,
-      exerciseId,
-      startedAt: new Date(startedAt).toISOString(),
-      durationMinutes: Number(duration),
-      distanceKm: distance ? Number(distance) : null,
-      caloriesBurned: calories ? Number(calories) : null,
-      notes,
+    await guard(async () => {
+      await createCardioSession({
+        dayId,
+        exerciseId,
+        startedAt: new Date(startedAt).toISOString(),
+        durationMinutes: Number(duration),
+        distanceKm: distance ? Number(distance) : null,
+        caloriesBurned: calories ? Number(calories) : null,
+        notes,
+      })
+      setExerciseId('')
+      setStartedAt(toDatetimeLocalValue(new Date()))
+      setDuration('')
+      setDistance('')
+      setCalories('')
+      setNotes('')
+      setShowForm(false)
     })
-    setExerciseId('')
-    setStartedAt(toDatetimeLocalValue(new Date()))
-    setDuration('')
-    setDistance('')
-    setCalories('')
-    setNotes('')
-    setShowForm(false)
   }
 
   if (!cardioExercises?.length) {
@@ -159,7 +163,7 @@ export function CardioView({ dayId }: CardioViewProps) {
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Notas (opcional)"
           />
-          <button type="submit">Agregar cardio</button>
+          <button type="submit" disabled={isSubmitting}>Agregar cardio</button>
           <button type="button" onClick={() => setShowForm(false)}>Cancelar</button>
         </form>
       ) : (

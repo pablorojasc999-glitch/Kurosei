@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   copyPlannedExercisesToDay,
   createDay,
@@ -175,45 +176,58 @@ export function PeriodizationPage({
   const [showMesoForm, setShowMesoForm] = useState(false)
   const [showDayForm, setShowDayForm] = useState(false)
 
+  const { isSubmitting: isCreatingMacro, guard: guardMacro } = useSubmitGuard()
+  const { isSubmitting: isCreatingMeso, guard: guardMeso } = useSubmitGuard()
+  const { isSubmitting: isCreatingWeek, guard: guardWeek } = useSubmitGuard()
+  const { isSubmitting: isCreatingDay, guard: guardDay } = useSubmitGuard()
+  const { isSubmitting: isAddingExercise, guard: guardAddExercise } = useSubmitGuard()
+  const { isSubmitting: isSubmittingSet, guard: guardSet } = useSubmitGuard()
+
   async function handleCreateMacrocycle(e: React.FormEvent) {
     e.preventDefault()
     if (!macroName || !macroStart || !macroEnd) return
-    const m = await createMacrocycle({
-      name: macroName,
-      goal: macroGoal,
-      startDate: parseDateInput(macroStart).toISOString(),
-      endDate: parseDateInput(macroEnd).toISOString(),
+    await guardMacro(async () => {
+      const m = await createMacrocycle({
+        name: macroName,
+        goal: macroGoal,
+        startDate: parseDateInput(macroStart).toISOString(),
+        endDate: parseDateInput(macroEnd).toISOString(),
+      })
+      setMacroName('')
+      setMacroGoal('')
+      setMacroStart('')
+      setMacroEnd('')
+      setShowMacroForm(false)
+      setMacrocycleId(m.id)
     })
-    setMacroName('')
-    setMacroGoal('')
-    setMacroStart('')
-    setMacroEnd('')
-    setShowMacroForm(false)
-    setMacrocycleId(m.id)
   }
 
   async function handleCreateMesocycle(e: React.FormEvent) {
     e.preventDefault()
     if (!macrocycleId || !mesoName || !mesoStart || !mesoEnd) return
-    const m = await createMesocycle({
-      macrocycleId,
-      name: mesoName,
-      phaseType: mesoPhase,
-      startDate: parseDateInput(mesoStart).toISOString(),
-      endDate: parseDateInput(mesoEnd).toISOString(),
+    await guardMeso(async () => {
+      const m = await createMesocycle({
+        macrocycleId,
+        name: mesoName,
+        phaseType: mesoPhase,
+        startDate: parseDateInput(mesoStart).toISOString(),
+        endDate: parseDateInput(mesoEnd).toISOString(),
+      })
+      setMesoName('')
+      setMesoPhase('accumulation')
+      setMesoStart('')
+      setMesoEnd('')
+      setShowMesoForm(false)
+      setMesocycleId(m.id)
     })
-    setMesoName('')
-    setMesoPhase('accumulation')
-    setMesoStart('')
-    setMesoEnd('')
-    setShowMesoForm(false)
-    setMesocycleId(m.id)
   }
 
   async function handleCreateWeek() {
     if (!mesocycleId) return
-    const w = await createWeek(mesocycleId)
-    setWeekId(w.id)
+    await guardWeek(async () => {
+      const w = await createWeek(mesocycleId)
+      setWeekId(w.id)
+    })
   }
 
   async function handleDuplicateWeek(sourceWeekId: string) {
@@ -224,52 +238,58 @@ export function PeriodizationPage({
   async function handleCreateDay(e: React.FormEvent) {
     e.preventDefault()
     if (!weekId || !dayDate) return
-    const d = await createDay({
-      weekId,
-      date: parseDateInput(dayDate).toISOString(),
-      label: dayLabel,
+    await guardDay(async () => {
+      const d = await createDay({
+        weekId,
+        date: parseDateInput(dayDate).toISOString(),
+        label: dayLabel,
+      })
+      if (copyFromDayId) {
+        await copyPlannedExercisesToDay(copyFromDayId, d.id)
+      }
+      setDayDate('')
+      setDayLabel('')
+      setCopyFromDayId('')
+      setShowDayForm(false)
     })
-    if (copyFromDayId) {
-      await copyPlannedExercisesToDay(copyFromDayId, d.id)
-    }
-    setDayDate('')
-    setDayLabel('')
-    setCopyFromDayId('')
-    setShowDayForm(false)
   }
 
   async function handleAddPlannedExercise(e: React.FormEvent) {
     e.preventDefault()
     if (!dayId || !newExerciseId) return
-    await createPlannedExercise({
-      dayId,
-      exerciseId: newExerciseId,
-      notes: newExerciseNotes,
+    await guardAddExercise(async () => {
+      await createPlannedExercise({
+        dayId,
+        exerciseId: newExerciseId,
+        notes: newExerciseNotes,
+      })
+      setNewExerciseId('')
+      setNewExerciseNotes('')
     })
-    setNewExerciseId('')
-    setNewExerciseNotes('')
   }
 
   async function handleSubmitPlannedSet(plannedExerciseId: string) {
     const form = setForms[plannedExerciseId]
     if (!form || !form.reps) return
-    const input = {
-      targetWeightKg: form.weight ? Number(form.weight) : null,
-      targetReps: Number(form.reps),
-      targetRpe: form.rpe ? Number(form.rpe) : null,
-      restSecondsTarget: form.rest ? Math.round(Number(form.rest) * 60) : null,
-    }
-    const editingId = editingSetId[plannedExerciseId]
-    if (editingId) {
-      await updatePlannedSet(editingId, input)
-    } else {
-      await createPlannedSet({ plannedExerciseId, ...input })
-    }
-    setSetForms((prev) => ({
-      ...prev,
-      [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '' },
-    }))
-    setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+    await guardSet(async () => {
+      const input = {
+        targetWeightKg: form.weight ? Number(form.weight) : null,
+        targetReps: Number(form.reps),
+        targetRpe: form.rpe ? Number(form.rpe) : null,
+        restSecondsTarget: form.rest ? Math.round(Number(form.rest) * 60) : null,
+      }
+      const editingId = editingSetId[plannedExerciseId]
+      if (editingId) {
+        await updatePlannedSet(editingId, input)
+      } else {
+        await createPlannedSet({ plannedExerciseId, ...input })
+      }
+      setSetForms((prev) => ({
+        ...prev,
+        [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '' },
+      }))
+      setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+    })
   }
 
   function startEditPlannedSet(plannedExerciseId: string, s: PlannedSet) {
@@ -360,7 +380,7 @@ export function PeriodizationPage({
                 Fecha de fin
                 <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
               </label>
-              <button type="submit">Crear macrociclo</button>
+              <button type="submit" disabled={isCreatingMacro}>Crear macrociclo</button>
               <button type="button" onClick={() => setShowMacroForm(false)}>Cancelar</button>
             </form>
           ) : (
@@ -401,7 +421,7 @@ export function PeriodizationPage({
                 Fecha de fin
                 <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
               </label>
-              <button type="submit">Crear mesociclo</button>
+              <button type="submit" disabled={isCreatingMeso}>Crear mesociclo</button>
               <button type="button" onClick={() => setShowMesoForm(false)}>Cancelar</button>
             </form>
           ) : (
@@ -433,7 +453,7 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          <button type="button" onClick={handleCreateWeek}>+ Agregar semana</button>
+          <button type="button" onClick={handleCreateWeek} disabled={isCreatingWeek}>+ Agregar semana</button>
         </section>
       )}
 
@@ -477,7 +497,7 @@ export function PeriodizationPage({
                   </select>
                 </label>
               )}
-              <button type="submit">Agregar día</button>
+              <button type="submit" disabled={isCreatingDay}>Agregar día</button>
               <button type="button" onClick={() => setShowDayForm(false)}>Cancelar</button>
             </form>
           ) : (
@@ -580,7 +600,12 @@ export function PeriodizationPage({
                         Descanso (min)
                         <input type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
                       </label>
-                      <button type="button" className="add-set-button" onClick={() => handleSubmitPlannedSet(pe.id)}>
+                      <button
+                        type="button"
+                        className="add-set-button"
+                        onClick={() => handleSubmitPlannedSet(pe.id)}
+                        disabled={isSubmittingSet}
+                      >
                         {editingId ? 'Guardar cambios' : `+ Agregar serie ${sets.length + 1}`}
                       </button>
                       {editingId && (
@@ -613,7 +638,7 @@ export function PeriodizationPage({
                 ))}
               </select>
               <input value={newExerciseNotes} onChange={(e) => setNewExerciseNotes(e.target.value)} placeholder="Notas (opcional)" />
-              <button type="submit">Agregar ejercicio al día</button>
+              <button type="submit" disabled={isAddingExercise}>Agregar ejercicio al día</button>
             </form>
           )}
         </section>

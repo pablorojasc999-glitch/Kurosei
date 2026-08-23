@@ -173,6 +173,17 @@ describe('findDayByDate', () => {
 
     expect(await findDayByDate(daysFromNow(0))).toBeNull()
   })
+
+  it('resolves a legacy duplicate (two rows for the same date) to the most recently updated one', async () => {
+    const today = daysFromNow(0)
+    const older = await createDay({ weekId: null, date: today.toISOString(), label: 'Vieja' })
+    const newer = await createDay({ weekId: null, date: today.toISOString(), label: 'Nueva' })
+    await db.training_days.update(older.id, { updatedAt: '2020-01-01T00:00:00.000Z' })
+    await db.training_days.update(newer.id, { updatedAt: '2030-01-01T00:00:00.000Z' })
+
+    const result = await findDayByDate(today)
+    expect(result?.id).toBe(newer.id)
+  })
 })
 
 describe('getOrCreateDayForDate', () => {
@@ -198,6 +209,24 @@ describe('getOrCreateDayForDate', () => {
 
     const second = await getOrCreateDayForDate(date)
     expect(second.id).toBe(result.id)
+  })
+
+  it('creates only one day when called concurrently for the same date', async () => {
+    const date = daysFromNow(0)
+    const [first, second, third] = await Promise.all([
+      getOrCreateDayForDate(date),
+      getOrCreateDayForDate(date),
+      getOrCreateDayForDate(date),
+    ])
+    expect(second.id).toBe(first.id)
+    expect(third.id).toBe(first.id)
+
+    const matches = await db.training_days
+      .filter(
+        (d) => d.deletedAt === null && new Date(d.date).toDateString() === date.toDateString(),
+      )
+      .toArray()
+    expect(matches).toHaveLength(1)
   })
 })
 

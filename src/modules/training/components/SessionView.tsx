@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addSessionExercise,
   createExecutedSet,
@@ -8,6 +9,7 @@ import {
   deleteSession,
   deleteSessionExercise,
   endSession,
+  getSessionForDay,
   reopenSession,
   setSessionExerciseClosed,
   startSession,
@@ -57,15 +59,7 @@ interface SessionViewProps {
 }
 
 export function SessionView({ dayId }: SessionViewProps) {
-  const session = useLiveQuery(
-    () =>
-      db.training_sessions
-        .where('dayId')
-        .equals(dayId)
-        .filter((s) => s.deletedAt === null)
-        .first(),
-    [dayId],
-  )
+  const session = useLiveQuery(() => getSessionForDay(dayId), [dayId])
 
   const sessionExercises = useLiveQuery(
     () =>
@@ -134,6 +128,11 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [confirmingReopen, setConfirmingReopen] = useState(false)
   const [editingSetId, setEditingSetId] = useState<Record<string, string | null>>({})
 
+  const { isSubmitting: isAddingExercise, guard: guardAddExercise } = useSubmitGuard()
+  const { isSubmitting: isLoadingPlan, guard: guardLoadPlan } = useSubmitGuard()
+  const { isSubmitting: isStartingSession, guard: guardStartSession } = useSubmitGuard()
+  const { isSubmitting: isSubmittingSet, guard: guardSet } = useSubmitGuard()
+
   const otherPlannedDays = (plannedDayOptions ?? []).filter(
     (d) => d.id !== dayId,
   )
@@ -145,13 +144,15 @@ export function SessionView({ dayId }: SessionViewProps) {
   async function handleAddExercise(e: React.FormEvent) {
     e.preventDefault()
     if (!session || !newExerciseId) return
-    await addSessionExercise({
-      sessionId: session.id,
-      exerciseId: newExerciseId,
-      notes: '',
+    await guardAddExercise(async () => {
+      await addSessionExercise({
+        sessionId: session.id,
+        exerciseId: newExerciseId,
+        notes: '',
+      })
+      setNewExerciseId('')
+      setShowAddExerciseForm(false)
     })
-    setNewExerciseId('')
-    setShowAddExerciseForm(false)
   }
 
   const missingPlannedExercises = (plannedExercises ?? []).filter(
@@ -160,74 +161,84 @@ export function SessionView({ dayId }: SessionViewProps) {
 
   async function handleLoadPlan() {
     if (!session) return
-    for (const pe of missingPlannedExercises) {
-      await addSessionExercise({
-        sessionId: session.id,
-        exerciseId: pe.exerciseId,
-        notes: pe.notes,
-      })
-    }
+    await guardLoadPlan(async () => {
+      for (const pe of missingPlannedExercises) {
+        await addSessionExercise({
+          sessionId: session.id,
+          exerciseId: pe.exerciseId,
+          notes: pe.notes,
+        })
+      }
+    })
   }
 
   async function handleStartSession() {
-    const newSession = await startSession(dayId)
-    for (const pe of plannedExercises ?? []) {
-      await addSessionExercise({
-        sessionId: newSession.id,
-        exerciseId: pe.exerciseId,
-        notes: pe.notes,
-      })
-    }
+    await guardStartSession(async () => {
+      const newSession = await startSession(dayId)
+      for (const pe of plannedExercises ?? []) {
+        await addSessionExercise({
+          sessionId: newSession.id,
+          exerciseId: pe.exerciseId,
+          notes: pe.notes,
+        })
+      }
+    })
   }
 
   async function handleStartSessionFromPickedDay() {
     if (!pickedSourceDayId) return
-    const newSession = await startSession(dayId)
-    const sourceExercises = await listPlannedExercises(pickedSourceDayId)
-    for (const pe of sourceExercises) {
-      await addSessionExercise({
-        sessionId: newSession.id,
-        exerciseId: pe.exerciseId,
-        notes: pe.notes,
-      })
-    }
-    setPickedSourceDayId('')
+    await guardStartSession(async () => {
+      const newSession = await startSession(dayId)
+      const sourceExercises = await listPlannedExercises(pickedSourceDayId)
+      for (const pe of sourceExercises) {
+        await addSessionExercise({
+          sessionId: newSession.id,
+          exerciseId: pe.exerciseId,
+          notes: pe.notes,
+        })
+      }
+      setPickedSourceDayId('')
+    })
   }
 
   async function handleLoadPlanFromPickedDay() {
     if (!session || !pickedSourceDayId) return
-    const sourceExercises = await listPlannedExercises(pickedSourceDayId)
-    const missing = sourceExercises.filter(
-      (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),
-    )
-    for (const pe of missing) {
-      await addSessionExercise({
-        sessionId: session.id,
-        exerciseId: pe.exerciseId,
-        notes: pe.notes,
-      })
-    }
-    setPickedSourceDayId('')
+    await guardLoadPlan(async () => {
+      const sourceExercises = await listPlannedExercises(pickedSourceDayId)
+      const missing = sourceExercises.filter(
+        (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),
+      )
+      for (const pe of missing) {
+        await addSessionExercise({
+          sessionId: session.id,
+          exerciseId: pe.exerciseId,
+          notes: pe.notes,
+        })
+      }
+      setPickedSourceDayId('')
+    })
   }
 
   async function handleSubmitSet(sessionExerciseId: string) {
     const form = setForms[sessionExerciseId] ?? EMPTY_SET_FORM
     if (!form.reps) return
-    const input = {
-      weightKg: form.weight ? Number(form.weight) : null,
-      reps: Number(form.reps),
-      rpe: form.rpe ? Number(form.rpe) : null,
-      eva: form.eva ? Number(form.eva) : null,
-      notes: form.notes,
-    }
-    const editingId = editingSetId[sessionExerciseId]
-    if (editingId) {
-      await updateExecutedSet(editingId, input)
-    } else {
-      await createExecutedSet({ sessionExerciseId, ...input })
-    }
-    setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
-    setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
+    await guardSet(async () => {
+      const input = {
+        weightKg: form.weight ? Number(form.weight) : null,
+        reps: Number(form.reps),
+        rpe: form.rpe ? Number(form.rpe) : null,
+        eva: form.eva ? Number(form.eva) : null,
+        notes: form.notes,
+      }
+      const editingId = editingSetId[sessionExerciseId]
+      if (editingId) {
+        await updateExecutedSet(editingId, input)
+      } else {
+        await createExecutedSet({ sessionExerciseId, ...input })
+      }
+      setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
+      setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
+    })
   }
 
   function startEditExecutedSet(sessionExerciseId: string, s: ExecutedSet) {
@@ -274,7 +285,7 @@ export function SessionView({ dayId }: SessionViewProps) {
     return (
       <div>
         <p className="empty-hint">Todavía no iniciaste la sesión de este día.</p>
-        <button type="button" onClick={handleStartSession}>
+        <button type="button" onClick={handleStartSession} disabled={isStartingSession}>
           {plannedExercises?.length
             ? 'Iniciar sesión y cargar plan'
             : 'Iniciar sesión'}
@@ -299,7 +310,7 @@ export function SessionView({ dayId }: SessionViewProps) {
             </label>
             <button
               type="button"
-              disabled={!pickedSourceDayId}
+              disabled={!pickedSourceDayId || isStartingSession}
               onClick={handleStartSessionFromPickedDay}
             >
               Iniciar sesión con ese plan
@@ -354,7 +365,12 @@ export function SessionView({ dayId }: SessionViewProps) {
       <SessionSummary sessionId={session.id} />
 
       {!session.endedAt && missingPlannedExercises.length > 0 && (
-        <button type="button" className="load-plan-button" onClick={handleLoadPlan}>
+        <button
+          type="button"
+          className="load-plan-button"
+          onClick={handleLoadPlan}
+          disabled={isLoadingPlan}
+        >
           Cargar {missingPlannedExercises.length} ejercicio
           {missingPlannedExercises.length === 1 ? '' : 's'} del plan
         </button>
@@ -379,7 +395,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           </label>
           <button
             type="button"
-            disabled={!pickedSourceDayId}
+            disabled={!pickedSourceDayId || isLoadingPlan}
             onClick={handleLoadPlanFromPickedDay}
           >
             Cargar ejercicios
@@ -623,6 +639,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     type="button"
                     className="add-set-button"
                     onClick={() => handleSubmitSet(se.id)}
+                    disabled={isSubmittingSet}
                   >
                     {editingId ? 'Guardar cambios' : `+ Registrar serie ${nextSetNumber}`}
                   </button>
@@ -658,7 +675,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                 </option>
               ))}
             </select>
-            <button type="submit">Agregar ejercicio a la sesión</button>
+            <button type="submit" disabled={isAddingExercise}>Agregar ejercicio a la sesión</button>
             <button type="button" onClick={() => setShowAddExerciseForm(false)}>
               Cancelar
             </button>

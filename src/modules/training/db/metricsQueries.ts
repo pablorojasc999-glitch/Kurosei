@@ -1,4 +1,5 @@
 import { db } from '../../../shared/db/database'
+import { getSessionForDay } from './executionRepository'
 import { averageRpeDeviation, type RpePair } from '../lib/metrics'
 import type { ExecutedSet } from '../domain/types'
 
@@ -78,11 +79,7 @@ export async function getRecentRpeDeviations(
       .toArray()
     if (plannedSets.length === 0) continue
 
-    const session = await db.training_sessions
-      .where('dayId')
-      .equals(plannedExercise.dayId)
-      .filter((s) => s.deletedAt === null)
-      .first()
+    const session = await getSessionForDay(plannedExercise.dayId)
     if (!session) continue
 
     const sessionExercise = await db.training_session_exercises

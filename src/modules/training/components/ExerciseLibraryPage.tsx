@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   createExercise,
   ensureCanonicalMuscleGroups,
@@ -50,6 +51,7 @@ export function ExerciseLibraryPage() {
   const [factors, setFactors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const { isSubmitting, guard } = useSubmitGuard()
 
   useEffect(() => {
     ensureCanonicalMuscleGroups().then(setCanonicalGroups)
@@ -86,30 +88,32 @@ export function ExerciseLibraryPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    try {
-      const muscleContributions = canonicalGroups
-        .map((g) => ({
-          muscleGroupId: g.id,
-          factor: Number(factors[g.id]) || 0,
-        }))
-        .filter((c) => c.factor > 0)
+    await guard(async () => {
+      try {
+        const muscleContributions = canonicalGroups
+          .map((g) => ({
+            muscleGroupId: g.id,
+            factor: Number(factors[g.id]) || 0,
+          }))
+          .filter((c) => c.factor > 0)
 
-      const input = {
-        name: exerciseName.trim(),
-        type: exerciseType,
-        category: exerciseCategory || null,
-        muscleContributions,
-      }
+        const input = {
+          name: exerciseName.trim(),
+          type: exerciseType,
+          category: exerciseCategory || null,
+          muscleContributions,
+        }
 
-      if (editingExerciseId) {
-        await updateExercise(editingExerciseId, input)
-      } else {
-        await createExercise(input)
+        if (editingExerciseId) {
+          await updateExercise(editingExerciseId, input)
+        } else {
+          await createExercise(input)
+        }
+        resetForm()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Error desconocido')
       }
-      resetForm()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido')
-    }
+    })
   }
 
   const filteredExercises = exercises?.filter((ex) =>
@@ -188,7 +192,7 @@ export function ExerciseLibraryPage() {
 
           {error && <p className="error">{error}</p>}
 
-          <button type="submit">
+          <button type="submit" disabled={isSubmitting}>
             {editingExerciseId ? 'Guardar cambios' : 'Guardar ejercicio'}
           </button>
           {editingExerciseId && (

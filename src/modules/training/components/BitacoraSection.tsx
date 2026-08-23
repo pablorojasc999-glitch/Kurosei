@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   getDailyLog,
   getProfile,
@@ -95,6 +96,9 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
   const [logForm, setLogForm] = useState<DailyLogFormState>(EMPTY_LOG_FORM)
   const [appliedLogKey, setAppliedLogKey] = useState<string | null>(null)
 
+  const { isSubmitting: isSubmittingProfile, guard: guardProfile } = useSubmitGuard()
+  const { isSubmitting: isSubmittingLog, guard: guardLog } = useSubmitGuard()
+
   const profileLoadKey = profile === undefined ? null : (profile?.id ?? 'empty')
   if (profileLoadKey !== null && profileLoadKey !== appliedProfileKey) {
     setAppliedProfileKey(profileLoadKey)
@@ -142,33 +146,37 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
 
   async function handleSubmitProfile(e: React.FormEvent) {
     e.preventDefault()
-    await upsertProfile({
-      heightCm: parseNum(profileForm.heightCm),
-      birthDate: profileForm.birthDate || null,
-      sex: profileForm.sex || null,
-      bodyFatPercent: parseNum(profileForm.bodyFatPercent),
-      muscleMassPercent: parseNum(profileForm.muscleMassPercent),
+    await guardProfile(async () => {
+      await upsertProfile({
+        heightCm: parseNum(profileForm.heightCm),
+        birthDate: profileForm.birthDate || null,
+        sex: profileForm.sex || null,
+        bodyFatPercent: parseNum(profileForm.bodyFatPercent),
+        muscleMassPercent: parseNum(profileForm.muscleMassPercent),
+      })
+      setShowProfileForm(false)
     })
-    setShowProfileForm(false)
   }
 
   async function handleSubmitLog(e: React.FormEvent) {
     e.preventDefault()
-    await upsertDailyLog(dateKey, {
-      bodyWeightKg: parseNum(logForm.bodyWeightKg),
-      calories: parseNum(logForm.calories),
-      carbsG: parseNum(logForm.carbsG),
-      proteinG: parseNum(logForm.proteinG),
-      fatG: parseNum(logForm.fatG),
-      sleepHours: parseNum(logForm.sleepHours),
-      creatineTaken: logForm.creatineTaken,
-      omega3Taken: logForm.omega3Taken,
-      vitaminDTaken: logForm.vitaminDTaken,
-      waterLiters: parseNum(logForm.waterLiters),
-      stress: parseNum(logForm.stress),
-      stimulants: parseNum(logForm.stimulants),
-      fatigue: parseNum(logForm.fatigue),
-      steps: parseNum(logForm.steps),
+    await guardLog(async () => {
+      await upsertDailyLog(dateKey, {
+        bodyWeightKg: parseNum(logForm.bodyWeightKg),
+        calories: parseNum(logForm.calories),
+        carbsG: parseNum(logForm.carbsG),
+        proteinG: parseNum(logForm.proteinG),
+        fatG: parseNum(logForm.fatG),
+        sleepHours: parseNum(logForm.sleepHours),
+        creatineTaken: logForm.creatineTaken,
+        omega3Taken: logForm.omega3Taken,
+        vitaminDTaken: logForm.vitaminDTaken,
+        waterLiters: parseNum(logForm.waterLiters),
+        stress: parseNum(logForm.stress),
+        stimulants: parseNum(logForm.stimulants),
+        fatigue: parseNum(logForm.fatigue),
+        steps: parseNum(logForm.steps),
+      })
     })
   }
 
@@ -275,7 +283,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
                 }
               />
             </label>
-            <button type="submit">Guardar perfil</button>
+            <button type="submit" disabled={isSubmittingProfile}>Guardar perfil</button>
             <button type="button" onClick={() => setShowProfileForm(false)}>
               Cancelar
             </button>
@@ -437,7 +445,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             Vitamina D
           </label>
         </div>
-        <button type="submit">Guardar bitácora</button>
+        <button type="submit" disabled={isSubmittingLog}>Guardar bitácora</button>
       </form>
 
       <div className="bitacora-expenditure">

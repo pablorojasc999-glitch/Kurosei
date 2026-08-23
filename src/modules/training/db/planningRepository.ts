@@ -544,22 +544,33 @@ export async function listMesocyclesWithContext(): Promise<MesocycleWithContext[
 }
 
 /** Finds the Day (if any) whose date falls on the same calendar day as `date`. */
+/**
+ * The Day matching `date`, if one exists. If more than one row somehow
+ * matches (a leftover duplicate from a race before `getOrCreateDayForDate`
+ * became transactional), the most recently updated one wins — an unsorted
+ * `.first()` would pick an arbitrary one by primary key instead.
+ */
 export async function findDayByDate(date: Date): Promise<Day | null> {
   const dateKey = date.toDateString()
-  const day = await db.training_days
+  const days = await db.training_days
     .filter((d) => d.deletedAt === null && new Date(d.date).toDateString() === dateKey)
-    .first()
-  return day ?? null
+    .toArray()
+  if (days.length === 0) return null
+  return days.reduce((latest, d) => (d.updatedAt > latest.updatedAt ? d : latest))
 }
 
 /**
  * Returns the Day for `date`, creating an unplanned/ad-hoc one (weekId
  * null) on the fly if none exists yet — used when logging a session or
- * cardio for a day that was never planned.
+ * cardio for a day that was never planned. Runs as one transaction so two
+ * near-simultaneous calls (e.g. a fast double-tap) can't both pass the
+ * "doesn't exist yet" check and create two Day rows for the same date.
  */
 export async function getOrCreateDayForDate(date: Date): Promise<Day> {
-  const existing = await findDayByDate(date)
-  if (existing) return existing
-  return createDay({ weekId: null, date: date.toISOString(), label: '' })
+  return db.transaction('rw', db.training_days, async () => {
+    const existing = await findDayByDate(date)
+    if (existing) return existing
+    return createDay({ weekId: null, date: date.toISOString(), label: '' })
+  })
 }
 
