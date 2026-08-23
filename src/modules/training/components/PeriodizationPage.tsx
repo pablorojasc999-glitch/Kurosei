@@ -575,6 +575,11 @@ export function PeriodizationPage({
               <li key={d.id} className="list-row">
                 <button type="button" onClick={() => setDayId(d.id)}>
                   {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
+                  {d.planClosedAt !== null && (
+                    <span className="day-closed-badge" aria-label="Día cerrado">
+                      ✓
+                    </span>
+                  )}
                 </button>
                 <button type="button" onClick={() => startEditDay(d)}>
                   Editar
