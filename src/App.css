@@ -325,9 +325,14 @@ section {
   margin: 0 0 16px;
 }
 
-.entity-list li button {
-  width: 100%;
-  text-align: left;
+/* Card-style list item: primary content on top (its own line(s), free to
+   wrap on narrow screens), actions in a row below — instead of squeezing
+   both into one flex row, which forced the name/date to fight the
+   Editar/Eliminar buttons for horizontal space. */
+.list-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
@@ -335,31 +340,38 @@ section {
   box-shadow: var(--shadow-sm);
 }
 
-.entity-list li button:active {
-  background: var(--surface-2);
-}
-
-.list-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.list-row button:first-child {
-  flex: 1;
+.list-card-main {
+  display: block;
+  width: 100%;
   text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  min-height: auto;
 }
 
-.list-row button:not(:first-child) {
-  flex: 0 0 auto;
-  width: auto;
+.list-card-line {
+  display: block;
+}
+
+.list-card-line--secondary {
+  margin-top: 4px;
+  color: var(--text-muted);
   font-size: 13px;
 }
 
-.list-row button:not(:first-child):not(.icon-button) {
+.list-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.list-card-actions button:not(.icon-button) {
   min-height: 36px;
   padding: 6px 12px;
+  font-size: 13px;
 }
 
 .day-closed-badge {
@@ -425,12 +437,37 @@ section {
   margin-bottom: 10px;
 }
 
-.planned-exercise-header .notes {
+/* Per-exercise head: name/notes stacked on their own lines above a
+   separate row of actions (reorder, cerrar/reabrir, quitar), so a long
+   exercise name or note never has to share horizontal space with those
+   buttons and wrap unpredictably around them. */
+.planned-exercise-card-head {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.planned-exercise-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.planned-exercise-info .notes {
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.planned-exercise-header button {
+.planned-exercise-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.planned-exercise-header button,
+.planned-exercise-actions button:not(.icon-button) {
   min-height: auto;
   padding: 4px 10px;
   font-size: 13px;
@@ -441,7 +478,8 @@ section {
 }
 
 .btn-danger,
-.planned-exercise-header .btn-danger {
+.planned-exercise-header .btn-danger,
+.planned-exercise-actions .btn-danger {
   color: var(--danger);
   background: var(--danger-bg);
   border-color: rgba(248, 113, 113, 0.3);

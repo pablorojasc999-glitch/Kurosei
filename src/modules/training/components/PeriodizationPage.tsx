@@ -439,17 +439,19 @@ export function PeriodizationPage({
           <h2>Macrociclos</h2>
           <ul className="entity-list">
             {macrocycles?.map((m) => (
-              <li key={m.id} className="list-row">
-                <button type="button" onClick={() => setMacrocycleId(m.id)}>
+              <li key={m.id} className="list-card">
+                <button type="button" className="list-card-main" onClick={() => setMacrocycleId(m.id)}>
                   {m.name} — {formatDate(m.startDate)} a {formatDate(m.endDate)}
                 </button>
-                <button type="button" onClick={() => startEditMacro(m)}>
-                  Editar
-                </button>
-                <ConfirmDeleteButton
-                  confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                  onConfirm={() => deleteMacrocycle(m.id)}
-                />
+                <div className="list-card-actions">
+                  <button type="button" onClick={() => startEditMacro(m)}>
+                    Editar
+                  </button>
+                  <ConfirmDeleteButton
+                    confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
+                    onConfirm={() => deleteMacrocycle(m.id)}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -481,17 +483,19 @@ export function PeriodizationPage({
           <h2>Mesociclos de {selectedMacrocycle?.name}</h2>
           <ul className="entity-list">
             {mesocycles?.map((m) => (
-              <li key={m.id} className="list-row">
-                <button type="button" onClick={() => setMesocycleId(m.id)}>
+              <li key={m.id} className="list-card">
+                <button type="button" className="list-card-main" onClick={() => setMesocycleId(m.id)}>
                   {m.name} ({PHASE_LABELS[m.phaseType]}) — {formatDate(m.startDate)} a {formatDate(m.endDate)}
                 </button>
-                <button type="button" onClick={() => startEditMeso(m)}>
-                  Editar
-                </button>
-                <ConfirmDeleteButton
-                  confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                  onConfirm={() => deleteMesocycle(m.id)}
-                />
+                <div className="list-card-actions">
+                  <button type="button" onClick={() => startEditMeso(m)}>
+                    Editar
+                  </button>
+                  <ConfirmDeleteButton
+                    confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
+                    onConfirm={() => deleteMesocycle(m.id)}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -527,39 +531,41 @@ export function PeriodizationPage({
           <h2>Semanas de {selectedMesocycle?.name}</h2>
           <ul className="entity-list">
             {weeks?.map((w, index) => (
-              <li key={w.id} className="list-row">
-                <button type="button" onClick={() => setWeekId(w.id)}>
+              <li key={w.id} className="list-card">
+                <button type="button" className="list-card-main" onClick={() => setWeekId(w.id)}>
                   Semana {w.order + 1}
                 </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Mover semana hacia arriba"
-                  disabled={index === 0}
-                  onClick={() => reorderWeek(w.id, 'up')}
-                >
-                  ↑
-                </button>
-                <button
-                  type="button"
-                  className="icon-button"
-                  aria-label="Mover semana hacia abajo"
-                  disabled={index === (weeks?.length ?? 0) - 1}
-                  onClick={() => reorderWeek(w.id, 'down')}
-                >
-                  ↓
-                </button>
-                <button
-                  type="button"
-                  className="list-row-secondary"
-                  onClick={() => handleDuplicateWeek(w.id)}
-                >
-                  Duplicar como punto de partida
-                </button>
-                <ConfirmDeleteButton
-                  confirmMessage={`¿Eliminar la Semana ${w.order + 1}? Se borra todo lo planificado y registrado dentro.`}
-                  onConfirm={() => deleteWeek(w.id)}
-                />
+                <div className="list-card-actions">
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Mover semana hacia arriba"
+                    disabled={index === 0}
+                    onClick={() => reorderWeek(w.id, 'up')}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button"
+                    aria-label="Mover semana hacia abajo"
+                    disabled={index === (weeks?.length ?? 0) - 1}
+                    onClick={() => reorderWeek(w.id, 'down')}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    className="list-row-secondary"
+                    onClick={() => handleDuplicateWeek(w.id)}
+                  >
+                    Duplicar como punto de partida
+                  </button>
+                  <ConfirmDeleteButton
+                    confirmMessage={`¿Eliminar la Semana ${w.order + 1}? Se borra todo lo planificado y registrado dentro.`}
+                    onConfirm={() => deleteWeek(w.id)}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -572,22 +578,27 @@ export function PeriodizationPage({
           <h2>Días de la semana {selectedWeek ? selectedWeek.order + 1 : ''}</h2>
           <ul className="entity-list">
             {days?.map((d) => (
-              <li key={d.id} className="list-row">
-                <button type="button" onClick={() => setDayId(d.id)}>
-                  {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
-                  {d.planClosedAt != null && (
-                    <span className="day-closed-badge" aria-label="Día cerrado">
-                      ✓
-                    </span>
-                  )}
+              <li key={d.id} className="list-card">
+                <button type="button" className="list-card-main" onClick={() => setDayId(d.id)}>
+                  <span className="list-card-line">{formatDate(d.date)}</span>
+                  <span className="list-card-line list-card-line--secondary">
+                    {d.label || 'Sin etiqueta'}
+                    {d.planClosedAt != null && (
+                      <span className="day-closed-badge" aria-label="Día cerrado">
+                        ✓
+                      </span>
+                    )}
+                  </span>
                 </button>
-                <button type="button" onClick={() => startEditDay(d)}>
-                  Editar
-                </button>
-                <ConfirmDeleteButton
-                  confirmMessage="¿Eliminar este día? Si tenía una sesión o cardio registrado, también se elimina."
-                  onConfirm={() => deleteDay(d.id)}
-                />
+                <div className="list-card-actions">
+                  <button type="button" onClick={() => startEditDay(d)}>
+                    Editar
+                  </button>
+                  <ConfirmDeleteButton
+                    confirmMessage="¿Eliminar este día? Si tenía una sesión o cardio registrado, también se elimina."
+                    onConfirm={() => deleteDay(d.id)}
+                  />
+                </div>
               </li>
             ))}
           </ul>
@@ -648,44 +659,48 @@ export function PeriodizationPage({
               const editingId = editingSetId[pe.id]
               return (
                 <li key={pe.id} className="planned-exercise-item">
-                  <div className="planned-exercise-header">
-                    <strong>{exerciseName(pe.exerciseId)}</strong>
-                    {pe.notes && <span className="notes"> — {pe.notes}</span>}
-                    {!dayLocked && (
-                      <>
+                  <div className="planned-exercise-card-head">
+                    <div className="planned-exercise-info">
+                      <strong>{exerciseName(pe.exerciseId)}</strong>
+                      {pe.notes && <span className="notes">{pe.notes}</span>}
+                    </div>
+                    <div className="planned-exercise-actions">
+                      {!dayLocked && (
+                        <>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label="Mover ejercicio hacia arriba"
+                            disabled={index === 0}
+                            onClick={() => reorderPlannedExercise(pe.id, 'up')}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button"
+                            aria-label="Mover ejercicio hacia abajo"
+                            disabled={index === (plannedExercises?.length ?? 0) - 1}
+                            onClick={() => reorderPlannedExercise(pe.id, 'down')}
+                          >
+                            ↓
+                          </button>
+                        </>
+                      )}
+                      {!dayLocked && (
                         <button
                           type="button"
-                          className="icon-button"
-                          aria-label="Mover ejercicio hacia arriba"
-                          disabled={index === 0}
-                          onClick={() => reorderPlannedExercise(pe.id, 'up')}
+                          onClick={() => setPlannedExerciseClosed(pe.id, !exerciseClosed)}
                         >
-                          ↑
+                          {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
                         </button>
-                        <button
-                          type="button"
-                          className="icon-button"
-                          aria-label="Mover ejercicio hacia abajo"
-                          disabled={index === (plannedExercises?.length ?? 0) - 1}
-                          onClick={() => reorderPlannedExercise(pe.id, 'down')}
-                        >
-                          ↓
-                        </button>
-                      </>
-                    )}
-                    {!dayLocked && (
-                      <button
-                        type="button"
-                        onClick={() => setPlannedExerciseClosed(pe.id, !exerciseClosed)}
-                      >
-                        {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
-                      </button>
-                    )}
-                    <ConfirmDeleteButton
-                      label="Quitar"
-                      confirmMessage="¿Quitar este ejercicio del plan?"
-                      onConfirm={() => deletePlannedExercise(pe.id)}
-                    />
+                      )}
+                      <ConfirmDeleteButton
+                        label="Quitar"
+                        confirmMessage="¿Quitar este ejercicio del plan?"
+                        onConfirm={() => deletePlannedExercise(pe.id)}
+                      />
+                    </div>
                   </div>
                   <ul className="sets-list">
                     {sets.map((s) => (
