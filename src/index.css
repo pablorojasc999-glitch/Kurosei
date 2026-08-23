@@ -193,6 +193,12 @@ input::placeholder {
   color: var(--text-muted);
 }
 
+input:disabled,
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 input:focus-visible,
 select:focus-visible,
 button:focus-visible {

@@ -80,7 +80,7 @@ export function ProgressPage() {
   const profile = useLiveQuery(() => getProfile(), [])
 
   const [selectedExerciseId, setSelectedExerciseId] = useState('')
-  const [scopeKind, setScopeKind] = useState<ScopeKind>('week')
+  const [scopeKind, setScopeKind] = useState<ScopeKind>('day')
   const [scopeMacroId, setScopeMacroId] = useState('')
   const [scopeMesoId, setScopeMesoId] = useState('')
   const [scopeWeekId, setScopeWeekId] = useState('')
@@ -159,18 +159,6 @@ export function ProgressPage() {
   const allExerciseIds = [...new Set(setsWithE1rm.map((s) => s.exerciseId))].sort((a, b) =>
     exerciseName(a).localeCompare(exerciseName(b)),
   )
-
-  if (allExerciseIds.length === 0) {
-    return (
-      <div className="page">
-        <h1>Progreso</h1>
-        <p className="empty-hint">
-          Todavía no registraste series ejecutadas — entrená alguna sesión
-          para ver tus métricas acá.
-        </p>
-      </div>
-    )
-  }
 
   const scopedSets = activeRange
     ? setsWithE1rm.filter((s) => isWithinRange(s.performedAt, activeRange as DateRange))
@@ -524,25 +512,34 @@ export function ProgressPage() {
 
       <section>
         <h2>Tendencia de e1RM</h2>
-        <select
-          value={trendExerciseId}
-          onChange={(e) => setSelectedExerciseId(e.target.value)}
-        >
-          {allExerciseIds.map((id) => (
-            <option key={id} value={id}>
-              {exerciseName(id)}
-            </option>
-          ))}
-        </select>
-        <LineChart
-          domainDates={domainDates}
-          series={e1rmSeries}
-          unit=" e1RM"
-          tooltipExtra={(date) => {
-            const weight = bodyWeightByDate.get(date)
-            return weight != null ? { label: 'Peso corporal', value: `${weight} kg` } : null
-          }}
-        />
+        {allExerciseIds.length === 0 ? (
+          <p className="empty-hint">
+            Todavía no registraste series ejecutadas — entrená alguna sesión
+            para ver tu tendencia acá.
+          </p>
+        ) : (
+          <>
+            <select
+              value={trendExerciseId}
+              onChange={(e) => setSelectedExerciseId(e.target.value)}
+            >
+              {allExerciseIds.map((id) => (
+                <option key={id} value={id}>
+                  {exerciseName(id)}
+                </option>
+              ))}
+            </select>
+            <LineChart
+              domainDates={domainDates}
+              series={e1rmSeries}
+              unit=" e1RM"
+              tooltipExtra={(date) => {
+                const weight = bodyWeightByDate.get(date)
+                return weight != null ? { label: 'Peso corporal', value: `${weight} kg` } : null
+              }}
+            />
+          </>
+        )}
       </section>
 
       <section>
