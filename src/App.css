@@ -460,8 +460,8 @@ section {
    yet), green once it's closed — a glance at the list should say which
    exercises are still pending without reading each header. */
 .planned-exercise-item--open {
-  background: var(--danger-bg);
-  border-color: var(--danger);
+  background: rgba(248, 113, 113, 0.05);
+  border-color: rgba(248, 113, 113, 0.35);
 }
 
 .planned-exercise-item--open strong,
@@ -472,21 +472,21 @@ section {
 .planned-exercise-item--open .set-summary,
 .planned-exercise-item--open .set-compare-text,
 .planned-exercise-item--open .empty-hint {
-  color: var(--danger);
+  color: var(--danger-muted);
 }
 
 .planned-exercise-item--open .plan-target-row {
-  border-color: rgba(248, 113, 113, 0.35);
+  border-color: rgba(248, 113, 113, 0.2);
 }
 
 .planned-exercise-item--open .set-row,
 .planned-exercise-item--open .set-compare-row {
-  background: rgba(248, 113, 113, 0.08);
+  background: rgba(248, 113, 113, 0.04);
 }
 
 .planned-exercise-item--closed {
-  background: var(--success-bg);
-  border-color: var(--success);
+  background: rgba(74, 222, 128, 0.05);
+  border-color: rgba(74, 222, 128, 0.35);
 }
 
 .planned-exercise-item--closed strong,
@@ -497,16 +497,16 @@ section {
 .planned-exercise-item--closed .set-summary,
 .planned-exercise-item--closed .set-compare-text,
 .planned-exercise-item--closed .empty-hint {
-  color: var(--success);
+  color: var(--success-muted);
 }
 
 .planned-exercise-item--closed .plan-target-row {
-  border-color: rgba(74, 222, 128, 0.35);
+  border-color: rgba(74, 222, 128, 0.2);
 }
 
 .planned-exercise-item--closed .set-row,
 .planned-exercise-item--closed .set-compare-row {
-  background: rgba(74, 222, 128, 0.08);
+  background: rgba(74, 222, 128, 0.04);
 }
 
 .planned-exercise-header {
