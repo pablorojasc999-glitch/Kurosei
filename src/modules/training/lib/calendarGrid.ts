@@ -31,6 +31,25 @@ export function addDays(date: Date, delta: number): Date {
   return d
 }
 
+/** "Hoy · Domingo 23 de agosto" style header, relative to today for ±1 day. */
+export function formatDayHeader(date: Date): string {
+  const todayKey = startOfDay(new Date()).getTime()
+  const dateKey = startOfDay(date).getTime()
+  const diffDays = Math.round((dateKey - todayKey) / (24 * 60 * 60 * 1000))
+
+  const rawDateLabel = date.toLocaleDateString('es-AR', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+  })
+  const dateLabel = rawDateLabel.charAt(0).toUpperCase() + rawDateLabel.slice(1)
+
+  if (diffDays === 0) return `Hoy · ${dateLabel}`
+  if (diffDays === -1) return `Ayer · ${dateLabel}`
+  if (diffDays === 1) return `Mañana · ${dateLabel}`
+  return dateLabel
+}
+
 /** Monday-first 6-week (42-day) grid covering the month plus lead/trail days. */
 export function buildMonthGrid(monthStart: Date): Date[] {
   const jsWeekday = monthStart.getDay()

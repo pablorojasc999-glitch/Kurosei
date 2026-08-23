@@ -7,30 +7,12 @@ import {
   getOrCreateDayForDate,
   listPlannedExercises,
 } from '../db/planningRepository'
-import { addDays, startOfDay } from '../lib/calendarGrid'
+import { addDays, formatDayHeader, startOfDay } from '../lib/calendarGrid'
 import { BitacoraSection } from './BitacoraSection'
 import { CardioView } from './CardioView'
 import { SessionView } from './SessionView'
 
 const SWIPE_THRESHOLD_PX = 50
-
-function formatDayHeader(date: Date): string {
-  const todayKey = startOfDay(new Date()).getTime()
-  const dateKey = startOfDay(date).getTime()
-  const diffDays = Math.round((dateKey - todayKey) / (24 * 60 * 60 * 1000))
-
-  const rawDateLabel = date.toLocaleDateString('es-AR', {
-    weekday: 'long',
-    day: '2-digit',
-    month: 'long',
-  })
-  const dateLabel = rawDateLabel.charAt(0).toUpperCase() + rawDateLabel.slice(1)
-
-  if (diffDays === 0) return `Hoy · ${dateLabel}`
-  if (diffDays === -1) return `Ayer · ${dateLabel}`
-  if (diffDays === 1) return `Mañana · ${dateLabel}`
-  return dateLabel
-}
 
 interface RegistroPageProps {
   jumpToDate?: Date | null
