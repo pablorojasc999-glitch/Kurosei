@@ -58,7 +58,9 @@ async function deleteDuplicateProfiles(keepId: string, timestamp: string): Promi
     .filter((p) => p.deletedAt === null && p.id !== keepId)
     .toArray()
   await Promise.all(
-    others.map((p) => db.training_user_profile.update(p.id, { deletedAt: timestamp })),
+    others.map((p) =>
+      db.training_user_profile.update(p.id, { deletedAt: timestamp, updatedAt: timestamp }),
+    ),
   )
 }
 
@@ -90,7 +92,9 @@ async function deleteDuplicateDailyLogs(
     .filter((l) => l.deletedAt === null && l.id !== keepId)
     .toArray()
   await Promise.all(
-    others.map((l) => db.training_daily_logs.update(l.id, { deletedAt: timestamp })),
+    others.map((l) =>
+      db.training_daily_logs.update(l.id, { deletedAt: timestamp, updatedAt: timestamp }),
+    ),
   )
 }
 

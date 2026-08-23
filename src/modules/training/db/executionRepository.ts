@@ -68,7 +68,11 @@ export async function deleteSession(sessionId: string): Promise<void> {
   for (const se of sessionExercises) {
     await deleteSessionExercise(se.id)
   }
-  await db.training_sessions.update(sessionId, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_sessions.update(sessionId, {
+    deletedAt: timestamp,
+    updatedAt: timestamp,
+  })
 }
 
 export async function listSessionExercises(
@@ -127,10 +131,16 @@ export async function deleteSessionExercise(id: string): Promise<void> {
     db.training_session_exercises,
     db.training_executed_sets,
     async () => {
-      await db.training_session_exercises.update(id, { deletedAt: timestamp })
+      await db.training_session_exercises.update(id, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      })
       await Promise.all(
         sets.map((s) =>
-          db.training_executed_sets.update(s.id, { deletedAt: timestamp }),
+          db.training_executed_sets.update(s.id, {
+            deletedAt: timestamp,
+            updatedAt: timestamp,
+          }),
         ),
       )
     },
@@ -206,7 +216,11 @@ export async function updateExecutedSet(
 }
 
 export async function deleteExecutedSet(id: string): Promise<void> {
-  await db.training_executed_sets.update(id, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_executed_sets.update(id, {
+    deletedAt: timestamp,
+    updatedAt: timestamp,
+  })
 }
 
 /**

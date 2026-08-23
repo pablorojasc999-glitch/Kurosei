@@ -43,6 +43,13 @@ export async function createMacrocycle(
   return macrocycle
 }
 
+export async function updateMacrocycle(
+  id: string,
+  input: CreateMacrocycleInput,
+): Promise<void> {
+  await db.training_macrocycles.update(id, { ...input, updatedAt: nowIso() })
+}
+
 export async function listMesocycles(
   macrocycleId: string,
 ): Promise<Mesocycle[]> {
@@ -81,6 +88,13 @@ export async function createMesocycle(
   return mesocycle
 }
 
+export async function updateMesocycle(
+  id: string,
+  input: Omit<CreateMesocycleInput, 'macrocycleId'>,
+): Promise<void> {
+  await db.training_mesocycles.update(id, { ...input, updatedAt: nowIso() })
+}
+
 export async function listWeeks(mesocycleId: string): Promise<Week[]> {
   return db.training_weeks
     .where('mesocycleId')
@@ -105,6 +119,29 @@ export async function createWeek(mesocycleId: string): Promise<Week> {
   }
   await db.training_weeks.add(week)
   return week
+}
+
+/**
+ * Swaps a week's position with its previous ('up') or next ('down') sibling
+ * within the same mesocycle. A no-op at either end of the list.
+ */
+export async function reorderWeek(
+  id: string,
+  direction: 'up' | 'down',
+): Promise<void> {
+  const week = await db.training_weeks.get(id)
+  if (!week) return
+  const siblings = await listWeeks(week.mesocycleId)
+  const index = siblings.findIndex((w) => w.id === id)
+  const targetIndex = direction === 'up' ? index - 1 : index + 1
+  const target = siblings[targetIndex]
+  if (!target) return
+
+  const timestamp = nowIso()
+  await db.transaction('rw', db.training_weeks, async () => {
+    await db.training_weeks.update(week.id, { order: target.order, updatedAt: timestamp })
+    await db.training_weeks.update(target.id, { order: week.order, updatedAt: timestamp })
+  })
 }
 
 export async function listDays(weekId: string): Promise<Day[]> {
@@ -133,6 +170,15 @@ export async function createDay(input: CreateDayInput): Promise<Day> {
   }
   await db.training_days.add(day)
   return day
+}
+
+export interface UpdateDayInput {
+  date: string
+  label: string
+}
+
+export async function updateDay(id: string, input: UpdateDayInput): Promise<void> {
+  await db.training_days.update(id, { ...input, updatedAt: nowIso() })
 }
 
 /** Closes or reopens a Day's plan, locking/unlocking every planned exercise and set inside it. */
@@ -178,15 +224,22 @@ export async function deleteDay(id: string): Promise<void> {
     db.training_planned_exercises,
     db.training_planned_sets,
     async () => {
-      await db.training_days.update(id, { deletedAt: timestamp })
+      await db.training_days.update(id, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      })
       for (const pe of plannedExercises) {
         await db.training_planned_exercises.update(pe.id, {
           deletedAt: timestamp,
+          updatedAt: timestamp,
         })
         const sets = await listPlannedSets(pe.id)
         await Promise.all(
           sets.map((s) =>
-            db.training_planned_sets.update(s.id, { deletedAt: timestamp }),
+            db.training_planned_sets.update(s.id, {
+              deletedAt: timestamp,
+              updatedAt: timestamp,
+            }),
           ),
         )
       }
@@ -200,7 +253,8 @@ export async function deleteWeek(id: string): Promise<void> {
   for (const day of days) {
     await deleteDay(day.id)
   }
-  await db.training_weeks.update(id, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_weeks.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }
 
 /** Deletes a Mesocycle and every week inside it (see deleteWeek). */
@@ -209,7 +263,8 @@ export async function deleteMesocycle(id: string): Promise<void> {
   for (const week of weeks) {
     await deleteWeek(week.id)
   }
-  await db.training_mesocycles.update(id, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_mesocycles.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }
 
 /** Deletes a Macrocycle and every mesocycle inside it (see deleteMesocycle). */
@@ -218,7 +273,8 @@ export async function deleteMacrocycle(id: string): Promise<void> {
   for (const mesocycle of mesocycles) {
     await deleteMesocycle(mesocycle.id)
   }
-  await db.training_macrocycles.update(id, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_macrocycles.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }
 
 export async function listPlannedExercises(
@@ -256,6 +312,35 @@ export async function createPlannedExercise(
   }
   await db.training_planned_exercises.add(plannedExercise)
   return plannedExercise
+}
+
+/**
+ * Swaps a planned exercise's position with its previous ('up') or next
+ * ('down') sibling within the same day. A no-op at either end of the list.
+ */
+export async function reorderPlannedExercise(
+  id: string,
+  direction: 'up' | 'down',
+): Promise<void> {
+  const plannedExercise = await db.training_planned_exercises.get(id)
+  if (!plannedExercise) return
+  const siblings = await listPlannedExercises(plannedExercise.dayId)
+  const index = siblings.findIndex((pe) => pe.id === id)
+  const targetIndex = direction === 'up' ? index - 1 : index + 1
+  const target = siblings[targetIndex]
+  if (!target) return
+
+  const timestamp = nowIso()
+  await db.transaction('rw', db.training_planned_exercises, async () => {
+    await db.training_planned_exercises.update(plannedExercise.id, {
+      order: target.order,
+      updatedAt: timestamp,
+    })
+    await db.training_planned_exercises.update(target.id, {
+      order: plannedExercise.order,
+      updatedAt: timestamp,
+    })
+  })
 }
 
 /** Closes or reopens a single planned exercise, independent of its Day's plan lock. */
@@ -325,7 +410,11 @@ export async function updatePlannedSet(
 }
 
 export async function deletePlannedSet(id: string): Promise<void> {
-  await db.training_planned_sets.update(id, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_planned_sets.update(id, {
+    deletedAt: timestamp,
+    updatedAt: timestamp,
+  })
 }
 
 export async function deletePlannedExercise(id: string): Promise<void> {
@@ -336,10 +425,16 @@ export async function deletePlannedExercise(id: string): Promise<void> {
     db.training_planned_exercises,
     db.training_planned_sets,
     async () => {
-      await db.training_planned_exercises.update(id, { deletedAt: timestamp })
+      await db.training_planned_exercises.update(id, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      })
       await Promise.all(
         sets.map((s) =>
-          db.training_planned_sets.update(s.id, { deletedAt: timestamp }),
+          db.training_planned_sets.update(s.id, {
+            deletedAt: timestamp,
+            updatedAt: timestamp,
+          }),
         ),
       )
     },
