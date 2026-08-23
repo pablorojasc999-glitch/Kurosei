@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../../shared/db/database'
 import { createExercise, createMuscleGroup } from './trainingRepository'
 import { createDay, createMacrocycle, createMesocycle, createWeek } from './planningRepository'
+import type { StrengthSession } from '../domain/types'
 import {
   addSessionExercise,
   createExecutedSet,
@@ -63,6 +64,44 @@ describe('startSession / getSessionForDay', () => {
     const found = await getSessionForDay(day.id)
     expect(found?.id).toBe(first.id)
     expect(found?.endedAt).toBeNull()
+  })
+
+  it('resolves a legacy duplicate (two sessions for the same day) to the most recently updated one', async () => {
+    const day = await seedDay()
+    const older = await startSession(day.id)
+    await db.training_sessions.update(older.id, { updatedAt: '2020-01-01T00:00:00.000Z' })
+    const timestamp = '2030-01-01T00:00:00.000Z'
+    const newer: StrengthSession = {
+      id: 'newer-session',
+      dayId: day.id,
+      startedAt: timestamp,
+      endedAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+    }
+    await db.training_sessions.add(newer)
+
+    const found = await getSessionForDay(day.id)
+    expect(found?.id).toBe(newer.id)
+  })
+
+  it('creates only one session when started concurrently for the same day', async () => {
+    const day = await seedDay()
+    const [first, second, third] = await Promise.all([
+      startSession(day.id),
+      startSession(day.id),
+      startSession(day.id),
+    ])
+    expect(second.id).toBe(first.id)
+    expect(third.id).toBe(first.id)
+
+    const matches = await db.training_sessions
+      .where('dayId')
+      .equals(day.id)
+      .filter((s) => s.deletedAt === null)
+      .toArray()
+    expect(matches).toHaveLength(1)
   })
 })
 
