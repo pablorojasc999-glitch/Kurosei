@@ -461,6 +461,7 @@ export function ProgressPage() {
 
       <section>
         <h2>Mapa corporal</h2>
+        <p className="empty-hint">Solo cuentan las series con RPE ≥ 6.</p>
         <BodyMap valuesByRegion={valuesByRegion} maxValue={maxRegionValue} />
       </section>
 
