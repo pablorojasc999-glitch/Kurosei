@@ -1,6 +1,7 @@
 import { db } from '../../../shared/db/database'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
+import { addDays, parseDateInput, toDateKey } from '../../training/lib/calendarGrid'
 import type { TimeBlock, TimeBlockCategory } from '../domain/types'
 
 /** Seeded once when the user has never touched Organización — freely editable/deletable afterwards. */
@@ -118,6 +119,48 @@ export async function listTimeBlocksForDate(date: string): Promise<TimeBlock[]> 
     .sortBy('startMinutes')
 }
 
+export interface TimeBlockSegment {
+  block: TimeBlock
+  segmentStart: number
+  segmentEnd: number
+  continuesFromPreviousDay: boolean
+  continuesToNextDay: boolean
+}
+
+/**
+ * Time blocks to render on `date`, split into same-day segments. A block
+ * whose endMinutes exceeds 1440 (e.g. Dormir 22:00 -> 06:00 the next day)
+ * shows a segment on its own date (22:00-24:00) and a second segment on the
+ * next date (00:00-06:00) — both segments reference the same underlying
+ * block, so editing or dragging either one acts on the whole overnight
+ * block.
+ */
+export async function listTimeBlockSegmentsForDate(date: string): Promise<TimeBlockSegment[]> {
+  const previousDate = toDateKey(addDays(parseDateInput(date), -1))
+  const [todayBlocks, previousDayBlocks] = await Promise.all([
+    listTimeBlocksForDate(date),
+    listTimeBlocksForDate(previousDate),
+  ])
+  const segments: TimeBlockSegment[] = todayBlocks.map((block) => ({
+    block,
+    segmentStart: block.startMinutes,
+    segmentEnd: Math.min(block.endMinutes, 1440),
+    continuesFromPreviousDay: false,
+    continuesToNextDay: block.endMinutes > 1440,
+  }))
+  for (const block of previousDayBlocks) {
+    if (block.endMinutes <= 1440) continue
+    segments.push({
+      block,
+      segmentStart: 0,
+      segmentEnd: block.endMinutes - 1440,
+      continuesFromPreviousDay: true,
+      continuesToNextDay: false,
+    })
+  }
+  return segments.sort((a, b) => a.segmentStart - b.segmentStart)
+}
+
 export interface CreateTimeBlockInput {
   categoryId: string
   date: string
@@ -127,9 +170,16 @@ export interface CreateTimeBlockInput {
   notes: string
 }
 
+/**
+ * `endMinutes` may exceed 1440 by up to a full day (an overnight block) but
+ * never past that — a block can't span more than 24 hours.
+ */
 function validateRange(startMinutes: number, endMinutes: number): void {
   if (endMinutes <= startMinutes) {
     throw new Error('La hora de término debe ser posterior a la de inicio.')
+  }
+  if (endMinutes - startMinutes > 1440) {
+    throw new Error('Un bloque no puede durar más de 24 horas.')
   }
 }
 

@@ -1080,11 +1080,15 @@ section {
 }
 
 .day-nav-label {
-  font-size: 15px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  min-width: 200px;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .edit-plan-link {
@@ -1690,6 +1694,19 @@ section {
   text-align: left;
 }
 
+.timeline-block--draggable {
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.timeline-block--dragging {
+  z-index: 20;
+  box-shadow: var(--shadow-glow);
+  transition: none;
+}
+
 .timeline-block-title {
   max-width: 100%;
   font-size: 12px;
@@ -1769,6 +1786,31 @@ section {
 .category-form-color input[type='color'] {
   width: 100%;
   padding: 2px;
+}
+
+.time-select-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.time-select {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.time-select select {
+  flex: 1;
+  min-width: 0;
+  padding: 0 6px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.time-select-colon {
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .category-card-main {

@@ -16,8 +16,13 @@ export function timeInputToMinutes(value: string): number | null {
   return h * 60 + m
 }
 
+/**
+ * Formats a block's real start/end for display. `endMinutes` can exceed
+ * 1439 for an overnight block (e.g. 22:00 -> 1560, meaning 06:00 the next
+ * day) — mod 1440 so it still reads as a normal time-of-day.
+ */
 export function formatTimeRange(startMinutes: number, endMinutes: number): string {
-  return `${minutesToTimeInput(startMinutes)} – ${minutesToTimeInput(endMinutes)}`
+  return `${minutesToTimeInput(startMinutes % 1440)} – ${minutesToTimeInput(endMinutes % 1440)}`
 }
 
 /** Rounds a minute-of-day value to the nearest step (default 15 min), used to default new-block times to tidy slots. */

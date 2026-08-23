@@ -7,6 +7,7 @@ import {
   deleteTimeBlock,
   ensureDefaultCategories,
   listCategories,
+  listTimeBlockSegmentsForDate,
   listTimeBlocksForDate,
   reorderCategory,
   updateCategory,
@@ -179,5 +180,88 @@ describe('time block CRUD', () => {
     })
     const blocks = await listTimeBlocksForDate('2026-08-23')
     expect(blocks.map((b) => b.title)).toEqual(['Hoy'])
+  })
+
+  it('rejects a block longer than 24 hours', async () => {
+    const category = await createCategory({ name: 'A', color: '#111', emoji: '🅰️' })
+    await expect(
+      createTimeBlock({
+        categoryId: category.id,
+        date: '2026-08-23',
+        startMinutes: 60,
+        endMinutes: 60 + 1441,
+        title: 'Demasiado largo',
+        notes: '',
+      }),
+    ).rejects.toThrow()
+  })
+
+  it('accepts an overnight block whose endMinutes crosses midnight', async () => {
+    const category = await createCategory({ name: 'A', color: '#111', emoji: '🅰️' })
+    const block = await createTimeBlock({
+      categoryId: category.id,
+      date: '2026-08-23',
+      startMinutes: 22 * 60,
+      endMinutes: 24 * 60 + 6 * 60,
+      title: 'Dormir',
+      notes: '',
+    })
+    expect(block.endMinutes).toBe(1800)
+  })
+})
+
+describe('listTimeBlockSegmentsForDate', () => {
+  it('splits an overnight block into a head segment today and a tail segment tomorrow', async () => {
+    const category = await createCategory({ name: 'Dormir', color: '#111', emoji: '😴' })
+    const block = await createTimeBlock({
+      categoryId: category.id,
+      date: '2026-08-23',
+      startMinutes: 22 * 60,
+      endMinutes: 24 * 60 + 6 * 60,
+      title: 'Dormir',
+      notes: '',
+    })
+
+    const todaySegments = await listTimeBlockSegmentsForDate('2026-08-23')
+    expect(todaySegments).toHaveLength(1)
+    expect(todaySegments[0]).toMatchObject({
+      segmentStart: 22 * 60,
+      segmentEnd: 1440,
+      continuesFromPreviousDay: false,
+      continuesToNextDay: true,
+    })
+    expect(todaySegments[0].block.id).toBe(block.id)
+
+    const tomorrowSegments = await listTimeBlockSegmentsForDate('2026-08-24')
+    expect(tomorrowSegments).toHaveLength(1)
+    expect(tomorrowSegments[0]).toMatchObject({
+      segmentStart: 0,
+      segmentEnd: 6 * 60,
+      continuesFromPreviousDay: true,
+      continuesToNextDay: false,
+    })
+    expect(tomorrowSegments[0].block.id).toBe(block.id)
+  })
+
+  it('gives a same-day block a single non-continuing segment', async () => {
+    const category = await createCategory({ name: 'A', color: '#111', emoji: '🅰️' })
+    await createTimeBlock({
+      categoryId: category.id,
+      date: '2026-08-23',
+      startMinutes: 60,
+      endMinutes: 120,
+      title: 'Reunión',
+      notes: '',
+    })
+
+    const segments = await listTimeBlockSegmentsForDate('2026-08-23')
+    expect(segments).toEqual([
+      expect.objectContaining({
+        segmentStart: 60,
+        segmentEnd: 120,
+        continuesFromPreviousDay: false,
+        continuesToNextDay: false,
+      }),
+    ])
   })
 })
