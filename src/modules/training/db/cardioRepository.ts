@@ -39,5 +39,9 @@ export async function createCardioSession(
 }
 
 export async function deleteCardioSession(id: string): Promise<void> {
-  await db.training_cardio_sessions.update(id, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_cardio_sessions.update(id, {
+    deletedAt: timestamp,
+    updatedAt: timestamp,
+  })
 }

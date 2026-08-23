@@ -25,8 +25,13 @@ import {
   listPlannedSets,
   listWeeks,
   listWeeksWithContext,
+  reorderPlannedExercise,
+  reorderWeek,
   setDayPlanClosed,
   setPlannedExerciseClosed,
+  updateDay,
+  updateMacrocycle,
+  updateMesocycle,
   updatePlannedSet,
 } from './planningRepository'
 import {
@@ -700,5 +705,127 @@ describe('copyPlannedExercisesToDay', () => {
     // deleting the copy leaves the source untouched
     await deleteDay(targetDay.id)
     expect(await listPlannedExercises(sourceDay.id)).toHaveLength(1)
+  })
+})
+
+describe('updateMacrocycle / updateMesocycle / updateDay', () => {
+  it('overwrites a macrocycle in place', async () => {
+    const macrocycle = await createMacrocycle({
+      name: 'Prep',
+      goal: 'Competencia',
+      startDate: '2026-01-01T00:00:00.000Z',
+      endDate: '2026-06-01T00:00:00.000Z',
+    })
+
+    await updateMacrocycle(macrocycle.id, {
+      name: 'Prep (renombrado)',
+      goal: 'Nueva meta',
+      startDate: '2026-02-01T00:00:00.000Z',
+      endDate: '2026-07-01T00:00:00.000Z',
+    })
+
+    const updated = await db.training_macrocycles.get(macrocycle.id)
+    expect(updated).toMatchObject({
+      name: 'Prep (renombrado)',
+      goal: 'Nueva meta',
+      startDate: '2026-02-01T00:00:00.000Z',
+      endDate: '2026-07-01T00:00:00.000Z',
+    })
+  })
+
+  it('overwrites a mesocycle in place, keeping its order', async () => {
+    const mesocycle = await seedMesocycle()
+
+    await updateMesocycle(mesocycle.id, {
+      name: 'Bloque 1 (renombrado)',
+      phaseType: 'peaking',
+      startDate: '2026-01-05T00:00:00.000Z',
+      endDate: '2026-02-05T00:00:00.000Z',
+    })
+
+    const updated = await db.training_mesocycles.get(mesocycle.id)
+    expect(updated).toMatchObject({
+      name: 'Bloque 1 (renombrado)',
+      phaseType: 'peaking',
+      order: mesocycle.order,
+    })
+  })
+
+  it('overwrites a day in place', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+
+    await updateDay(day.id, { date: '2026-01-06T00:00:00.000Z', label: 'Tren inferior' })
+
+    const updated = await db.training_days.get(day.id)
+    expect(updated).toMatchObject({
+      date: '2026-01-06T00:00:00.000Z',
+      label: 'Tren inferior',
+    })
+  })
+})
+
+describe('reorderWeek', () => {
+  it('swaps a week with the previous or next sibling', async () => {
+    const mesocycle = await seedMesocycle()
+    const week1 = await createWeek(mesocycle.id)
+    const week2 = await createWeek(mesocycle.id)
+    const week3 = await createWeek(mesocycle.id)
+
+    await reorderWeek(week2.id, 'up')
+    let ordered = await listWeeks(mesocycle.id)
+    expect(ordered.map((w) => w.id)).toEqual([week2.id, week1.id, week3.id])
+
+    await reorderWeek(week2.id, 'down')
+    ordered = await listWeeks(mesocycle.id)
+    expect(ordered.map((w) => w.id)).toEqual([week1.id, week2.id, week3.id])
+  })
+
+  it('is a no-op at either end of the list', async () => {
+    const mesocycle = await seedMesocycle()
+    const week1 = await createWeek(mesocycle.id)
+    const week2 = await createWeek(mesocycle.id)
+
+    await reorderWeek(week1.id, 'up')
+    expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([week1.id, week2.id])
+
+    await reorderWeek(week2.id, 'down')
+    expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([week1.id, week2.id])
+  })
+})
+
+describe('reorderPlannedExercise', () => {
+  it('swaps a planned exercise with the previous or next sibling', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const chest = await createMuscleGroup('Pecho')
+    const exercise1 = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const exercise2 = await createExercise({
+      name: 'Aperturas',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 0.5 }],
+    })
+    const pe1 = await createPlannedExercise({ dayId: day.id, exerciseId: exercise1.id, notes: '' })
+    const pe2 = await createPlannedExercise({ dayId: day.id, exerciseId: exercise2.id, notes: '' })
+
+    await reorderPlannedExercise(pe2.id, 'up')
+    const ordered = await listPlannedExercises(day.id)
+    expect(ordered.map((pe) => pe.id)).toEqual([pe2.id, pe1.id])
   })
 })

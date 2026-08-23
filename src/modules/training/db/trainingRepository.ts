@@ -210,5 +210,9 @@ export async function updateExercise(
 }
 
 export async function softDeleteExercise(exerciseId: string): Promise<void> {
-  await db.training_exercises.update(exerciseId, { deletedAt: nowIso() })
+  const timestamp = nowIso()
+  await db.training_exercises.update(exerciseId, {
+    deletedAt: timestamp,
+    updatedAt: timestamp,
+  })
 }

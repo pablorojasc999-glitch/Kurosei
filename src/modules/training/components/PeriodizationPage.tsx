@@ -18,15 +18,21 @@ import {
   deleteWeek,
   duplicateWeek,
   listPlannedDaysWithExercises,
+  reorderPlannedExercise,
+  reorderWeek,
   setDayPlanClosed,
   setPlannedExerciseClosed,
+  updateDay,
+  updateMacrocycle,
+  updateMesocycle,
   updatePlannedSet,
 } from '../db/planningRepository'
-import { parseDateInput } from '../lib/calendarGrid'
+import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
   Day,
+  Macrocycle,
   Mesocycle,
   PhaseType,
   PlannedExercise,
@@ -176,6 +182,10 @@ export function PeriodizationPage({
   const [showMesoForm, setShowMesoForm] = useState(false)
   const [showDayForm, setShowDayForm] = useState(false)
 
+  const [editingMacroId, setEditingMacroId] = useState<string | null>(null)
+  const [editingMesoId, setEditingMesoId] = useState<string | null>(null)
+  const [editingDayId, setEditingDayId] = useState<string | null>(null)
+
   const { isSubmitting: isCreatingMacro, guard: guardMacro } = useSubmitGuard()
   const { isSubmitting: isCreatingMeso, guard: guardMeso } = useSubmitGuard()
   const { isSubmitting: isCreatingWeek, guard: guardWeek } = useSubmitGuard()
@@ -183,42 +193,110 @@ export function PeriodizationPage({
   const { isSubmitting: isAddingExercise, guard: guardAddExercise } = useSubmitGuard()
   const { isSubmitting: isSubmittingSet, guard: guardSet } = useSubmitGuard()
 
-  async function handleCreateMacrocycle(e: React.FormEvent) {
+  function startEditMacro(m: Macrocycle) {
+    setEditingMacroId(m.id)
+    setMacroName(m.name)
+    setMacroGoal(m.goal)
+    setMacroStart(toDateKey(new Date(m.startDate)))
+    setMacroEnd(toDateKey(new Date(m.endDate)))
+    setShowMacroForm(true)
+  }
+
+  function resetMacroForm() {
+    setEditingMacroId(null)
+    setMacroName('')
+    setMacroGoal('')
+    setMacroStart('')
+    setMacroEnd('')
+    setShowMacroForm(false)
+  }
+
+  function openNewMacroForm() {
+    resetMacroForm()
+    setShowMacroForm(true)
+  }
+
+  function startEditMeso(m: Mesocycle) {
+    setEditingMesoId(m.id)
+    setMesoName(m.name)
+    setMesoPhase(m.phaseType)
+    setMesoStart(toDateKey(new Date(m.startDate)))
+    setMesoEnd(toDateKey(new Date(m.endDate)))
+    setShowMesoForm(true)
+  }
+
+  function resetMesoForm() {
+    setEditingMesoId(null)
+    setMesoName('')
+    setMesoPhase('accumulation')
+    setMesoStart('')
+    setMesoEnd('')
+    setShowMesoForm(false)
+  }
+
+  function openNewMesoForm() {
+    resetMesoForm()
+    setShowMesoForm(true)
+  }
+
+  function startEditDay(d: Day) {
+    setEditingDayId(d.id)
+    setDayDate(toDateKey(new Date(d.date)))
+    setDayLabel(d.label)
+    setCopyFromDayId('')
+    setShowDayForm(true)
+  }
+
+  function resetDayForm() {
+    setEditingDayId(null)
+    setDayDate('')
+    setDayLabel('')
+    setCopyFromDayId('')
+    setShowDayForm(false)
+  }
+
+  function openNewDayForm() {
+    resetDayForm()
+    setShowDayForm(true)
+  }
+
+  async function handleSubmitMacrocycle(e: React.FormEvent) {
     e.preventDefault()
     if (!macroName || !macroStart || !macroEnd) return
     await guardMacro(async () => {
-      const m = await createMacrocycle({
+      const input = {
         name: macroName,
         goal: macroGoal,
         startDate: parseDateInput(macroStart).toISOString(),
         endDate: parseDateInput(macroEnd).toISOString(),
-      })
-      setMacroName('')
-      setMacroGoal('')
-      setMacroStart('')
-      setMacroEnd('')
-      setShowMacroForm(false)
-      setMacrocycleId(m.id)
+      }
+      if (editingMacroId) {
+        await updateMacrocycle(editingMacroId, input)
+      } else {
+        const m = await createMacrocycle(input)
+        setMacrocycleId(m.id)
+      }
+      resetMacroForm()
     })
   }
 
-  async function handleCreateMesocycle(e: React.FormEvent) {
+  async function handleSubmitMesocycle(e: React.FormEvent) {
     e.preventDefault()
     if (!macrocycleId || !mesoName || !mesoStart || !mesoEnd) return
     await guardMeso(async () => {
-      const m = await createMesocycle({
-        macrocycleId,
+      const input = {
         name: mesoName,
         phaseType: mesoPhase,
         startDate: parseDateInput(mesoStart).toISOString(),
         endDate: parseDateInput(mesoEnd).toISOString(),
-      })
-      setMesoName('')
-      setMesoPhase('accumulation')
-      setMesoStart('')
-      setMesoEnd('')
-      setShowMesoForm(false)
-      setMesocycleId(m.id)
+      }
+      if (editingMesoId) {
+        await updateMesocycle(editingMesoId, input)
+      } else {
+        const m = await createMesocycle({ macrocycleId, ...input })
+        setMesocycleId(m.id)
+      }
+      resetMesoForm()
     })
   }
 
@@ -235,22 +313,26 @@ export function PeriodizationPage({
     setWeekId(w.id)
   }
 
-  async function handleCreateDay(e: React.FormEvent) {
+  async function handleSubmitDay(e: React.FormEvent) {
     e.preventDefault()
     if (!weekId || !dayDate) return
     await guardDay(async () => {
-      const d = await createDay({
-        weekId,
-        date: parseDateInput(dayDate).toISOString(),
-        label: dayLabel,
-      })
-      if (copyFromDayId) {
-        await copyPlannedExercisesToDay(copyFromDayId, d.id)
+      if (editingDayId) {
+        await updateDay(editingDayId, {
+          date: parseDateInput(dayDate).toISOString(),
+          label: dayLabel,
+        })
+      } else {
+        const d = await createDay({
+          weekId,
+          date: parseDateInput(dayDate).toISOString(),
+          label: dayLabel,
+        })
+        if (copyFromDayId) {
+          await copyPlannedExercisesToDay(copyFromDayId, d.id)
+        }
       }
-      setDayDate('')
-      setDayLabel('')
-      setCopyFromDayId('')
-      setShowDayForm(false)
+      resetDayForm()
     })
   }
 
@@ -323,13 +405,13 @@ export function PeriodizationPage({
       <h1>Periodización</h1>
 
       <nav className="breadcrumb">
-        <button type="button" onClick={() => { setMacrocycleId(null); setMesocycleId(null); setWeekId(null); setDayId(null); setShowMacroForm(false); setShowMesoForm(false); setShowDayForm(false) }}>
+        <button type="button" onClick={() => { setMacrocycleId(null); setMesocycleId(null); setWeekId(null); setDayId(null); resetMacroForm(); resetMesoForm(); resetDayForm() }}>
           Macrociclos
         </button>
         {selectedMacrocycle && (
           <>
             {' / '}
-            <button type="button" onClick={() => { setMesocycleId(null); setWeekId(null); setDayId(null); setShowMesoForm(false); setShowDayForm(false) }}>
+            <button type="button" onClick={() => { setMesocycleId(null); setWeekId(null); setDayId(null); resetMesoForm(); resetDayForm() }}>
               {selectedMacrocycle.name}
             </button>
           </>
@@ -337,7 +419,7 @@ export function PeriodizationPage({
         {selectedMesocycle && (
           <>
             {' / '}
-            <button type="button" onClick={() => { setWeekId(null); setDayId(null); setShowDayForm(false) }}>
+            <button type="button" onClick={() => { setWeekId(null); setDayId(null); resetDayForm() }}>
               {selectedMesocycle.name}
             </button>
           </>
@@ -345,7 +427,7 @@ export function PeriodizationPage({
         {selectedWeek && (
           <>
             {' / '}
-            <button type="button" onClick={() => { setDayId(null); setShowDayForm(false) }}>
+            <button type="button" onClick={() => { setDayId(null); resetDayForm() }}>
               Semana {selectedWeek.order + 1}
             </button>
           </>
@@ -361,6 +443,9 @@ export function PeriodizationPage({
                 <button type="button" onClick={() => setMacrocycleId(m.id)}>
                   {m.name} — {formatDate(m.startDate)} a {formatDate(m.endDate)}
                 </button>
+                <button type="button" onClick={() => startEditMacro(m)}>
+                  Editar
+                </button>
                 <ConfirmDeleteButton
                   confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
                   onConfirm={() => deleteMacrocycle(m.id)}
@@ -369,7 +454,7 @@ export function PeriodizationPage({
             ))}
           </ul>
           {showMacroForm ? (
-            <form onSubmit={handleCreateMacrocycle} className="entity-form">
+            <form onSubmit={handleSubmitMacrocycle} className="entity-form">
               <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
               <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
               <label>
@@ -380,11 +465,13 @@ export function PeriodizationPage({
                 Fecha de fin
                 <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
               </label>
-              <button type="submit" disabled={isCreatingMacro}>Crear macrociclo</button>
-              <button type="button" onClick={() => setShowMacroForm(false)}>Cancelar</button>
+              <button type="submit" disabled={isCreatingMacro}>
+                {editingMacroId ? 'Guardar cambios' : 'Crear macrociclo'}
+              </button>
+              <button type="button" onClick={resetMacroForm}>Cancelar</button>
             </form>
           ) : (
-            <button type="button" onClick={() => setShowMacroForm(true)}>+ Agregar macrociclo</button>
+            <button type="button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
           )}
         </section>
       )}
@@ -398,6 +485,9 @@ export function PeriodizationPage({
                 <button type="button" onClick={() => setMesocycleId(m.id)}>
                   {m.name} ({PHASE_LABELS[m.phaseType]}) — {formatDate(m.startDate)} a {formatDate(m.endDate)}
                 </button>
+                <button type="button" onClick={() => startEditMeso(m)}>
+                  Editar
+                </button>
                 <ConfirmDeleteButton
                   confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
                   onConfirm={() => deleteMesocycle(m.id)}
@@ -406,7 +496,7 @@ export function PeriodizationPage({
             ))}
           </ul>
           {showMesoForm ? (
-            <form onSubmit={handleCreateMesocycle} className="entity-form">
+            <form onSubmit={handleSubmitMesocycle} className="entity-form">
               <input value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
               <select value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
                 {Object.entries(PHASE_LABELS).map(([key, label]) => (
@@ -421,11 +511,13 @@ export function PeriodizationPage({
                 Fecha de fin
                 <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
               </label>
-              <button type="submit" disabled={isCreatingMeso}>Crear mesociclo</button>
-              <button type="button" onClick={() => setShowMesoForm(false)}>Cancelar</button>
+              <button type="submit" disabled={isCreatingMeso}>
+                {editingMesoId ? 'Guardar cambios' : 'Crear mesociclo'}
+              </button>
+              <button type="button" onClick={resetMesoForm}>Cancelar</button>
             </form>
           ) : (
-            <button type="button" onClick={() => setShowMesoForm(true)}>+ Agregar mesociclo</button>
+            <button type="button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
           )}
         </section>
       )}
@@ -434,10 +526,28 @@ export function PeriodizationPage({
         <section>
           <h2>Semanas de {selectedMesocycle?.name}</h2>
           <ul className="entity-list">
-            {weeks?.map((w) => (
+            {weeks?.map((w, index) => (
               <li key={w.id} className="list-row">
                 <button type="button" onClick={() => setWeekId(w.id)}>
                   Semana {w.order + 1}
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Mover semana hacia arriba"
+                  disabled={index === 0}
+                  onClick={() => reorderWeek(w.id, 'up')}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="icon-button"
+                  aria-label="Mover semana hacia abajo"
+                  disabled={index === (weeks?.length ?? 0) - 1}
+                  onClick={() => reorderWeek(w.id, 'down')}
+                >
+                  ↓
                 </button>
                 <button
                   type="button"
@@ -466,6 +576,9 @@ export function PeriodizationPage({
                 <button type="button" onClick={() => setDayId(d.id)}>
                   {formatDate(d.date)} — {d.label || 'Sin etiqueta'}
                 </button>
+                <button type="button" onClick={() => startEditDay(d)}>
+                  Editar
+                </button>
                 <ConfirmDeleteButton
                   confirmMessage="¿Eliminar este día? Si tenía una sesión o cardio registrado, también se elimina."
                   onConfirm={() => deleteDay(d.id)}
@@ -474,13 +587,13 @@ export function PeriodizationPage({
             ))}
           </ul>
           {showDayForm ? (
-            <form onSubmit={handleCreateDay} className="entity-form">
+            <form onSubmit={handleSubmitDay} className="entity-form">
               <label>
                 Fecha
                 <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
               </label>
               <input value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
-              {plannedDayOptions && plannedDayOptions.length > 0 && (
+              {!editingDayId && plannedDayOptions && plannedDayOptions.length > 0 && (
                 <label>
                   Copiar plan de un día ya planificado (opcional)
                   <select
@@ -497,11 +610,13 @@ export function PeriodizationPage({
                   </select>
                 </label>
               )}
-              <button type="submit" disabled={isCreatingDay}>Agregar día</button>
-              <button type="button" onClick={() => setShowDayForm(false)}>Cancelar</button>
+              <button type="submit" disabled={isCreatingDay}>
+                {editingDayId ? 'Guardar cambios' : 'Agregar día'}
+              </button>
+              <button type="button" onClick={resetDayForm}>Cancelar</button>
             </form>
           ) : (
-            <button type="button" onClick={() => setShowDayForm(true)}>+ Agregar día</button>
+            <button type="button" onClick={openNewDayForm}>+ Agregar día</button>
           )}
         </section>
       )}
@@ -518,7 +633,7 @@ export function PeriodizationPage({
             </button>
           </div>
           <ul className="planned-exercise-list">
-            {plannedExercises?.map((pe) => {
+            {plannedExercises?.map((pe, index) => {
               const sets = (
                 plannedSets?.filter((ps) => ps.plannedExerciseId === pe.id) ?? []
               ).sort((a, b) => a.setNumber - b.setNumber)
@@ -531,6 +646,28 @@ export function PeriodizationPage({
                   <div className="planned-exercise-header">
                     <strong>{exerciseName(pe.exerciseId)}</strong>
                     {pe.notes && <span className="notes"> — {pe.notes}</span>}
+                    {!dayLocked && (
+                      <>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label="Mover ejercicio hacia arriba"
+                          disabled={index === 0}
+                          onClick={() => reorderPlannedExercise(pe.id, 'up')}
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button"
+                          aria-label="Mover ejercicio hacia abajo"
+                          disabled={index === (plannedExercises?.length ?? 0) - 1}
+                          onClick={() => reorderPlannedExercise(pe.id, 'down')}
+                        >
+                          ↓
+                        </button>
+                      </>
+                    )}
                     {!dayLocked && (
                       <button
                         type="button"

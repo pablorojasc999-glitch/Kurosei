@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { db } from '../../../shared/db/database'
 import { pullTable, pushTable, syncNow } from './syncEngine'
-import { createMuscleGroup } from '../../training/db/trainingRepository'
+import {
+  createExercise,
+  createMuscleGroup,
+  softDeleteExercise,
+} from '../../training/db/trainingRepository'
 
 beforeEach(async () => {
   await db.transaction('rw', db.tables, async () =>
@@ -104,6 +108,26 @@ describe('pushTable', () => {
     await expect(
       pushTable(client, 'training_muscle_groups', USER_ID, EPOCH),
     ).rejects.toThrow('training_muscle_groups: column "factor" does not exist')
+  })
+
+  it('pushes a soft-delete as an update (a delete must bump updatedAt or it never syncs)', async () => {
+    const exercise = await createExercise({
+      name: 'Bicicleta',
+      type: 'cardio',
+      category: null,
+      muscleContributions: [],
+    })
+    const { client, store } = createFakeSupabaseClient()
+
+    // Sync once right after creation, as a real client would before deleting.
+    await pushTable(client, 'training_exercises', USER_ID, EPOCH)
+    const afterCreate = store[0].updatedAt
+
+    await softDeleteExercise(exercise.id)
+    await pushTable(client, 'training_exercises', USER_ID, afterCreate)
+
+    expect(store).toHaveLength(1)
+    expect(store[0].deletedAt).not.toBeNull()
   })
 })
 
