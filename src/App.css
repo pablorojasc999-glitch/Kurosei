@@ -456,8 +456,62 @@ section {
   box-shadow: var(--shadow-sm);
 }
 
+/* Whole-card status color: red while an exercise is still open (not closed
+   yet), green once it's closed — a glance at the list should say which
+   exercises are still pending without reading each header. */
+.planned-exercise-item--open {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+}
+
+.planned-exercise-item--open strong,
+.planned-exercise-item--open .planned-exercise-info .notes,
+.planned-exercise-item--open .plan-target-title,
+.planned-exercise-item--open .plan-target-row,
+.planned-exercise-item--open .set-number,
+.planned-exercise-item--open .set-summary,
+.planned-exercise-item--open .set-compare-text,
+.planned-exercise-item--open .empty-hint {
+  color: var(--danger);
+}
+
+.planned-exercise-item--open .plan-target-row {
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.planned-exercise-item--open .set-row,
+.planned-exercise-item--open .set-compare-row {
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.planned-exercise-item--closed {
+  background: var(--success-bg);
+  border-color: var(--success);
+}
+
+.planned-exercise-item--closed strong,
+.planned-exercise-item--closed .planned-exercise-info .notes,
+.planned-exercise-item--closed .plan-target-title,
+.planned-exercise-item--closed .plan-target-row,
+.planned-exercise-item--closed .set-number,
+.planned-exercise-item--closed .set-summary,
+.planned-exercise-item--closed .set-compare-text,
+.planned-exercise-item--closed .empty-hint {
+  color: var(--success);
+}
+
+.planned-exercise-item--closed .plan-target-row {
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.planned-exercise-item--closed .set-row,
+.planned-exercise-item--closed .set-compare-row {
+  background: rgba(74, 222, 128, 0.08);
+}
+
 .planned-exercise-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
@@ -543,6 +597,36 @@ section {
 
 .set-summary {
   flex: 1;
+}
+
+/* Finished-session view: planned vs. actual on one row per set number,
+   instead of two separate stacked lists. */
+.set-compare-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.set-compare-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.set-compare-text {
+  flex: 1;
+}
+
+.set-compare-planned {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 .set-row--editing {
