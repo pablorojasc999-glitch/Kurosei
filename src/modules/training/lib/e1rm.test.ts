@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   calculateE1rm,
+  estimateWeightForTarget,
   placeholderE1rmFormula,
   rpeTableE1rmFormula,
   setE1rmFormula,
@@ -69,5 +70,31 @@ describe('rpeTableE1rmFormula', () => {
   it('is the default active formula used by calculateE1rm', () => {
     setE1rmFormula(rpeTableE1rmFormula)
     expect(calculateE1rm({ weightKg: 100, reps: 1, rpe: 10 })).toBe(100)
+  })
+})
+
+describe('estimateWeightForTarget', () => {
+  it('is the exact inverse of rpeTableE1rmFormula for the same cell', () => {
+    const e1rm = rpeTableE1rmFormula({ weightKg: 100, reps: 5, rpe: 8 })
+    const weight = estimateWeightForTarget({ e1rm, reps: 5, rpe: 8 })
+    expect(weight).toBeCloseTo(100, 4)
+  })
+
+  it('returns the full e1RM for RPE 10, 1 rep (the table anchor)', () => {
+    expect(estimateWeightForTarget({ e1rm: 100, reps: 1, rpe: 10 })).toBe(100)
+  })
+
+  it('rounds a fractional RPE to the nearest 0.5 step', () => {
+    const result = estimateWeightForTarget({ e1rm: 100, reps: 5, rpe: 8.3 })
+    expect(result).toBeCloseTo(100 * 0.858, 4) // rounds to RPE 8.5
+  })
+
+  it('returns null past the table\'s 15-rep column', () => {
+    expect(estimateWeightForTarget({ e1rm: 100, reps: 16, rpe: 10 })).toBeNull()
+  })
+
+  it('returns null for a non-positive e1RM or rep count', () => {
+    expect(estimateWeightForTarget({ e1rm: 0, reps: 5, rpe: 8 })).toBeNull()
+    expect(estimateWeightForTarget({ e1rm: 100, reps: 0, rpe: 8 })).toBeNull()
   })
 })

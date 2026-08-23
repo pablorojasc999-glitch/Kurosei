@@ -74,3 +74,25 @@ export function setE1rmFormula(formula: E1rmFormula): void {
 export function calculateE1rm(input: E1rmInput): number {
   return activeFormula(input)
 }
+
+export interface WeightForTargetInput {
+  e1rm: number
+  reps: number
+  rpe: number
+}
+
+/**
+ * Inverse of the RPE table lookup: given an e1RM and a target rep/RPE
+ * combo, the weight that combo represents. Only defined within the table's
+ * range (integer reps 1-15, RPE 1-10) — returns null outside it, since
+ * there's no RPE-based inverse for the Epley fallback.
+ */
+export function estimateWeightForTarget({
+  e1rm,
+  reps,
+  rpe,
+}: WeightForTargetInput): number | null {
+  if (e1rm <= 0 || reps <= 0 || !Number.isInteger(reps) || reps > 15) return null
+  const percentage = RPE_PERCENT_TABLE[normalizeRpe(rpe)][reps - 1]
+  return e1rm * percentage
+}
