@@ -1,6 +1,4 @@
 import Dexie, { type EntityTable } from 'dexie'
-import { ORGANIZATION_STORES_V3 } from '../../modules/organization/db/schema'
-import type { TimeBlock, TimeBlockCategory } from '../../modules/organization/domain/types'
 import { TRAINING_STORES_V1, TRAINING_STORES_V2 } from '../../modules/training/db/schema'
 import type {
   CardioSession,
@@ -39,8 +37,6 @@ export class KuroseiDatabase extends Dexie {
   training_cardio_sessions!: EntityTable<CardioSession, 'id'>
   training_user_profile!: EntityTable<UserProfile, 'id'>
   training_daily_logs!: EntityTable<DailyLog, 'id'>
-  org_categories!: EntityTable<TimeBlockCategory, 'id'>
-  org_time_blocks!: EntityTable<TimeBlock, 'id'>
 
   constructor() {
     super('kurosei')
@@ -50,8 +46,13 @@ export class KuroseiDatabase extends Dexie {
     this.version(2).stores({
       ...TRAINING_STORES_V2,
     })
+    // v3 added org_categories/org_time_blocks for the since-removed
+    // Organización (time blocking) feature. Kept here, empty of any real
+    // schema use, only so a device that already upgraded to v3 doesn't hit
+    // a Dexie VersionError on load — never remove a past version() step.
     this.version(3).stores({
-      ...ORGANIZATION_STORES_V3,
+      org_categories: 'id, order, updatedAt, deletedAt',
+      org_time_blocks: 'id, categoryId, date, updatedAt, deletedAt',
     })
   }
 }

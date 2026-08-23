@@ -242,36 +242,6 @@ create table if not exists "training_daily_logs" (
 );
 
 -- ---------------------------------------------------------------------
--- Organización (time blocking)
--- ---------------------------------------------------------------------
-
-create table if not exists "org_categories" (
-  "id" uuid primary key,
-  "userId" uuid not null references auth.users(id) on delete cascade,
-  "name" text not null,
-  "color" text not null,
-  "emoji" text not null,
-  "order" integer not null,
-  "createdAt" timestamptz not null,
-  "updatedAt" timestamptz not null,
-  "deletedAt" timestamptz
-);
-
-create table if not exists "org_time_blocks" (
-  "id" uuid primary key,
-  "userId" uuid not null references auth.users(id) on delete cascade,
-  "categoryId" uuid not null,
-  "date" text not null,
-  "startMinutes" integer not null,
-  "endMinutes" integer not null,
-  "title" text not null,
-  "notes" text not null,
-  "createdAt" timestamptz not null,
-  "updatedAt" timestamptz not null,
-  "deletedAt" timestamptz
-);
-
--- ---------------------------------------------------------------------
 -- Indexes — every sync pull filters by (userId, updatedAt)
 -- ---------------------------------------------------------------------
 
@@ -290,8 +260,6 @@ create index if not exists "training_executed_sets_sync_idx" on "training_execut
 create index if not exists "training_cardio_sessions_sync_idx" on "training_cardio_sessions" ("userId", "updatedAt");
 create index if not exists "training_user_profile_sync_idx" on "training_user_profile" ("userId", "updatedAt");
 create index if not exists "training_daily_logs_sync_idx" on "training_daily_logs" ("userId", "updatedAt");
-create index if not exists "org_categories_sync_idx" on "org_categories" ("userId", "updatedAt");
-create index if not exists "org_time_blocks_sync_idx" on "org_time_blocks" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
 -- Row Level Security — every user only ever sees/writes their own rows
@@ -316,9 +284,7 @@ begin
     'training_executed_sets',
     'training_cardio_sessions',
     'training_user_profile',
-    'training_daily_logs',
-    'org_categories',
-    'org_time_blocks'
+    'training_daily_logs'
   ]
   loop
     execute format('alter table %I enable row level security', tbl);
