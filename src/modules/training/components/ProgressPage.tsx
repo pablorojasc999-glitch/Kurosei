@@ -263,7 +263,8 @@ export function ProgressPage() {
                 weightKg: m.bodyWeightKg,
                 targetDate: parseDateInput(m.date),
                 cardioCaloriesBurned: m.cardioCaloriesBurned,
-                strengthSessionDurationMinutes: m.strengthSessionDurationMinutes,
+                strengthSetCount: m.strengthSetTimestamps.length,
+                strengthSetTimestamps: m.strengthSetTimestamps,
               })
             : null,
       })),
