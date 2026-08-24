@@ -117,7 +117,7 @@ describe('listDailyMetricsInRange', () => {
     expect(result[0].cardioCaloriesBurned).toBe(380)
     expect(result[0].cardioDistanceKm).toBe(6)
     expect(result[0].hadStrengthSession).toBe(true)
-    expect(result[0].strengthSetTimestamps).toHaveLength(2)
+    expect(result[0].strengthSetCount).toBe(2)
   })
 
   it('excludes sessions/cardio/logs outside the requested range', async () => {

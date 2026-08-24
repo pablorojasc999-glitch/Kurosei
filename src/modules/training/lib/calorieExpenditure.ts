@@ -1,51 +1,29 @@
 import type { Sex } from '../domain/types'
 
-/** MET for the active lift itself (resistance training, vigorous effort). */
+/**
+ * MET for resistance training, vigorous effort. Compendium MET values for
+ * resistance training are themselves session-averaged — measured across a
+ * typical training session including its natural rest between sets, not
+ * just the concentric/eccentric movement — so this MET is meant to be
+ * applied over a realistic per-set duration that already has rest baked in,
+ * not over isolated "active lifting time".
+ */
 const STRENGTH_TRAINING_MET = 6
 
 /**
- * MET for the recovery time between sets: still elevated above resting
- * (heart rate recovering, standing, re-racking plates) but nowhere near the
- * effort of the lift itself.
+ * Assumed average minutes per set, rest included, for powerlifting-style
+ * training (heavier loads, longer rest than typical hypertrophy work).
+ * Deliberately not derived from timestamps between logged sets: sets are
+ * sometimes logged in a batch after several were actually performed (e.g.
+ * catching up on a few forgotten entries at once), which would make
+ * consecutive `performedAt` gaps meaningless. Set *count* is always
+ * complete and reliable, so it's the only signal this estimate depends on.
  */
-const REST_MET = 2
+const MINUTES_PER_SET = 4
 
-/**
- * Assumed active lifting time per set (the concentric+eccentric effort
- * itself, not the rest that follows it).
- */
-const ACTIVE_SECONDS_PER_SET = 45
-
-/**
- * Ceiling on how much of a single gap between two logged sets counts as
- * "resting between sets". Anchoring rest time to the sets' own `performedAt`
- * timestamps (instead of the session's `startedAt`/`endedAt`) means the
- * estimate can't be broken by forgetting to tap "Finalizar sesión" — but
- * without a cap, a real interruption between two sets (a phone call, a long
- * break) would still get counted as recovery. 8 minutes is generous even
- * for powerlifting-length rest, so it only clips genuine interruptions.
- */
-const MAX_REST_SECONDS_PER_GAP = 8 * 60
-
-/** Estimated active lifting minutes for a session, from its executed set count. */
-export function estimateActiveMinutesFromSetCount(setCount: number): number {
-  return (setCount * ACTIVE_SECONDS_PER_SET) / 60
-}
-
-/**
- * Estimated (capped) rest minutes between sets, from the sets' own
- * `performedAt` timestamps — not from session `startedAt`/`endedAt`, so a
- * forgotten "Finalizar sesión" tap can't inflate it.
- */
-export function estimateRestMinutesFromSetTimestamps(performedAt: string[]): number {
-  const sorted = [...performedAt].sort()
-  let totalSeconds = 0
-  for (let i = 1; i < sorted.length; i += 1) {
-    const gapSeconds =
-      (new Date(sorted[i]).getTime() - new Date(sorted[i - 1]).getTime()) / 1000
-    totalSeconds += Math.min(Math.max(gapSeconds, 0), MAX_REST_SECONDS_PER_GAP)
-  }
-  return totalSeconds / 60
+/** Estimated session minutes for a session, from its executed set count. */
+export function estimateStrengthMinutesFromSetCount(setCount: number): number {
+  return setCount * MINUTES_PER_SET
 }
 
 /** Age in whole years at `atDate`, from a `YYYY-MM-DD` birth date. */
@@ -75,26 +53,15 @@ export function bmrMifflinStJeor({ weightKg, heightCm, age, sex }: BmrInput): nu
 export interface StrengthSessionCaloriesInput {
   weightKg: number
   setCount: number
-  /** `performedAt` of every executed set in the session, any order. */
-  setTimestamps: string[]
 }
 
-/**
- * Calories burned during a strength session: vigorous-effort MET for the
- * assumed active lifting time, plus a light-activity MET for the (capped)
- * rest time actually elapsed between logged sets.
- */
+/** Calories burned during a strength session, from its executed set count. */
 export function estimateStrengthSessionCalories({
   weightKg,
   setCount,
-  setTimestamps,
 }: StrengthSessionCaloriesInput): number {
-  const activeMinutes = estimateActiveMinutesFromSetCount(setCount)
-  const restMinutes = estimateRestMinutesFromSetTimestamps(setTimestamps)
-  return (
-    STRENGTH_TRAINING_MET * weightKg * (activeMinutes / 60) +
-    REST_MET * weightKg * (restMinutes / 60)
-  )
+  const minutes = estimateStrengthMinutesFromSetCount(setCount)
+  return STRENGTH_TRAINING_MET * weightKg * (minutes / 60)
 }
 
 export interface CalorieExpenditureInput {
@@ -105,13 +72,12 @@ export interface CalorieExpenditureInput {
   targetDate: Date
   cardioCaloriesBurned: number
   strengthSetCount: number
-  strengthSetTimestamps: string[]
 }
 
 /**
  * Total daily calorie expenditure: basal metabolism (from the profile and
  * that day's body weight) plus the day's logged cardio calories plus an
- * estimate for the day's strength session, from its logged sets.
+ * estimate for the day's strength session, from its logged set count.
  */
 export function estimateCalorieExpenditure(input: CalorieExpenditureInput): number {
   const age = calculateAge(input.birthDate, input.targetDate)
@@ -124,7 +90,6 @@ export function estimateCalorieExpenditure(input: CalorieExpenditureInput): numb
   const strengthCalories = estimateStrengthSessionCalories({
     weightKg: input.weightKg,
     setCount: input.strengthSetCount,
-    setTimestamps: input.strengthSetTimestamps,
   })
   return bmr + strengthCalories + input.cardioCaloriesBurned
 }
