@@ -7,7 +7,7 @@ import {
   upsertDailyLog,
   upsertProfile,
 } from '../db/bitacoraRepository'
-import { getSessionForDay, listExecutedSetTimestampsForSession } from '../db/executionRepository'
+import { countExecutedSetsForSession, getSessionForDay } from '../db/executionRepository'
 import { listCardioSessions } from '../db/cardioRepository'
 import { findDayByDate } from '../db/planningRepository'
 import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
@@ -88,8 +88,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     () => (day ? listCardioSessions(day.id) : Promise.resolve([])),
     [day?.id],
   )
-  const executedSetTimestamps = useLiveQuery(
-    () => (session ? listExecutedSetTimestampsForSession(session.id) : Promise.resolve([])),
+  const executedSetCount = useLiveQuery(
+    () => (session ? countExecutedSetsForSession(session.id) : Promise.resolve(0)),
     [session?.id],
   )
 
@@ -241,8 +241,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       weightKg,
       targetDate: date,
       cardioCaloriesBurned,
-      strengthSetCount: executedSetTimestamps?.length ?? 0,
-      strengthSetTimestamps: executedSetTimestamps ?? [],
+      strengthSetCount: executedSetCount ?? 0,
     })
   }
 

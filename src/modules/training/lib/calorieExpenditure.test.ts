@@ -2,9 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   bmrMifflinStJeor,
   calculateAge,
-  estimateActiveMinutesFromSetCount,
   estimateCalorieExpenditure,
-  estimateRestMinutesFromSetTimestamps,
+  estimateStrengthMinutesFromSetCount,
   estimateStrengthSessionCalories,
 } from './calorieExpenditure'
 
@@ -34,66 +33,29 @@ describe('bmrMifflinStJeor', () => {
   })
 })
 
-describe('estimateActiveMinutesFromSetCount', () => {
-  it('counts 45 active seconds per set, ignoring rest between sets', () => {
-    expect(estimateActiveMinutesFromSetCount(8)).toBeCloseTo((8 * 45) / 60)
-    expect(estimateActiveMinutesFromSetCount(0)).toBe(0)
-  })
-})
-
-describe('estimateRestMinutesFromSetTimestamps', () => {
-  it('sums the gaps between consecutive sets, regardless of input order', () => {
-    const t0 = new Date(2026, 7, 22, 10, 0, 0)
-    const t1 = new Date(t0.getTime() + 3 * 60_000) // +3 min
-    const t2 = new Date(t0.getTime() + 8 * 60_000) // +5 min after t1
-    const minutes = estimateRestMinutesFromSetTimestamps([
-      t2.toISOString(),
-      t0.toISOString(),
-      t1.toISOString(),
-    ])
-    expect(minutes).toBeCloseTo(8)
-  })
-
-  it('caps a single gap at 8 minutes, so a real interruption is not counted as rest', () => {
-    const t0 = new Date(2026, 7, 22, 10, 0, 0)
-    const t1 = new Date(t0.getTime() + 40 * 60_000) // a 40-minute break
-    const minutes = estimateRestMinutesFromSetTimestamps([t0.toISOString(), t1.toISOString()])
-    expect(minutes).toBe(8)
-  })
-
-  it('is 0 for a single set or no sets', () => {
-    expect(estimateRestMinutesFromSetTimestamps([])).toBe(0)
-    expect(estimateRestMinutesFromSetTimestamps(['2026-08-22T10:00:00.000Z'])).toBe(0)
+describe('estimateStrengthMinutesFromSetCount', () => {
+  it('counts 4 minutes per set, regardless of when each set was logged', () => {
+    expect(estimateStrengthMinutesFromSetCount(10)).toBe(40)
+    expect(estimateStrengthMinutesFromSetCount(0)).toBe(0)
   })
 })
 
 describe('estimateStrengthSessionCalories', () => {
-  it('combines active-set MET with rest-time MET from the sets timestamps', () => {
-    const t0 = new Date(2026, 7, 22, 10, 0, 0)
-    const t1 = new Date(t0.getTime() + 3 * 60_000)
-    const calories = estimateStrengthSessionCalories({
-      weightKg: 80,
-      setCount: 2,
-      setTimestamps: [t0.toISOString(), t1.toISOString()],
-    })
-    const activeCalories = 6 * 80 * (((2 * 45) / 60) / 60)
-    const restCalories = 2 * 80 * (3 / 60)
-    expect(calories).toBeCloseTo(activeCalories + restCalories)
+  it('scales linearly with set count and body weight', () => {
+    const tenSets = estimateStrengthSessionCalories({ weightKg: 80, setCount: 10 })
+    expect(tenSets).toBeCloseTo(6 * 80 * (40 / 60))
+    const fiveSets = estimateStrengthSessionCalories({ weightKg: 80, setCount: 5 })
+    expect(fiveSets).toBeCloseTo(tenSets / 2)
   })
 
   it('is 0 with no sets', () => {
-    expect(
-      estimateStrengthSessionCalories({ weightKg: 80, setCount: 0, setTimestamps: [] }),
-    ).toBe(0)
+    expect(estimateStrengthSessionCalories({ weightKg: 80, setCount: 0 })).toBe(0)
   })
 })
 
 describe('estimateCalorieExpenditure', () => {
   it('sums BMR, the strength session estimate, and logged cardio calories', () => {
     const targetDate = new Date(2026, 7, 22)
-    const t0 = new Date(2026, 7, 22, 10, 0, 0)
-    const t1 = new Date(t0.getTime() + 3 * 60_000)
-    const strengthSetTimestamps = [t0.toISOString(), t1.toISOString()]
     const total = estimateCalorieExpenditure({
       heightCm: 175,
       birthDate: '1998-01-15',
@@ -101,8 +63,7 @@ describe('estimateCalorieExpenditure', () => {
       weightKg: 80,
       targetDate,
       cardioCaloriesBurned: 300,
-      strengthSetCount: 2,
-      strengthSetTimestamps,
+      strengthSetCount: 10,
     })
     const expectedBmr = bmrMifflinStJeor({
       weightKg: 80,
@@ -110,11 +71,7 @@ describe('estimateCalorieExpenditure', () => {
       age: calculateAge('1998-01-15', targetDate),
       sex: 'male',
     })
-    const expectedStrength = estimateStrengthSessionCalories({
-      weightKg: 80,
-      setCount: 2,
-      setTimestamps: strengthSetTimestamps,
-    })
+    const expectedStrength = estimateStrengthSessionCalories({ weightKg: 80, setCount: 10 })
     expect(total).toBeCloseTo(expectedBmr + expectedStrength + 300)
   })
 })

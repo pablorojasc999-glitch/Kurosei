@@ -5,10 +5,10 @@ import { createDay, createMacrocycle, createMesocycle, createWeek } from './plan
 import type { StrengthSession } from '../domain/types'
 import {
   addSessionExercise,
+  countExecutedSetsForSession,
   createExecutedSet,
   endSession,
   getSessionForDay,
-  listExecutedSetTimestampsForSession,
   reopenSession,
   reorderSessionExercise,
   setSessionExerciseClosed,
@@ -305,8 +305,8 @@ describe('reorderSessionExercise', () => {
   })
 })
 
-describe('listExecutedSetTimestampsForSession', () => {
-  it('collects performedAt across every exercise in the session', async () => {
+describe('countExecutedSetsForSession', () => {
+  it('sums executed sets across every exercise in the session', async () => {
     const day = await seedDay()
     const session = await startSession(day.id)
     const exerciseA = await seedExercise()
@@ -346,12 +346,12 @@ describe('listExecutedSetTimestampsForSession', () => {
       notes: '',
     })
 
-    expect(await listExecutedSetTimestampsForSession(session.id)).toHaveLength(4)
+    expect(await countExecutedSetsForSession(session.id)).toBe(4)
   })
 
-  it('returns an empty list for a session with no exercises', async () => {
+  it('returns 0 for a session with no exercises', async () => {
     const day = await seedDay()
     const session = await startSession(day.id)
-    expect(await listExecutedSetTimestampsForSession(session.id)).toEqual([])
+    expect(await countExecutedSetsForSession(session.id)).toBe(0)
   })
 })

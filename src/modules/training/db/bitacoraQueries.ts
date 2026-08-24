@@ -24,8 +24,8 @@ export interface DailyMetric {
   cardioCaloriesBurned: number
   /** Sum of that day's CardioSession.distanceKm. */
   cardioDistanceKm: number
-  /** `performedAt` of every executed set logged that day, for calorie estimation. */
-  strengthSetTimestamps: string[]
+  /** Total executed sets logged that day, for calorie estimation. */
+  strengthSetCount: number
   /** True if a strength session was started that day (finished or not). */
   hadStrengthSession: boolean
 }
@@ -101,13 +101,11 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
   const executedSets = await db.training_executed_sets
     .filter((s) => s.deletedAt === null && relevantSessionExerciseIds.has(s.sessionExerciseId))
     .toArray()
-  const strengthSetTimestampsByDate = new Map<string, string[]>()
+  const strengthSetCountByDate = new Map<string, number>()
   for (const set of executedSets) {
     const dateKey = sessionExerciseIdToDateKey.get(set.sessionExerciseId)
     if (!dateKey) continue
-    const existing = strengthSetTimestampsByDate.get(dateKey) ?? []
-    existing.push(set.performedAt)
-    strengthSetTimestampsByDate.set(dateKey, existing)
+    strengthSetCountByDate.set(dateKey, (strengthSetCountByDate.get(dateKey) ?? 0) + 1)
   }
 
   // If a date somehow has more than one row (e.g. leftover duplicates from
@@ -141,7 +139,7 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
       vitaminDTaken: log?.vitaminDTaken ?? false,
       cardioCaloriesBurned: cardioCaloriesByDate.get(date) ?? 0,
       cardioDistanceKm: cardioDistanceByDate.get(date) ?? 0,
-      strengthSetTimestamps: strengthSetTimestampsByDate.get(date) ?? [],
+      strengthSetCount: strengthSetCountByDate.get(date) ?? 0,
       hadStrengthSession: hadStrengthSessionDates.has(date),
     }
   })
