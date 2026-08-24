@@ -187,15 +187,22 @@ export async function listExecutedSets(
     .sortBy('setNumber')
 }
 
-/** Total executed sets across every exercise in a session, for calorie estimation. */
-export async function countExecutedSetsForSession(sessionId: string): Promise<number> {
+/**
+ * `performedAt` of every executed set across every exercise in a session,
+ * for calorie estimation (active time from the count, rest time from the
+ * gaps between these timestamps — not from the session's own start/end).
+ */
+export async function listExecutedSetTimestampsForSession(
+  sessionId: string,
+): Promise<string[]> {
   const sessionExercises = await listSessionExercises(sessionId)
-  if (sessionExercises.length === 0) return 0
-  return db.training_executed_sets
+  if (sessionExercises.length === 0) return []
+  const sets = await db.training_executed_sets
     .where('sessionExerciseId')
     .anyOf(sessionExercises.map((se) => se.id))
     .filter((s) => s.deletedAt === null)
-    .count()
+    .toArray()
+  return sets.map((s) => s.performedAt)
 }
 
 export interface CreateExecutedSetInput {

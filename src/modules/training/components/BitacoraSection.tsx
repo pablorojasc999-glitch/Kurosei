@@ -7,10 +7,10 @@ import {
   upsertDailyLog,
   upsertProfile,
 } from '../db/bitacoraRepository'
-import { countExecutedSetsForSession, getSessionForDay } from '../db/executionRepository'
+import { getSessionForDay, listExecutedSetTimestampsForSession } from '../db/executionRepository'
 import { listCardioSessions } from '../db/cardioRepository'
 import { findDayByDate } from '../db/planningRepository'
-import { estimateActiveMinutesFromSetCount, estimateCalorieExpenditure } from '../lib/calorieExpenditure'
+import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { toDateKey } from '../lib/calendarGrid'
 import type { Sex } from '../domain/types'
 
@@ -88,8 +88,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     () => (day ? listCardioSessions(day.id) : Promise.resolve([])),
     [day?.id],
   )
-  const executedSetCount = useLiveQuery(
-    () => (session ? countExecutedSetsForSession(session.id) : Promise.resolve(0)),
+  const executedSetTimestamps = useLiveQuery(
+    () => (session ? listExecutedSetTimestampsForSession(session.id) : Promise.resolve([])),
     [session?.id],
   )
 
@@ -226,10 +226,6 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     (sum, c) => sum + (c.caloriesBurned ?? 0),
     0,
   )
-  const strengthSessionDurationMinutes = estimateActiveMinutesFromSetCount(
-    executedSetCount ?? 0,
-  )
-
   const logLocked = dailyLog !== null && !isEditingLog
 
   const profileComplete =
@@ -245,7 +241,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       weightKg,
       targetDate: date,
       cardioCaloriesBurned,
-      strengthSessionDurationMinutes,
+      strengthSetCount: executedSetTimestamps?.length ?? 0,
+      strengthSetTimestamps: executedSetTimestamps ?? [],
     })
   }
 

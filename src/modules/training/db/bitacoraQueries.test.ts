@@ -3,9 +3,9 @@ import { db } from '../../../shared/db/database'
 import { listDailyMetricsInRange } from './bitacoraQueries'
 import { upsertDailyLog } from './bitacoraRepository'
 import { createCardioSession } from './cardioRepository'
-import { endSession, startSession } from './executionRepository'
+import { addSessionExercise, createExecutedSet, endSession, startSession } from './executionRepository'
 import { getOrCreateDayForDate } from './planningRepository'
-import { createExercise } from './trainingRepository'
+import { createExercise, createMuscleGroup } from './trainingRepository'
 import { inclusiveRange } from '../lib/progressScope'
 
 beforeEach(async () => {
@@ -80,11 +80,35 @@ describe('listDailyMetricsInRange', () => {
     })
 
     const session = await startSession(day.id)
-    await endSession(session.id)
-    await db.training_sessions.update(session.id, {
-      startedAt: new Date(2026, 0, 2, 9).toISOString(),
-      endedAt: new Date(2026, 0, 2, 10).toISOString(),
+    const legs = await createMuscleGroup('Piernas')
+    const strengthExercise = await createExercise({
+      name: 'Sentadilla',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: legs.id, factor: 1 }],
     })
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: strengthExercise.id,
+      notes: '',
+    })
+    await createExecutedSet({
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '',
+    })
+    await createExecutedSet({
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '',
+    })
+    await endSession(session.id)
 
     const range = inclusiveRange('2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
     const result = await listDailyMetricsInRange(range)
@@ -93,7 +117,7 @@ describe('listDailyMetricsInRange', () => {
     expect(result[0].cardioCaloriesBurned).toBe(380)
     expect(result[0].cardioDistanceKm).toBe(6)
     expect(result[0].hadStrengthSession).toBe(true)
-    expect(result[0].strengthSessionDurationMinutes).toBeCloseTo(60)
+    expect(result[0].strengthSetTimestamps).toHaveLength(2)
   })
 
   it('excludes sessions/cardio/logs outside the requested range', async () => {
