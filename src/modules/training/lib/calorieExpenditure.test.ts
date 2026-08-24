@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   bmrMifflinStJeor,
   calculateAge,
+  estimateActiveMinutesFromSetCount,
   estimateCalorieExpenditure,
   estimateStrengthSessionCalories,
 } from './calorieExpenditure'
@@ -29,6 +30,13 @@ describe('bmrMifflinStJeor', () => {
   it('subtracts 161 for women', () => {
     const bmr = bmrMifflinStJeor({ weightKg: 65, heightCm: 165, age: 28, sex: 'female' })
     expect(bmr).toBeCloseTo(10 * 65 + 6.25 * 165 - 5 * 28 - 161)
+  })
+})
+
+describe('estimateActiveMinutesFromSetCount', () => {
+  it('counts 45 active seconds per set, ignoring rest between sets', () => {
+    expect(estimateActiveMinutesFromSetCount(8)).toBeCloseTo((8 * 45) / 60)
+    expect(estimateActiveMinutesFromSetCount(0)).toBe(0)
   })
 })
 

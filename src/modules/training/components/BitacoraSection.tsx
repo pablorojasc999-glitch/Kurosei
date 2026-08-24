@@ -7,10 +7,10 @@ import {
   upsertDailyLog,
   upsertProfile,
 } from '../db/bitacoraRepository'
-import { getSessionForDay } from '../db/executionRepository'
+import { countExecutedSetsForSession, getSessionForDay } from '../db/executionRepository'
 import { listCardioSessions } from '../db/cardioRepository'
 import { findDayByDate } from '../db/planningRepository'
-import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
+import { estimateActiveMinutesFromSetCount, estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { toDateKey } from '../lib/calendarGrid'
 import type { Sex } from '../domain/types'
 
@@ -87,6 +87,10 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
   const cardioSessions = useLiveQuery(
     () => (day ? listCardioSessions(day.id) : Promise.resolve([])),
     [day?.id],
+  )
+  const executedSetCount = useLiveQuery(
+    () => (session ? countExecutedSetsForSession(session.id) : Promise.resolve(0)),
+    [session?.id],
   )
 
   const [showProfileForm, setShowProfileForm] = useState(false)
@@ -222,10 +226,9 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     (sum, c) => sum + (c.caloriesBurned ?? 0),
     0,
   )
-  const strengthSessionDurationMinutes =
-    session?.startedAt && session?.endedAt
-      ? (new Date(session.endedAt).getTime() - new Date(session.startedAt).getTime()) / 60000
-      : 0
+  const strengthSessionDurationMinutes = estimateActiveMinutesFromSetCount(
+    executedSetCount ?? 0,
+  )
 
   const logLocked = dailyLog !== null && !isEditingLog
 
