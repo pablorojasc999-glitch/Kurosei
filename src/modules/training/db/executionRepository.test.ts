@@ -5,6 +5,7 @@ import { createDay, createMacrocycle, createMesocycle, createWeek } from './plan
 import type { StrengthSession } from '../domain/types'
 import {
   addSessionExercise,
+  countExecutedSetsForSession,
   createExecutedSet,
   endSession,
   getSessionForDay,
@@ -301,5 +302,56 @@ describe('reorderSessionExercise', () => {
     await reorderSessionExercise(se.id, 'up')
     const unchanged = await db.training_session_exercises.get(se.id)
     expect(unchanged?.order).toBe(se.order)
+  })
+})
+
+describe('countExecutedSetsForSession', () => {
+  it('sums executed sets across every exercise in the session', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exerciseA = await seedExercise()
+    const legs = await createMuscleGroup('Piernas')
+    const exerciseB = await createExercise({
+      name: 'Sentadilla',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: legs.id, factor: 1 }],
+    })
+    const seA = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exerciseA.id,
+      notes: '',
+    })
+    const seB = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exerciseB.id,
+      notes: '',
+    })
+    for (let i = 0; i < 3; i += 1) {
+      await createExecutedSet({
+        sessionExerciseId: seA.id,
+        weightKg: 100,
+        reps: 5,
+        rpe: 8,
+        eva: null,
+        notes: '',
+      })
+    }
+    await createExecutedSet({
+      sessionExerciseId: seB.id,
+      weightKg: 80,
+      reps: 8,
+      rpe: 7,
+      eva: null,
+      notes: '',
+    })
+
+    expect(await countExecutedSetsForSession(session.id)).toBe(4)
+  })
+
+  it('returns 0 for a session with no exercises', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    expect(await countExecutedSetsForSession(session.id)).toBe(0)
   })
 })

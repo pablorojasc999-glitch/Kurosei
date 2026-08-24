@@ -187,6 +187,17 @@ export async function listExecutedSets(
     .sortBy('setNumber')
 }
 
+/** Total executed sets across every exercise in a session, for calorie estimation. */
+export async function countExecutedSetsForSession(sessionId: string): Promise<number> {
+  const sessionExercises = await listSessionExercises(sessionId)
+  if (sessionExercises.length === 0) return 0
+  return db.training_executed_sets
+    .where('sessionExerciseId')
+    .anyOf(sessionExercises.map((se) => se.id))
+    .filter((s) => s.deletedAt === null)
+    .count()
+}
+
 export interface CreateExecutedSetInput {
   sessionExerciseId: string
   weightKg: number | null
