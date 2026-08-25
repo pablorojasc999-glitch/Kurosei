@@ -1,7 +1,13 @@
 import { useState } from 'react'
 import { CategoriasPage } from './modules/finance/components/CategoriasPage'
 import { CuentasPage } from './modules/finance/components/CuentasPage'
-import { IconAccounts, IconCategories, IconTransactions } from './modules/finance/components/icons'
+import { EstadisticasPage } from './modules/finance/components/EstadisticasPage'
+import {
+  IconAccounts,
+  IconCategories,
+  IconStatistics,
+  IconTransactions,
+} from './modules/finance/components/icons'
 import { TransaccionesPage } from './modules/finance/components/TransaccionesPage'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { E1rmCalculatorPage } from './modules/training/components/E1rmCalculatorPage'
@@ -31,7 +37,7 @@ type Tab =
   | 'biblioteca'
   | 'calculadora'
 
-type FinanceTab = 'cuentas' | 'categorias' | 'transacciones'
+type FinanceTab = 'cuentas' | 'categorias' | 'transacciones' | 'estadisticas'
 
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('entrenamiento')
@@ -77,6 +83,9 @@ function App() {
             </div>
             <div hidden={financeTab !== 'transacciones'}>
               <TransaccionesPage />
+            </div>
+            <div hidden={financeTab !== 'estadisticas'}>
+              <EstadisticasPage />
             </div>
           </>
         ) : (
@@ -130,6 +139,14 @@ function App() {
           >
             <IconTransactions />
             Transacciones
+          </button>
+          <button
+            type="button"
+            className={financeTab === 'estadisticas' ? 'active' : ''}
+            onClick={() => setFinanceTab('estadisticas')}
+          >
+            <IconStatistics />
+            Estadísticas
           </button>
         </nav>
       ) : (

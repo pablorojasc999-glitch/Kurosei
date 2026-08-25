@@ -26,6 +26,7 @@ export function CategoriasPage() {
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('')
   const [type, setType] = useState<FinanceCategoryType>('expense')
+  const [monthlyBudget, setMonthlyBudget] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { isSubmitting, guard } = useSubmitGuard()
 
@@ -35,6 +36,7 @@ export function CategoriasPage() {
     setName('')
     setEmoji('')
     setType('expense')
+    setMonthlyBudget('')
     setError(null)
   }
 
@@ -44,6 +46,7 @@ export function CategoriasPage() {
     setName(category.name)
     setEmoji(category.emoji)
     setType(category.type)
+    setMonthlyBudget(category.monthlyBudget !== null ? String(category.monthlyBudget) : '')
     setError(null)
   }
 
@@ -55,10 +58,27 @@ export function CategoriasPage() {
         const trimmedName = name.trim()
         const trimmedEmoji = emoji.trim()
         if (!trimmedName) throw new Error('El nombre no puede estar vacío.')
+        const trimmedBudget = monthlyBudget.trim()
+        let parsedBudget: number | null = null
+        if (trimmedBudget) {
+          parsedBudget = Number(trimmedBudget)
+          if (!Number.isFinite(parsedBudget) || parsedBudget < 0) {
+            throw new Error('El presupuesto debe ser un número válido.')
+          }
+        }
         if (editingId) {
-          await updateCategory(editingId, { name: trimmedName, emoji: trimmedEmoji })
+          await updateCategory(editingId, {
+            name: trimmedName,
+            emoji: trimmedEmoji,
+            monthlyBudget: type === 'expense' ? parsedBudget : null,
+          })
         } else {
-          await createCategory({ name: trimmedName, emoji: trimmedEmoji, type })
+          await createCategory({
+            name: trimmedName,
+            emoji: trimmedEmoji,
+            type,
+            monthlyBudget: type === 'expense' ? parsedBudget : null,
+          })
         }
         resetForm()
       } catch (err) {
@@ -107,6 +127,11 @@ export function CategoriasPage() {
               <span className="finance-category-total">
                 {formatMoney(categoryTotals?.get(category.id) ?? 0)}
               </span>
+              {category.monthlyBudget !== null && (
+                <span className="finance-category-budget">
+                  Presup. {formatMoney(category.monthlyBudget)}/mes
+                </span>
+              )}
             </button>
           </div>
         ))}
@@ -150,6 +175,19 @@ export function CategoriasPage() {
                   <option value="expense">Gasto</option>
                   <option value="income">Ingreso</option>
                 </select>
+              </label>
+            )}
+            {type === 'expense' && (
+              <label>
+                Presupuesto mensual (opcional)
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  value={monthlyBudget}
+                  onChange={(e) => setMonthlyBudget(e.target.value)}
+                  placeholder="Sin presupuesto"
+                />
               </label>
             )}
             {error && <p className="error">{error}</p>}

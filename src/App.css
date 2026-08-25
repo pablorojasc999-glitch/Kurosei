@@ -1826,6 +1826,11 @@ section {
   color: var(--text-muted);
 }
 
+.finance-category-budget {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .finance-category-delete {
   position: absolute;
   top: 4px;
@@ -1850,23 +1855,16 @@ section {
   color: var(--accent);
 }
 
-.finance-subtabs {
+.finance-add-row {
   display: flex;
-  gap: 6px;
+  gap: 10px;
   margin-bottom: 16px;
 }
 
-.finance-subtabs button {
+.finance-add-row .finance-add-button {
   flex: 1;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-}
-
-.finance-subtabs button.active {
-  background: var(--accent-bg);
-  border-color: var(--accent-border);
-  color: var(--text);
+  width: auto;
+  margin-bottom: 0;
 }
 
 .finance-account-list {
@@ -1925,6 +1923,68 @@ section {
   font-family: var(--mono);
   font-size: 14px;
   color: var(--success);
+}
+
+/* Overrides the default green above for a debt row's amount — needs the
+   extra class to win the specificity tie against .finance-account-balance
+   regardless of source order. */
+.finance-account-balance.finance-amount--expense {
+  color: var(--danger);
+}
+
+.finance-account-balance.finance-amount--income {
+  color: var(--success);
+}
+
+.finance-budget-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.finance-budget-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.finance-budget-row-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.finance-budget-row-header span:last-child {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.finance-budget-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.finance-budget-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.finance-budget-bar-fill--over {
+  background: var(--danger);
 }
 
 .finance-add-button {
@@ -2052,4 +2112,126 @@ section {
   font-family: var(--mono);
   font-size: 14px;
   flex: none;
+}
+
+/* --- finanzas: gráficas sencillas (Estadísticas) --- */
+
+.finance-hbar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.finance-hbar-row {
+  display: grid;
+  grid-template-columns: minmax(0, 118px) 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.finance-hbar-label {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.finance-hbar-track {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.finance-hbar-fill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.finance-hbar-value {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.finance-vbar-legend {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.finance-vbar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.finance-vbar-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.finance-vbar-legend-dot--income {
+  background: var(--success);
+}
+
+.finance-vbar-legend-dot--expense {
+  background: var(--danger);
+}
+
+.finance-vbar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 140px;
+  padding-top: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.finance-vbar-group {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+  min-width: 0;
+}
+
+.finance-vbar-pair {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+}
+
+.finance-vbar {
+  width: 40%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+}
+
+.finance-vbar--income {
+  background: var(--success);
+}
+
+.finance-vbar--expense {
+  background: var(--danger);
+}
+
+.finance-vbar-label {
+  font-size: 10px;
+  color: var(--text-muted);
 }
