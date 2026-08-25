@@ -242,6 +242,50 @@ create table if not exists "training_daily_logs" (
 );
 
 -- ---------------------------------------------------------------------
+-- Finanzas (cuentas, deudas, categorías, transacciones)
+-- ---------------------------------------------------------------------
+
+create table if not exists "finance_accounts" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "emoji" text not null,
+  "kind" text not null,
+  "debtDirection" text,
+  "debtAmount" double precision,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "finance_categories" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "emoji" text not null,
+  "type" text not null,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "finance_transactions" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "accountId" uuid not null,
+  "categoryId" uuid not null,
+  "type" text not null,
+  "amount" double precision not null,
+  "date" text not null,
+  "notes" text not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+-- ---------------------------------------------------------------------
 -- Indexes — every sync pull filters by (userId, updatedAt)
 -- ---------------------------------------------------------------------
 
@@ -260,6 +304,9 @@ create index if not exists "training_executed_sets_sync_idx" on "training_execut
 create index if not exists "training_cardio_sessions_sync_idx" on "training_cardio_sessions" ("userId", "updatedAt");
 create index if not exists "training_user_profile_sync_idx" on "training_user_profile" ("userId", "updatedAt");
 create index if not exists "training_daily_logs_sync_idx" on "training_daily_logs" ("userId", "updatedAt");
+create index if not exists "finance_accounts_sync_idx" on "finance_accounts" ("userId", "updatedAt");
+create index if not exists "finance_categories_sync_idx" on "finance_categories" ("userId", "updatedAt");
+create index if not exists "finance_transactions_sync_idx" on "finance_transactions" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
 -- Row Level Security — every user only ever sees/writes their own rows
@@ -284,7 +331,10 @@ begin
     'training_executed_sets',
     'training_cardio_sessions',
     'training_user_profile',
-    'training_daily_logs'
+    'training_daily_logs',
+    'finance_accounts',
+    'finance_categories',
+    'finance_transactions'
   ]
   loop
     execute format('alter table %I enable row level security', tbl);
