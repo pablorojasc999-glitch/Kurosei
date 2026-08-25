@@ -1,4 +1,10 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { FINANCE_STORES_V4 } from '../../modules/finance/db/schema'
+import type {
+  FinanceAccount,
+  FinanceCategory,
+  FinanceTransaction,
+} from '../../modules/finance/domain/types'
 import { TRAINING_STORES_V1, TRAINING_STORES_V2 } from '../../modules/training/db/schema'
 import type {
   CardioSession,
@@ -37,6 +43,9 @@ export class KuroseiDatabase extends Dexie {
   training_cardio_sessions!: EntityTable<CardioSession, 'id'>
   training_user_profile!: EntityTable<UserProfile, 'id'>
   training_daily_logs!: EntityTable<DailyLog, 'id'>
+  finance_accounts!: EntityTable<FinanceAccount, 'id'>
+  finance_categories!: EntityTable<FinanceCategory, 'id'>
+  finance_transactions!: EntityTable<FinanceTransaction, 'id'>
 
   constructor() {
     super('kurosei')
@@ -53,6 +62,9 @@ export class KuroseiDatabase extends Dexie {
     this.version(3).stores({
       org_categories: 'id, order, updatedAt, deletedAt',
       org_time_blocks: 'id, categoryId, date, updatedAt, deletedAt',
+    })
+    this.version(4).stores({
+      ...FINANCE_STORES_V4,
     })
   }
 }
