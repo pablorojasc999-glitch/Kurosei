@@ -13,10 +13,7 @@ import type { DebtDirection, FinanceAccount } from '../domain/types'
 import { formatMoney } from '../lib/money'
 import { BalanceHeader } from './BalanceHeader'
 
-type SubTab = 'cuentas' | 'deudas' | 'total'
-
 export function CuentasPage() {
-  const [subTab, setSubTab] = useState<SubTab>('cuentas')
   const accountRows = useLiveQuery(async () => {
     const accounts = await listAccounts('account')
     return Promise.all(
@@ -124,145 +121,112 @@ export function CuentasPage() {
       ?.filter((d) => d.debtDirection === 'owed_to_me')
       .reduce((s, d) => s + (d.debtAmount ?? 0), 0) ?? 0
 
+  const isEmpty = (accountRows?.length ?? 0) === 0 && (debts?.length ?? 0) === 0
+
   return (
     <div className="page">
       <h1>Cuentas</h1>
       <BalanceHeader />
 
-      <div className="finance-subtabs">
+      <ul className="finance-account-list">
+        {accountRows?.map(({ account, balance }) => (
+          <li key={account.id} className="finance-account-row">
+            <button
+              type="button"
+              className="finance-account-row-body"
+              onClick={() => startEditAccount(account)}
+            >
+              <span className="finance-account-emoji">{account.emoji || '💳'}</span>
+              <span className="finance-account-name">{account.name}</span>
+              <span className="finance-account-balance">{formatMoney(balance)}</span>
+            </button>
+            <ConfirmDeleteButton
+              variant="icon"
+              label="Eliminar cuenta"
+              confirmMessage={`¿Eliminar "${account.name}"?`}
+              onConfirm={() => softDeleteAccount(account.id)}
+            />
+          </li>
+        ))}
+        {debts?.map((debt) => (
+          <li key={debt.id} className="finance-account-row">
+            <button
+              type="button"
+              className="finance-account-row-body"
+              onClick={() => startEditDebt(debt)}
+            >
+              <span className="finance-account-emoji">{debt.emoji || '📄'}</span>
+              <span className="finance-account-name">
+                {debt.name}
+                <span className="finance-account-subtitle">
+                  {debt.debtDirection === 'i_owe' ? 'Yo debo' : 'Me deben'}
+                </span>
+              </span>
+              <span
+                className={`finance-account-balance ${
+                  debt.debtDirection === 'i_owe' ? 'finance-amount--expense' : 'finance-amount--income'
+                }`}
+              >
+                {formatMoney(debt.debtAmount ?? 0)}
+              </span>
+            </button>
+            <ConfirmDeleteButton
+              variant="icon"
+              label="Eliminar deuda"
+              confirmMessage={`¿Eliminar "${debt.name}"?`}
+              onConfirm={() => softDeleteAccount(debt.id)}
+            />
+          </li>
+        ))}
+        {isEmpty && (
+          <p className="empty-hint">
+            Todavía no agregaste ninguna cuenta ni deuda (CAE, tarjetas, dinero prestado…).
+          </p>
+        )}
+      </ul>
+
+      <div className="finance-add-row">
         <button
           type="button"
-          className={subTab === 'cuentas' ? 'active' : ''}
-          onClick={() => setSubTab('cuentas')}
+          className="finance-add-button"
+          onClick={() => {
+            resetForm()
+            setFormKind('account')
+          }}
         >
-          Cuentas
+          + Añadir cuenta
         </button>
         <button
           type="button"
-          className={subTab === 'deudas' ? 'active' : ''}
-          onClick={() => setSubTab('deudas')}
+          className="finance-add-button"
+          onClick={() => {
+            resetForm()
+            setFormKind('debt')
+          }}
         >
-          Deudas
-        </button>
-        <button
-          type="button"
-          className={subTab === 'total' ? 'active' : ''}
-          onClick={() => setSubTab('total')}
-        >
-          Total
+          + Añadir deuda
         </button>
       </div>
 
-      {subTab === 'cuentas' && (
-        <section>
-          <ul className="finance-account-list">
-            {accountRows?.map(({ account, balance }) => (
-              <li key={account.id} className="finance-account-row">
-                <button
-                  type="button"
-                  className="finance-account-row-body"
-                  onClick={() => startEditAccount(account)}
-                >
-                  <span className="finance-account-emoji">{account.emoji || '💳'}</span>
-                  <span className="finance-account-name">{account.name}</span>
-                  <span className="finance-account-balance">{formatMoney(balance)}</span>
-                </button>
-                <ConfirmDeleteButton
-                  variant="icon"
-                  label="Eliminar cuenta"
-                  confirmMessage={`¿Eliminar "${account.name}"?`}
-                  onConfirm={() => softDeleteAccount(account.id)}
-                />
-              </li>
-            ))}
-            {accountRows?.length === 0 && (
-              <p className="empty-hint">Todavía no agregaste ninguna cuenta.</p>
-            )}
-          </ul>
-          <button
-            type="button"
-            className="finance-add-button"
-            onClick={() => {
-              resetForm()
-              setFormKind('account')
-            }}
-          >
-            + Añadir cuenta financiera
-          </button>
-        </section>
-      )}
-
-      {subTab === 'deudas' && (
-        <section>
-          <ul className="finance-account-list">
-            {debts?.map((debt) => (
-              <li key={debt.id} className="finance-account-row">
-                <button
-                  type="button"
-                  className="finance-account-row-body"
-                  onClick={() => startEditDebt(debt)}
-                >
-                  <span className="finance-account-emoji">{debt.emoji || '📄'}</span>
-                  <span className="finance-account-name">
-                    {debt.name}
-                    <span className="finance-account-subtitle">
-                      {debt.debtDirection === 'i_owe' ? 'Yo debo' : 'Me deben'}
-                    </span>
-                  </span>
-                  <span
-                    className={`finance-account-balance ${
-                      debt.debtDirection === 'i_owe' ? 'finance-amount--expense' : 'finance-amount--income'
-                    }`}
-                  >
-                    {formatMoney(debt.debtAmount ?? 0)}
-                  </span>
-                </button>
-                <ConfirmDeleteButton
-                  variant="icon"
-                  label="Eliminar deuda"
-                  confirmMessage={`¿Eliminar "${debt.name}"?`}
-                  onConfirm={() => softDeleteAccount(debt.id)}
-                />
-              </li>
-            ))}
-            {debts?.length === 0 && (
-              <p className="empty-hint">Sin deudas registradas (CAE, tarjetas, dinero prestado…).</p>
-            )}
-          </ul>
-          <button
-            type="button"
-            className="finance-add-button"
-            onClick={() => {
-              resetForm()
-              setFormKind('debt')
-            }}
-          >
-            + Añadir deuda
-          </button>
-        </section>
-      )}
-
-      {subTab === 'total' && (
-        <section>
-          <ul className="finance-total-breakdown">
-            <li>
-              <span>Cuentas</span>
-              <strong>{formatMoney(accountsTotal)}</strong>
-            </li>
-            <li>
-              <span>Me deben</span>
-              <strong className="finance-amount--income">{formatMoney(owedToMeTotal)}</strong>
-            </li>
-            <li>
-              <span>Yo debo</span>
-              <strong className="finance-amount--expense">{formatMoney(iOweTotal)}</strong>
-            </li>
-            <li className="finance-total-breakdown-net">
-              <span>Patrimonio neto</span>
-              <strong>{formatMoney(accountsTotal + owedToMeTotal - iOweTotal)}</strong>
-            </li>
-          </ul>
-        </section>
+      {!isEmpty && (
+        <ul className="finance-total-breakdown">
+          <li>
+            <span>Cuentas</span>
+            <strong>{formatMoney(accountsTotal)}</strong>
+          </li>
+          <li>
+            <span>Me deben</span>
+            <strong className="finance-amount--income">{formatMoney(owedToMeTotal)}</strong>
+          </li>
+          <li>
+            <span>Yo debo</span>
+            <strong className="finance-amount--expense">{formatMoney(iOweTotal)}</strong>
+          </li>
+          <li className="finance-total-breakdown-net">
+            <span>Patrimonio neto</span>
+            <strong>{formatMoney(accountsTotal + owedToMeTotal - iOweTotal)}</strong>
+          </li>
+        </ul>
       )}
 
       {formKind && (

@@ -5,6 +5,7 @@ import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButt
 import { toDateKey } from '../../training/lib/calendarGrid'
 import {
   createTransaction,
+  getCategoryTotalsForMonth,
   listAccounts,
   listCategories,
   listTransactions,
@@ -13,6 +14,7 @@ import {
 } from '../db/financeRepository'
 import type { FinanceCategoryType, FinanceTransaction } from '../domain/types'
 import { formatMoney, formatSignedMoney } from '../lib/money'
+import { toMonthKey } from '../lib/month'
 import { useAccountsTotalBalance } from '../lib/useAccountsTotalBalance'
 import { BalanceHeader } from './BalanceHeader'
 import { YearNav } from './YearNav'
@@ -31,6 +33,19 @@ export function TransaccionesPage() {
   const accounts = useLiveQuery(() => listAccounts('account'), [])
   const categories = useLiveQuery(() => listCategories(), [])
   const finalBalance = useAccountsTotalBalance()
+
+  const currentMonthKey = toMonthKey(new Date())
+  const currentMonthSpend = useLiveQuery(
+    () => getCategoryTotalsForMonth(currentMonthKey),
+    [currentMonthKey],
+  )
+  const budgetedCategories = (categories ?? []).filter(
+    (c) => c.type === 'expense' && c.monthlyBudget !== null && c.monthlyBudget > 0,
+  )
+  const currentMonthLabel = new Date().toLocaleDateString('es-CL', {
+    month: 'long',
+    year: 'numeric',
+  })
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -128,6 +143,38 @@ export function TransaccionesPage() {
           <strong>{formatMoney(finalBalance ?? 0)}</strong>
         </div>
       </div>
+
+      {budgetedCategories.length > 0 && (
+        <section>
+          <h2>Presupuestos de {currentMonthLabel}</h2>
+          <ul className="finance-budget-list">
+            {budgetedCategories.map((category) => {
+              const budget = category.monthlyBudget as number
+              const spent = currentMonthSpend?.get(category.id) ?? 0
+              const pct = Math.min(Math.round((spent / budget) * 100), 999)
+              const overBudget = spent > budget
+              return (
+                <li key={category.id} className="finance-budget-row">
+                  <div className="finance-budget-row-header">
+                    <span>
+                      {category.emoji} {category.name}
+                    </span>
+                    <span className={overBudget ? 'finance-amount--expense' : undefined}>
+                      {formatMoney(spent)} / {formatMoney(budget)} ({pct}%)
+                    </span>
+                  </div>
+                  <div className="finance-budget-bar">
+                    <div
+                      className={`finance-budget-bar-fill${overBudget ? ' finance-budget-bar-fill--over' : ''}`}
+                      style={{ width: `${Math.min(pct, 100)}%` }}
+                    />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </section>
+      )}
 
       <button
         type="button"

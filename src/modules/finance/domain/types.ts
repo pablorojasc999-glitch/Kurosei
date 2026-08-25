@@ -23,6 +23,8 @@ export interface FinanceCategory extends SyncedEntity {
   emoji: string
   type: FinanceCategoryType
   order: number
+  /** Only meaningful for an `expense` category; null means no budget set. */
+  monthlyBudget: number | null
 }
 
 export interface FinanceTransaction extends SyncedEntity {

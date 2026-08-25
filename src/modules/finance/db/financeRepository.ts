@@ -90,6 +90,7 @@ export interface CreateCategoryInput {
   name: string
   emoji: string
   type: FinanceCategoryType
+  monthlyBudget: number | null
 }
 
 export async function createCategory(input: CreateCategoryInput): Promise<FinanceCategory> {
@@ -108,7 +109,9 @@ export async function createCategory(input: CreateCategoryInput): Promise<Financ
   return category
 }
 
-export type UpdateCategoryInput = Partial<Pick<CreateCategoryInput, 'name' | 'emoji'>>
+export type UpdateCategoryInput = Partial<
+  Pick<CreateCategoryInput, 'name' | 'emoji' | 'monthlyBudget'>
+>
 
 export async function updateCategory(id: string, input: UpdateCategoryInput): Promise<void> {
   await db.finance_categories.update(id, { ...input, updatedAt: nowIso() })
@@ -192,6 +195,32 @@ export async function getCategoryTotals(year: number): Promise<Map<string, numbe
   const totals = new Map<string, number>()
   for (const t of transactions) {
     totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
+  }
+  return totals
+}
+
+/** Sum of transactions per category, for a `YYYY-MM` calendar month — drives budget progress. */
+export async function getCategoryTotalsForMonth(monthKey: string): Promise<Map<string, number>> {
+  const transactions = await db.finance_transactions
+    .filter((t) => t.deletedAt === null && t.date.startsWith(`${monthKey}-`))
+    .toArray()
+  const totals = new Map<string, number>()
+  for (const t of transactions) {
+    totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
+  }
+  return totals
+}
+
+/** Sum of expense and income transactions per calendar month, for a calendar year — drives simple charts. */
+export async function getMonthlyTotalsForYear(
+  year: number,
+): Promise<Array<{ month: number; expense: number; income: number }>> {
+  const transactions = await listTransactions(year)
+  const totals = Array.from({ length: 12 }, (_, i) => ({ month: i, expense: 0, income: 0 }))
+  for (const t of transactions) {
+    const month = Number(t.date.slice(5, 7)) - 1
+    if (t.type === 'expense') totals[month].expense += t.amount
+    else totals[month].income += t.amount
   }
   return totals
 }
