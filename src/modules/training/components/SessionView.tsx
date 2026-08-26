@@ -427,12 +427,15 @@ export function SessionView({ dayId }: SessionViewProps) {
           const editingId = editingSetId[se.id]
           const exerciseIndex = sessionExercises?.findIndex((x) => x.id === se.id) ?? -1
           const showComparison = exerciseClosed
+          // Closing an exercise without ever logging a set isn't "done" — it
+          // should still read as pending (red), not as completed (green).
+          const isComplete = exerciseClosed && sets.length > 0
 
           return (
             <li
               key={se.id}
               className={`planned-exercise-item ${
-                exerciseClosed ? 'planned-exercise-item--closed' : 'planned-exercise-item--open'
+                isComplete ? 'planned-exercise-item--closed' : 'planned-exercise-item--open'
               }`}
             >
               <div className="planned-exercise-header">
