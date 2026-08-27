@@ -25,10 +25,28 @@ import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
 import { SessionSummary } from './SessionSummary'
+import { calculateE1rm } from '../lib/e1rm'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import {
+  clearSessionTimerState,
+  loadSessionTimerState,
+  saveSessionTimerState,
+  tickSessionTimer,
+} from '../lib/sessionTimer'
 import type { ExecutedSet, SessionExercise } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
+
+/** e1RM suffix for a logged set's summary line — omitted when there's no weight to estimate from. */
+function e1rmSuffix(set: Pick<ExecutedSet, 'weightKg' | 'reps' | 'rpe'>): string {
+  if (set.weightKg === null || set.weightKg <= 0) return ''
+  const e1rm = calculateE1rm({
+    weightKg: set.weightKg,
+    reps: set.reps,
+    rpe: set.rpe ?? undefined,
+  })
+  return ` · e1RM ${Math.round(e1rm)}`
+}
 
 function formatDuration(totalSeconds: number): string {
   const hours = Math.floor(totalSeconds / 3600)
@@ -98,13 +116,47 @@ export function SessionView({ dayId }: SessionViewProps) {
 
   const [runningElapsed, setRunningElapsed] = useState(0)
   useEffect(() => {
-    if (!session || session.endedAt) return
+    if (!session) return
+    if (session.endedAt) {
+      clearSessionTimerState(session.id)
+      return
+    }
     const startedAtMs = new Date(session.startedAt).getTime()
-    const tick = () =>
-      setRunningElapsed(Math.floor((Date.now() - startedAtMs) / 1000))
+    // Seed from the persisted state if there is one; otherwise (a session
+    // already running before this device ever recorded one) seed from the
+    // real elapsed time so it doesn't visually reset to zero.
+    let state =
+      loadSessionTimerState(session.id) ??
+      {
+        activeSeconds: Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)),
+        lastActivityAt: Date.now(),
+      }
+
+    function tick() {
+      setRunningElapsed(state.activeSeconds)
+    }
     tick()
-    const interval = window.setInterval(tick, 1000)
-    return () => window.clearInterval(interval)
+
+    function registerActivity() {
+      state = { ...state, lastActivityAt: Date.now() }
+    }
+    const activityEvents = ['pointerdown', 'keydown'] as const
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, registerActivity)
+    }
+
+    const interval = window.setInterval(() => {
+      state = tickSessionTimer(state, Date.now())
+      tick()
+      saveSessionTimerState(session.id, state)
+    }, 1000)
+
+    return () => {
+      window.clearInterval(interval)
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, registerActivity)
+      }
+    }
   }, [session])
 
   const elapsed = session?.endedAt
@@ -498,6 +550,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                                   {actual.rpe !== null && ` · RPE ${actual.rpe}`}
                                   {actual.eva !== null && ` · EVA ${actual.eva}`}
                                   {actual.notes && ` · ${actual.notes}`}
+                                  {e1rmSuffix(actual)}
                                 </>
                               ) : (
                                 'Sin registrar'
@@ -580,6 +633,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                         {s.rpe !== null && ` · RPE ${s.rpe}`}
                         {s.eva !== null && ` · EVA ${s.eva}`}
                         {s.notes && ` · ${s.notes}`}
+                        {e1rmSuffix(s)}
                       </span>
                       {!locked && (
                         <>

@@ -35,7 +35,10 @@ export function RepHistory({ exerciseId, reps }: RepHistoryProps) {
         {history.map((s) => (
           <li key={s.id}>
             <span>{formatDate(s.performedAt)}</span>
-            <span>{s.weightKg ?? '-'} kg</span>
+            <span>
+              {s.weightKg ?? '-'} kg × {s.reps}
+              {s.rpe !== null && ` · RPE ${s.rpe}`}
+            </span>
             <span>
               e1RM{' '}
               {Math.round(
