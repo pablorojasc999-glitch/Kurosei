@@ -124,6 +124,13 @@ export function TransaccionesPage() {
     if (last && last.date === t.date) last.transactions.push(t)
     else groups.push({ date: t.date, transactions: [t] })
   }
+  // Ingresos siempre antes que gastos, y dentro de cada grupo de mayor a menor monto.
+  for (const group of groups) {
+    group.transactions.sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'income' ? -1 : 1
+      return b.amount - a.amount
+    })
+  }
 
   const canAddTransaction = (accounts?.length ?? 0) > 0 && (categories?.length ?? 0) > 0
 

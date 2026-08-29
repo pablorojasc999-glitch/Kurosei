@@ -4,9 +4,11 @@ import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
   createCategory,
+  getCategoryNoteMonthlyTotals,
   getCategoryTotals,
   getYearTotals,
   listCategories,
+  listNotesForCategory,
   softDeleteCategory,
   updateCategory,
 } from '../db/financeRepository'
@@ -14,6 +16,10 @@ import type { FinanceCategory, FinanceCategoryType } from '../domain/types'
 import { formatMoney } from '../lib/money'
 import { BalanceHeader } from './BalanceHeader'
 import { YearNav } from './YearNav'
+
+function formatMonthLabel(month: number, year: number): string {
+  return new Date(year, month, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
+}
 
 export function CategoriasPage() {
   const [year, setYear] = useState(() => new Date().getFullYear())
@@ -28,7 +34,23 @@ export function CategoriasPage() {
   const [type, setType] = useState<FinanceCategoryType>('expense')
   const [monthlyBudget, setMonthlyBudget] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [selectedNote, setSelectedNote] = useState('')
   const { isSubmitting, guard } = useSubmitGuard()
+
+  const notesForCategory = useLiveQuery(
+    () => (editingId ? listNotesForCategory(editingId) : Promise.resolve([])),
+    [editingId],
+  )
+  const activeNote = notesForCategory?.includes(selectedNote)
+    ? selectedNote
+    : (notesForCategory?.[0] ?? '')
+  const noteBreakdown = useLiveQuery(
+    () =>
+      editingId && activeNote
+        ? getCategoryNoteMonthlyTotals(editingId, activeNote, year)
+        : Promise.resolve([]),
+    [editingId, activeNote, year],
+  )
 
   function resetForm() {
     setShowForm(false)
@@ -38,6 +60,7 @@ export function CategoriasPage() {
     setType('expense')
     setMonthlyBudget('')
     setError(null)
+    setSelectedNote('')
   }
 
   function startEdit(category: FinanceCategory) {
@@ -48,6 +71,7 @@ export function CategoriasPage() {
     setType(category.type)
     setMonthlyBudget(category.monthlyBudget !== null ? String(category.monthlyBudget) : '')
     setError(null)
+    setSelectedNote('')
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -151,6 +175,42 @@ export function CategoriasPage() {
       {showForm && (
         <section>
           <h2>{editingId ? 'Editar categoría' : 'Nueva categoría'}</h2>
+
+          {editingId && notesForCategory && notesForCategory.length > 0 && (
+            <div className="finance-note-breakdown">
+              <label>
+                Desglose por nota
+                <select value={activeNote} onChange={(e) => setSelectedNote(e.target.value)}>
+                  {notesForCategory.map((note) => (
+                    <option key={note} value={note}>
+                      {note}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {noteBreakdown && noteBreakdown.length > 0 ? (
+                <>
+                  <ul className="finance-note-breakdown-list">
+                    {noteBreakdown.map((entry) => (
+                      <li key={entry.month}>
+                        <span>{formatMonthLabel(entry.month, year)}</span>
+                        <span>{formatMoney(entry.total)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="finance-note-breakdown-total">
+                    Total {year}:{' '}
+                    <strong>
+                      {formatMoney(noteBreakdown.reduce((sum, entry) => sum + entry.total, 0))}
+                    </strong>
+                  </div>
+                </>
+              ) : (
+                <p className="empty-hint">Sin movimientos con "{activeNote}" en {year}.</p>
+              )}
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="entity-form">
             <label>
               Nombre
