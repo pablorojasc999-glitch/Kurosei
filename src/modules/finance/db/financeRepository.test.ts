@@ -6,12 +6,14 @@ import {
   createTransaction,
   getAccountBalance,
   getAccountsTotalBalance,
+  getCategoryNoteMonthlyTotals,
   getCategoryTotals,
   getCategoryTotalsForMonth,
   getMonthlyTotalsForYear,
   getYearTotals,
   listAccounts,
   listCategories,
+  listNotesForCategory,
   listTransactions,
   softDeleteAccount,
   softDeleteCategory,
@@ -333,6 +335,82 @@ describe('getCategoryTotalsForMonth', () => {
 
     const totals = await getCategoryTotalsForMonth('2026-08')
     expect(totals.get(groceries.id)).toBe(50000)
+  })
+})
+
+describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
+  it('lists distinct non-empty notes and sums them per month, most recent first', async () => {
+    const account = await createAccount({
+      name: 'Banco',
+      emoji: '🏦',
+      kind: 'account',
+      debtDirection: null,
+      debtAmount: null,
+    })
+    const vivienda = await createCategory({
+      name: 'Vivienda',
+      emoji: '🏠',
+      type: 'expense',
+      monthlyBudget: null,
+    })
+    await createTransaction({
+      accountId: account.id,
+      categoryId: vivienda.id,
+      type: 'expense',
+      amount: 12300,
+      date: '2026-08-29',
+      notes: 'Luz',
+    })
+    await createTransaction({
+      accountId: account.id,
+      categoryId: vivienda.id,
+      type: 'expense',
+      amount: 11000,
+      date: '2026-08-15',
+      notes: 'Luz',
+    })
+    await createTransaction({
+      accountId: account.id,
+      categoryId: vivienda.id,
+      type: 'expense',
+      amount: 13000,
+      date: '2026-07-10',
+      notes: 'Luz',
+    })
+    await createTransaction({
+      accountId: account.id,
+      categoryId: vivienda.id,
+      type: 'expense',
+      amount: 55820,
+      date: '2026-08-29',
+      notes: 'GGCC',
+    })
+    await createTransaction({
+      accountId: account.id,
+      categoryId: vivienda.id,
+      type: 'expense',
+      amount: 999,
+      date: '2026-08-01',
+      notes: '',
+    })
+
+    expect(await listNotesForCategory(vivienda.id)).toEqual(['GGCC', 'Luz'])
+
+    const luzByMonth = await getCategoryNoteMonthlyTotals(vivienda.id, 'Luz', 2026)
+    expect(luzByMonth).toEqual([
+      { month: 7, total: 23300 },
+      { month: 6, total: 13000 },
+    ])
+  })
+
+  it('returns an empty list when the category has no notes at all', async () => {
+    const category = await createCategory({
+      name: 'Supermercado',
+      emoji: '🛒',
+      type: 'expense',
+      monthlyBudget: null,
+    })
+    expect(await listNotesForCategory(category.id)).toEqual([])
   })
 })
 

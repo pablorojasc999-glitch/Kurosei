@@ -199,6 +199,36 @@ export async function getCategoryTotals(year: number): Promise<Map<string, numbe
   return totals
 }
 
+/** Distinct non-empty notes used within a category — the free-text sub-labels (e.g. "Luz", "Gas") a user has typed for it. */
+export async function listNotesForCategory(categoryId: string): Promise<string[]> {
+  const transactions = await db.finance_transactions
+    .filter((t) => t.deletedAt === null && t.categoryId === categoryId && t.notes.trim() !== '')
+    .toArray()
+  return Array.from(new Set(transactions.map((t) => t.notes.trim()))).sort((a, b) =>
+    a.localeCompare(b),
+  )
+}
+
+/** Monthly totals for one category + note combination in a calendar year — e.g. compare "Luz" spend month to month. */
+export async function getCategoryNoteMonthlyTotals(
+  categoryId: string,
+  note: string,
+  year: number,
+): Promise<Array<{ month: number; total: number }>> {
+  const transactions = await listTransactions(year)
+  const totalsByMonth = Array.from({ length: 12 }, () => 0)
+  for (const t of transactions) {
+    if (t.categoryId === categoryId && t.notes.trim() === note) {
+      const month = Number(t.date.slice(5, 7)) - 1
+      totalsByMonth[month] += t.amount
+    }
+  }
+  return totalsByMonth
+    .map((total, month) => ({ month, total }))
+    .filter((entry) => entry.total > 0)
+    .reverse()
+}
+
 /** Sum of transactions per category, for a `YYYY-MM` calendar month — drives budget progress. */
 export async function getCategoryTotalsForMonth(monthKey: string): Promise<Map<string, number>> {
   const transactions = await db.finance_transactions
