@@ -1,14 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../../shared/db/database'
 import {
+  archiveDebtIfPaid,
   createAccount,
   createCategory,
   createTransaction,
+  ensureDebtCategoryId,
   getAccountBalance,
   getAccountsTotalBalance,
   getCategoryNoteMonthlyTotals,
   getCategoryTotals,
   getCategoryTotalsForMonth,
+  getDebtProgress,
   getMonthlyTotalsForYear,
   getYearTotals,
   listAccounts,
@@ -411,6 +414,184 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       monthlyBudget: null,
     })
     expect(await listNotesForCategory(category.id)).toEqual([])
+  })
+})
+
+describe('debt accounts auto-link a payment-tracking category', () => {
+  it('creates an income category for an "owed_to_me" debt and links it', async () => {
+    const debt = await createAccount({
+      name: 'Álvaro',
+      emoji: '👤',
+      kind: 'debt',
+      debtDirection: 'owed_to_me',
+      debtAmount: 100000,
+    })
+    expect(debt.categoryId).not.toBeNull()
+    const [category] = await listCategories('income')
+    expect(category.id).toBe(debt.categoryId)
+    expect(category.name).toBe('Álvaro')
+    expect(category.emoji).toBe('👤')
+  })
+
+  it('creates an expense category for an "i_owe" debt', async () => {
+    const debt = await createAccount({
+      name: 'Tarjeta',
+      emoji: '💳',
+      kind: 'debt',
+      debtDirection: 'i_owe',
+      debtAmount: 50000,
+    })
+    const [category] = await listCategories('expense')
+    expect(category.id).toBe(debt.categoryId)
+  })
+
+  it('leaves categoryId null for a plain account', async () => {
+    const account = await createAccount({
+      name: 'Banco',
+      emoji: '🏦',
+      kind: 'account',
+      debtDirection: null,
+      debtAmount: null,
+    })
+    expect(account.categoryId).toBeNull()
+  })
+
+  it('renaming a debt also renames its linked category', async () => {
+    const debt = await createAccount({
+      name: 'Álvaro',
+      emoji: '👤',
+      kind: 'debt',
+      debtDirection: 'owed_to_me',
+      debtAmount: 100000,
+    })
+    await updateAccount(debt.id, { name: 'Alvarito', emoji: '🧑' })
+    const [category] = await listCategories('income')
+    expect(category.name).toBe('Alvarito')
+    expect(category.emoji).toBe('🧑')
+  })
+
+  it('ensureDebtCategoryId backfills a legacy debt that has no category yet', async () => {
+    const debt = await createAccount({
+      name: 'Paula',
+      emoji: '👤',
+      kind: 'debt',
+      debtDirection: 'owed_to_me',
+      debtAmount: 20000,
+    })
+    // simulate data created before this field existed
+    await db.finance_accounts.update(debt.id, { categoryId: null })
+
+    const categoryId = await ensureDebtCategoryId({ ...debt, categoryId: null })
+    expect(categoryId).toBeTruthy()
+    const updated = await db.finance_accounts.get(debt.id)
+    expect(updated?.categoryId).toBe(categoryId)
+
+    // calling it again with the now-linked debt is a no-op
+    const again = await ensureDebtCategoryId({ ...debt, categoryId })
+    expect(again).toBe(categoryId)
+  })
+})
+
+describe('getDebtProgress / archiveDebtIfPaid', () => {
+  it('tracks payoff progress from transactions posted to the debt\'s category, capped at 100%', async () => {
+    const bank = await createAccount({
+      name: 'Banco',
+      emoji: '🏦',
+      kind: 'account',
+      debtDirection: null,
+      debtAmount: null,
+    })
+    const debt = await createAccount({
+      name: 'Álvaro',
+      emoji: '👤',
+      kind: 'debt',
+      debtDirection: 'owed_to_me',
+      debtAmount: 10000,
+    })
+    expect(await getDebtProgress(debt)).toEqual({ paid: 0, percent: 0 })
+
+    await createTransaction({
+      accountId: bank.id,
+      categoryId: debt.categoryId as string,
+      type: 'income',
+      amount: 4000,
+      date: '2026-08-01',
+      notes: '',
+    })
+    expect(await getDebtProgress(debt)).toEqual({ paid: 4000, percent: 40 })
+
+    // overpaying caps the percent at 100
+    await createTransaction({
+      accountId: bank.id,
+      categoryId: debt.categoryId as string,
+      type: 'income',
+      amount: 8000,
+      date: '2026-08-15',
+      notes: '',
+    })
+    expect(await getDebtProgress(debt)).toEqual({ paid: 12000, percent: 100 })
+  })
+
+  it('archives a debt once fully paid, keeping its category and transactions', async () => {
+    const bank = await createAccount({
+      name: 'Banco',
+      emoji: '🏦',
+      kind: 'account',
+      debtDirection: null,
+      debtAmount: null,
+    })
+    const debt = await createAccount({
+      name: 'Paula',
+      emoji: '👤',
+      kind: 'debt',
+      debtDirection: 'owed_to_me',
+      debtAmount: 5000,
+    })
+    await createTransaction({
+      accountId: bank.id,
+      categoryId: debt.categoryId as string,
+      type: 'income',
+      amount: 5000,
+      date: '2026-08-01',
+      notes: '',
+    })
+
+    await archiveDebtIfPaid(debt.id)
+
+    expect(await listAccounts('debt')).toEqual([])
+    const [category] = await listCategories('income')
+    expect(category.id).toBe(debt.categoryId)
+    const transactions = await listTransactions(2026)
+    expect(transactions).toHaveLength(1)
+  })
+
+  it('does not archive a debt that is only partially paid', async () => {
+    const bank = await createAccount({
+      name: 'Banco',
+      emoji: '🏦',
+      kind: 'account',
+      debtDirection: null,
+      debtAmount: null,
+    })
+    const debt = await createAccount({
+      name: 'Paula',
+      emoji: '👤',
+      kind: 'debt',
+      debtDirection: 'owed_to_me',
+      debtAmount: 5000,
+    })
+    await createTransaction({
+      accountId: bank.id,
+      categoryId: debt.categoryId as string,
+      type: 'income',
+      amount: 2000,
+      date: '2026-08-01',
+      notes: '',
+    })
+
+    await archiveDebtIfPaid(debt.id)
+
+    expect(await listAccounts('debt')).toHaveLength(1)
   })
 })
 

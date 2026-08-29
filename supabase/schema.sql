@@ -253,6 +253,7 @@ create table if not exists "finance_accounts" (
   "kind" text not null,
   "debtDirection" text,
   "debtAmount" double precision,
+  "categoryId" uuid,
   "order" integer not null,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
@@ -265,11 +266,18 @@ create table if not exists "finance_categories" (
   "name" text not null,
   "emoji" text not null,
   "type" text not null,
+  "monthlyBudget" double precision,
   "order" integer not null,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz
 );
+
+-- Columns added after these tables first shipped — `create table if not
+-- exists` above won't retroactively add them to an already-provisioned
+-- database, so re-running this file needs these too.
+alter table "finance_accounts" add column if not exists "categoryId" uuid;
+alter table "finance_categories" add column if not exists "monthlyBudget" double precision;
 
 create table if not exists "finance_transactions" (
   "id" uuid primary key,
