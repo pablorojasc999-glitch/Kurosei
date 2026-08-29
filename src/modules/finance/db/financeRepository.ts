@@ -29,13 +29,29 @@ export interface CreateAccountInput {
   debtAmount: number | null
 }
 
+/** Type of the auto-created category that tracks payments toward/against a debt, given its direction. */
+function debtCategoryType(debtDirection: DebtDirection): FinanceCategoryType {
+  return debtDirection === 'owed_to_me' ? 'income' : 'expense'
+}
+
 export async function createAccount(input: CreateAccountInput): Promise<FinanceAccount> {
   const siblings = await listAccounts(input.kind)
   const nextOrder = siblings.length ? Math.max(...siblings.map((a) => a.order)) + 1 : 0
   const timestamp = nowIso()
+  let categoryId: string | null = null
+  if (input.kind === 'debt' && input.debtDirection) {
+    const category = await createCategory({
+      name: input.name,
+      emoji: input.emoji,
+      type: debtCategoryType(input.debtDirection),
+      monthlyBudget: null,
+    })
+    categoryId = category.id
+  }
   const account: FinanceAccount = {
     id: generateId(),
     ...input,
+    categoryId,
     order: nextOrder,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -49,11 +65,61 @@ export type UpdateAccountInput = Partial<CreateAccountInput>
 
 export async function updateAccount(id: string, input: UpdateAccountInput): Promise<void> {
   await db.finance_accounts.update(id, { ...input, updatedAt: nowIso() })
+  if (input.name !== undefined || input.emoji !== undefined) {
+    const account = await db.finance_accounts.get(id)
+    if (account?.categoryId) {
+      await updateCategory(account.categoryId, {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.emoji !== undefined ? { emoji: input.emoji } : {}),
+      })
+    }
+  }
 }
 
 export async function softDeleteAccount(id: string): Promise<void> {
   const timestamp = nowIso()
   await db.finance_accounts.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+}
+
+/** Links a legacy debt (created before payments were tracked via a category) to a freshly-created one. */
+export async function ensureDebtCategoryId(debt: FinanceAccount): Promise<string> {
+  if (debt.categoryId) return debt.categoryId
+  const category = await createCategory({
+    name: debt.name,
+    emoji: debt.emoji,
+    type: debtCategoryType(debt.debtDirection ?? 'i_owe'),
+    monthlyBudget: null,
+  })
+  await db.finance_accounts.update(debt.id, { categoryId: category.id, updatedAt: nowIso() })
+  return category.id
+}
+
+/** Sum of every (non-deleted) transaction posted to a category, across all time. */
+export async function getCategoryTotal(categoryId: string): Promise<number> {
+  const transactions = await db.finance_transactions
+    .where('categoryId')
+    .equals(categoryId)
+    .filter((t) => t.deletedAt === null)
+    .toArray()
+  return transactions.reduce((sum, t) => sum + t.amount, 0)
+}
+
+/** How much of a debt's goal amount has been paid, via its linked category's transactions. */
+export async function getDebtProgress(
+  debt: FinanceAccount,
+): Promise<{ paid: number; percent: number }> {
+  if (!debt.categoryId || !debt.debtAmount) return { paid: 0, percent: 0 }
+  const paid = await getCategoryTotal(debt.categoryId)
+  const percent = Math.min(100, Math.round((paid / debt.debtAmount) * 100))
+  return { paid, percent }
+}
+
+/** Once a debt's linked category covers its full goal amount, archive the debt account — its category and transaction history stay untouched. */
+export async function archiveDebtIfPaid(accountId: string): Promise<void> {
+  const account = await db.finance_accounts.get(accountId)
+  if (!account || account.kind !== 'debt' || !account.categoryId || account.deletedAt) return
+  const { percent } = await getDebtProgress(account)
+  if (percent >= 100) await softDeleteAccount(account.id)
 }
 
 /** An account's balance, derived from its transactions (income minus expense) — never stored. */

@@ -11,8 +11,10 @@ export interface FinanceAccount extends SyncedEntity {
   emoji: string
   kind: FinanceAccountKind
   debtDirection: DebtDirection | null
-  /** Manually-entered current amount owed; only set (non-null) when `kind` is `debt`. */
+  /** The debt's goal amount; only set (non-null) when `kind` is `debt`. Progress toward it is tracked by `categoryId`'s transactions, not by editing this down. */
   debtAmount: number | null
+  /** Only set for a `debt` account — the auto-created category (income for `owed_to_me`, expense for `i_owe`) whose transactions track payments toward this debt. Once they cover `debtAmount` the account is archived, but the category and its transactions stay. */
+  categoryId: string | null
   order: number
 }
 

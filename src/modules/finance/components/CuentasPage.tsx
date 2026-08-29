@@ -1,10 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
+  archiveDebtIfPaid,
   createAccount,
+  ensureDebtCategoryId,
   getAccountBalance,
+  getDebtProgress,
   listAccounts,
   softDeleteAccount,
   updateAccount,
@@ -23,7 +26,30 @@ export function CuentasPage() {
       })),
     )
   }, [])
-  const debts = useLiveQuery(() => listAccounts('debt'), [])
+  const debts = useLiveQuery(async () => {
+    const rows = await listAccounts('debt')
+    return Promise.all(
+      rows.map(async (debt) => ({ debt, progress: await getDebtProgress(debt) })),
+    )
+  }, [])
+
+  // Backfill a category link onto debts created before payments were tracked this way.
+  useEffect(() => {
+    listAccounts('debt').then((rows) => {
+      for (const debt of rows) {
+        if (!debt.categoryId) void ensureDebtCategoryId(debt)
+      }
+    })
+  }, [])
+
+  // A debt whose linked category now covers its goal amount gets archived automatically —
+  // it disappears from this list, but its category and transaction history stay.
+  useEffect(() => {
+    if (!debts) return
+    for (const { debt, progress } of debts) {
+      if (progress.percent >= 100) void archiveDebtIfPaid(debt.id)
+    }
+  }, [debts])
 
   const [formKind, setFormKind] = useState<'account' | 'debt' | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -114,12 +140,13 @@ export function CuentasPage() {
 
   const accountsTotal = accountRows?.reduce((sum, r) => sum + r.balance, 0) ?? 0
   const iOweTotal =
-    debts?.filter((d) => d.debtDirection === 'i_owe').reduce((s, d) => s + (d.debtAmount ?? 0), 0) ??
-    0
+    debts
+      ?.filter(({ debt }) => debt.debtDirection === 'i_owe')
+      .reduce((s, { debt }) => s + (debt.debtAmount ?? 0), 0) ?? 0
   const owedToMeTotal =
     debts
-      ?.filter((d) => d.debtDirection === 'owed_to_me')
-      .reduce((s, d) => s + (d.debtAmount ?? 0), 0) ?? 0
+      ?.filter(({ debt }) => debt.debtDirection === 'owed_to_me')
+      .reduce((s, { debt }) => s + (debt.debtAmount ?? 0), 0) ?? 0
 
   const isEmpty = (accountRows?.length ?? 0) === 0 && (debts?.length ?? 0) === 0
 
@@ -148,27 +175,42 @@ export function CuentasPage() {
             />
           </li>
         ))}
-        {debts?.map((debt) => (
+        {debts?.map(({ debt, progress }) => (
           <li key={debt.id} className="finance-account-row">
             <button
               type="button"
-              className="finance-account-row-body"
+              className="finance-account-row-body finance-debt-row-body"
               onClick={() => startEditDebt(debt)}
             >
-              <span className="finance-account-emoji">{debt.emoji || '📄'}</span>
-              <span className="finance-account-name">
-                {debt.name}
-                <span className="finance-account-subtitle">
-                  {debt.debtDirection === 'i_owe' ? 'Yo debo' : 'Me deben'}
+              <div className="finance-debt-row-top">
+                <span className="finance-account-emoji">{debt.emoji || '📄'}</span>
+                <span className="finance-account-name">
+                  {debt.name}
+                  <span className="finance-account-subtitle">
+                    {debt.debtDirection === 'i_owe' ? 'Yo debo' : 'Me deben'}
+                  </span>
                 </span>
-              </span>
-              <span
-                className={`finance-account-balance ${
-                  debt.debtDirection === 'i_owe' ? 'finance-amount--expense' : 'finance-amount--income'
-                }`}
-              >
-                {formatMoney(debt.debtAmount ?? 0)}
-              </span>
+                <span
+                  className={`finance-account-balance ${
+                    debt.debtDirection === 'i_owe'
+                      ? 'finance-amount--expense'
+                      : 'finance-amount--income'
+                  }`}
+                >
+                  {formatMoney(debt.debtAmount ?? 0)}
+                </span>
+              </div>
+              <div className="finance-debt-progress">
+                <div className="finance-budget-bar">
+                  <div
+                    className="finance-budget-bar-fill"
+                    style={{ width: `${progress.percent}%` }}
+                  />
+                </div>
+                <span className="finance-debt-progress-label">
+                  {formatMoney(progress.paid)} pagado · {progress.percent}%
+                </span>
+              </div>
             </button>
             <ConfirmDeleteButton
               variant="icon"
