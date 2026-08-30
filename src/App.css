@@ -2392,12 +2392,12 @@ section {
 .nutrition-entry-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
   border-radius: 0;
-  padding: 10px 2px;
+  padding: 6px 2px;
   touch-action: pan-y;
   user-select: none;
 }
@@ -2426,13 +2426,13 @@ section {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  font-size: 14px;
+  gap: 1px;
+  font-size: 13px;
   min-width: 0;
 }
 
 .nutrition-entry-emoji {
-  font-size: 20px;
+  font-size: 16px;
   flex: none;
 }
 
@@ -2442,22 +2442,27 @@ section {
 }
 
 .nutrition-entry-macro-line {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 5px;
+  row-gap: 0;
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
-.nutrition-entry-check {
-  flex: none;
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--success-bg);
-  color: var(--success);
-  font-size: 12px;
+.nutrition-entry-macro-item {
+  white-space: nowrap;
+}
+
+.nutrition-entry-macro-item:not(:first-child)::before {
+  content: '· ';
+}
+
+.nutrition-entry-delete {
+  width: 22px;
+  height: 22px;
+  font-size: 15px;
 }
 
 .nutrition-add-entry {

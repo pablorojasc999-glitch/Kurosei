@@ -90,17 +90,18 @@ export function EntryRow({
           )}
         </strong>
         <span className="nutrition-entry-macro-line">
-          {formatNutrient(entry.calories)} kcal · C {formatNutrient(entry.carbsG)} · P{' '}
-          {formatNutrient(entry.proteinG)} · G {formatNutrient(entry.fatG)}
+          <span className="nutrition-entry-macro-item">
+            {formatNutrient(entry.calories)} kcal
+          </span>
+          <span className="nutrition-entry-macro-item">C {formatNutrient(entry.carbsG)}</span>
+          <span className="nutrition-entry-macro-item">P {formatNutrient(entry.proteinG)}</span>
+          <span className="nutrition-entry-macro-item">G {formatNutrient(entry.fatG)}</span>
         </span>
-      </span>
-      <span className="nutrition-entry-check" aria-hidden="true">
-        ✓
       </span>
       <span onClick={(e) => e.stopPropagation()}>
         <ConfirmDeleteButton
           variant="icon"
-          className="icon-button"
+          className="icon-button nutrition-entry-delete"
           label="Eliminar registro"
           confirmMessage={`¿Eliminar "${name}"?`}
           onConfirm={onDelete}
