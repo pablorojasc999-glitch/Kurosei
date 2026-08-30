@@ -5,6 +5,15 @@ import type {
   FinanceCategory,
   FinanceTransaction,
 } from '../../modules/finance/domain/types'
+import { NUTRITION_STORES_V5 } from '../../modules/nutrition/db/schema'
+import type {
+  FoodItem,
+  MealSection,
+  MealTemplate,
+  MealTemplateEntry,
+  NutritionEntry,
+  WaterEntry,
+} from '../../modules/nutrition/domain/types'
 import { TRAINING_STORES_V1, TRAINING_STORES_V2 } from '../../modules/training/db/schema'
 import type {
   CardioSession,
@@ -46,6 +55,12 @@ export class KuroseiDatabase extends Dexie {
   finance_accounts!: EntityTable<FinanceAccount, 'id'>
   finance_categories!: EntityTable<FinanceCategory, 'id'>
   finance_transactions!: EntityTable<FinanceTransaction, 'id'>
+  nutrition_foods!: EntityTable<FoodItem, 'id'>
+  nutrition_meal_sections!: EntityTable<MealSection, 'id'>
+  nutrition_entries!: EntityTable<NutritionEntry, 'id'>
+  nutrition_water_entries!: EntityTable<WaterEntry, 'id'>
+  nutrition_meal_templates!: EntityTable<MealTemplate, 'id'>
+  nutrition_meal_template_entries!: EntityTable<MealTemplateEntry, 'id'>
 
   constructor() {
     super('kurosei')
@@ -65,6 +80,9 @@ export class KuroseiDatabase extends Dexie {
     })
     this.version(4).stores({
       ...FINANCE_STORES_V4,
+    })
+    this.version(5).stores({
+      ...NUTRITION_STORES_V5,
     })
   }
 }
