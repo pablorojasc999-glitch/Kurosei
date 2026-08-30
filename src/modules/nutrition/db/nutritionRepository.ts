@@ -364,13 +364,8 @@ export async function listTemplateEntries(templateId: string): Promise<MealTempl
   return entries.sort((a, b) => a.order - b.order)
 }
 
-/** Snapshots `date`'s current entries into a brand-new template. */
-export async function saveDateAsTemplate(
-  date: string,
-  name: string,
-  emoji: string,
-): Promise<MealTemplate> {
-  const dayEntries = await listEntriesForDate(date)
+/** Starts a brand-new, empty template — sections and entries are added to it afterwards, same as building out a day in Registro. */
+export async function createMealTemplate(name: string, emoji: string): Promise<MealTemplate> {
   const siblings = await listMealTemplates()
   const nextOrder = siblings.length ? Math.max(...siblings.map((t) => t.order)) + 1 : 0
   const timestamp = nowIso()
@@ -384,26 +379,95 @@ export async function saveDateAsTemplate(
     deletedAt: null,
   }
   await db.nutrition_meal_templates.add(template)
-  const templateEntries: MealTemplateEntry[] = dayEntries.map((e) => ({
+  return template
+}
+
+interface InsertTemplateEntryInput extends MacroTotals {
+  templateId: string
+  sectionId: string
+  kind: NutritionEntryKind
+  foodId: string | null
+  quantity: number | null
+  manualName: string
+  notes: string
+}
+
+async function insertTemplateEntry(input: InsertTemplateEntryInput): Promise<MealTemplateEntry> {
+  const siblings = (await listTemplateEntries(input.templateId)).filter(
+    (e) => e.sectionId === input.sectionId,
+  )
+  const nextOrder = siblings.length ? Math.max(...siblings.map((e) => e.order)) + 1 : 0
+  const timestamp = nowIso()
+  const entry: MealTemplateEntry = {
     id: generateId(),
-    templateId: template.id,
-    sectionId: e.sectionId,
-    order: e.order,
-    kind: e.kind,
-    foodId: e.foodId,
-    quantity: e.quantity,
-    manualName: e.manualName,
-    calories: e.calories,
-    proteinG: e.proteinG,
-    carbsG: e.carbsG,
-    fatG: e.fatG,
-    notes: e.notes,
+    ...input,
+    order: nextOrder,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
-  }))
-  await db.nutrition_meal_template_entries.bulkAdd(templateEntries)
-  return template
+  }
+  await db.nutrition_meal_template_entries.add(entry)
+  return entry
+}
+
+export interface AddTemplateFoodEntryInput {
+  templateId: string
+  sectionId: string
+  foodId: string
+  quantity: number
+  notes: string
+}
+
+export async function addFoodEntryToTemplate(
+  input: AddTemplateFoodEntryInput,
+): Promise<MealTemplateEntry> {
+  const food = await db.nutrition_foods.get(input.foodId)
+  if (!food) throw new Error('Alimento no encontrado.')
+  const macros = scaleMacros(food, input.quantity)
+  return insertTemplateEntry({
+    templateId: input.templateId,
+    sectionId: input.sectionId,
+    kind: 'food',
+    foodId: input.foodId,
+    quantity: input.quantity,
+    manualName: '',
+    notes: input.notes,
+    ...macros,
+  })
+}
+
+export interface AddTemplateManualEntryInput {
+  templateId: string
+  sectionId: string
+  manualName: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  notes: string
+}
+
+export async function addManualEntryToTemplate(
+  input: AddTemplateManualEntryInput,
+): Promise<MealTemplateEntry> {
+  return insertTemplateEntry({
+    templateId: input.templateId,
+    sectionId: input.sectionId,
+    kind: 'manual',
+    foodId: null,
+    quantity: null,
+    manualName: input.manualName,
+    notes: input.notes,
+    calories: input.calories,
+    proteinG: input.proteinG,
+    carbsG: input.carbsG,
+    fatG: input.fatG,
+  })
+}
+
+export async function softDeleteTemplateEntry(id: string): Promise<void> {
+  const timestamp = nowIso()
+  await db.nutrition_meal_template_entries.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }
 
 /** Appends a template's entries onto `date` — never overwrites what's already logged there. */

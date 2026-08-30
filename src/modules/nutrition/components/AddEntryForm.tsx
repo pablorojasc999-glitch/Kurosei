@@ -1,16 +1,26 @@
 import { useState } from 'react'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
-import { addFoodEntry, addManualEntry } from '../db/nutritionRepository'
 import type { FoodItem } from '../domain/types'
+import { FoodDetail } from './FoodDetail'
+
+export interface ManualEntryValues {
+  manualName: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  notes: string
+}
 
 interface AddEntryFormProps {
-  date: string
-  sectionId: string
   foods: FoodItem[]
+  onAddFood: (foodId: string, quantity: number, notes: string) => Promise<void>
+  onAddManual: (input: ManualEntryValues) => Promise<void>
   onDone: () => void
 }
 
-export function AddEntryForm({ date, sectionId, foods, onDone }: AddEntryFormProps) {
+/** Adds an entry to whatever the caller is building — a date's Registro or a Plantilla — the caller supplies where it actually gets saved via `onAddFood`/`onAddManual`. */
+export function AddEntryForm({ foods, onAddFood, onAddManual, onDone }: AddEntryFormProps) {
   const [mode, setMode] = useState<'food' | 'manual'>('food')
   const [search, setSearch] = useState('')
   const [selectedFood, setSelectedFood] = useState<FoodItem | null>(null)
@@ -42,13 +52,7 @@ export function AddEntryForm({ date, sectionId, foods, onDone }: AddEntryFormPro
         if (!Number.isFinite(parsedQuantity) || parsedQuantity <= 0) {
           throw new Error('La cantidad debe ser mayor a 0.')
         }
-        await addFoodEntry({
-          date,
-          sectionId,
-          foodId: selectedFood.id,
-          quantity: parsedQuantity,
-          notes: '',
-        })
+        await onAddFood(selectedFood.id, parsedQuantity, '')
         onDone()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
@@ -71,13 +75,7 @@ export function AddEntryForm({ date, sectionId, foods, onDone }: AddEntryFormPro
         if (Object.values(parsed).some((v) => !Number.isFinite(v) || v < 0)) {
           throw new Error('Calorías, proteínas, carbohidratos y grasas son obligatorios.')
         }
-        await addManualEntry({
-          date,
-          sectionId,
-          manualName: manualName.trim(),
-          notes: '',
-          ...parsed,
-        })
+        await onAddManual({ manualName: manualName.trim(), notes: '', ...parsed })
         onDone()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
@@ -144,10 +142,7 @@ export function AddEntryForm({ date, sectionId, foods, onDone }: AddEntryFormPro
                   autoFocus
                 />
               </label>
-              <span className="contributions-hint">
-                Porción de referencia: {selectedFood.servingAmount}{' '}
-                {selectedFood.servingUnit === 'unidad' ? 'unidad' : selectedFood.servingUnit}
-              </span>
+              <FoodDetail food={selectedFood} quantity={Number(quantity) || 0} />
               {error && <p className="error">{error}</p>}
               <button type="submit" disabled={isSubmitting}>
                 Agregar
