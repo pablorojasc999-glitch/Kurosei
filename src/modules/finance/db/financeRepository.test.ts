@@ -41,6 +41,7 @@ describe('accounts', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const bank = await createAccount({
       name: 'Banco',
@@ -48,6 +49,7 @@ describe('accounts', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const debt = await createAccount({
       name: 'CAE',
@@ -55,6 +57,7 @@ describe('accounts', () => {
       kind: 'debt',
       debtDirection: 'i_owe',
       debtAmount: 500000,
+      revolving: false,
     })
 
     expect(cash.order).toBe(0)
@@ -74,6 +77,7 @@ describe('accounts', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     await softDeleteAccount(account.id)
     expect(await listAccounts('account')).toEqual([])
@@ -86,6 +90,7 @@ describe('accounts', () => {
       kind: 'debt',
       debtDirection: 'i_owe',
       debtAmount: 100000,
+      revolving: false,
     })
     await updateAccount(debt.id, { debtAmount: 80000 })
     const [updated] = await listAccounts('debt')
@@ -101,6 +106,7 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
     const groceries = await createCategory({
@@ -137,6 +143,7 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     await createAccount({
       name: 'CAE',
@@ -144,6 +151,7 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       kind: 'debt',
       debtDirection: 'i_owe',
       debtAmount: 500000,
+      revolving: false,
     })
     const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
     await createTransaction({
@@ -165,6 +173,7 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
     const tx = await createTransaction({
@@ -219,6 +228,7 @@ describe('getYearTotals / getCategoryTotals', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
     const groceries = await createCategory({
@@ -271,6 +281,7 @@ describe('listTransactions', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
     const older = await createTransaction({
@@ -303,6 +314,7 @@ describe('getCategoryTotalsForMonth', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const groceries = await createCategory({
       name: 'Supermercado',
@@ -349,6 +361,7 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const vivienda = await createCategory({
       name: 'Vivienda',
@@ -425,6 +438,7 @@ describe('debt accounts auto-link a payment-tracking category', () => {
       kind: 'debt',
       debtDirection: 'owed_to_me',
       debtAmount: 100000,
+      revolving: false,
     })
     expect(debt.categoryId).not.toBeNull()
     const [category] = await listCategories('income')
@@ -440,6 +454,7 @@ describe('debt accounts auto-link a payment-tracking category', () => {
       kind: 'debt',
       debtDirection: 'i_owe',
       debtAmount: 50000,
+      revolving: false,
     })
     const [category] = await listCategories('expense')
     expect(category.id).toBe(debt.categoryId)
@@ -452,6 +467,7 @@ describe('debt accounts auto-link a payment-tracking category', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     expect(account.categoryId).toBeNull()
   })
@@ -463,6 +479,7 @@ describe('debt accounts auto-link a payment-tracking category', () => {
       kind: 'debt',
       debtDirection: 'owed_to_me',
       debtAmount: 100000,
+      revolving: false,
     })
     await updateAccount(debt.id, { name: 'Alvarito', emoji: '🧑' })
     const [category] = await listCategories('income')
@@ -477,6 +494,7 @@ describe('debt accounts auto-link a payment-tracking category', () => {
       kind: 'debt',
       debtDirection: 'owed_to_me',
       debtAmount: 20000,
+      revolving: false,
     })
     // simulate data created before this field existed
     await db.finance_accounts.update(debt.id, { categoryId: null })
@@ -500,6 +518,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const debt = await createAccount({
       name: 'Álvaro',
@@ -507,8 +526,9 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       kind: 'debt',
       debtDirection: 'owed_to_me',
       debtAmount: 10000,
+      revolving: false,
     })
-    expect(await getDebtProgress(debt)).toEqual({ paid: 0, percent: 0 })
+    expect(await getDebtProgress(debt)).toEqual({ paid: 0, remaining: 10000, percent: 0 })
 
     await createTransaction({
       accountId: bank.id,
@@ -518,9 +538,9 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       date: '2026-08-01',
       notes: '',
     })
-    expect(await getDebtProgress(debt)).toEqual({ paid: 4000, percent: 40 })
+    expect(await getDebtProgress(debt)).toEqual({ paid: 4000, remaining: 6000, percent: 40 })
 
-    // overpaying caps the percent at 100
+    // overpaying caps the percent at 100 and clamps remaining at 0
     await createTransaction({
       accountId: bank.id,
       categoryId: debt.categoryId as string,
@@ -529,7 +549,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       date: '2026-08-15',
       notes: '',
     })
-    expect(await getDebtProgress(debt)).toEqual({ paid: 12000, percent: 100 })
+    expect(await getDebtProgress(debt)).toEqual({ paid: 12000, remaining: 0, percent: 100 })
   })
 
   it('archives a debt once fully paid, keeping its category and transactions', async () => {
@@ -539,6 +559,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const debt = await createAccount({
       name: 'Paula',
@@ -546,6 +567,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       kind: 'debt',
       debtDirection: 'owed_to_me',
       debtAmount: 5000,
+      revolving: false,
     })
     await createTransaction({
       accountId: bank.id,
@@ -565,6 +587,38 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
     expect(transactions).toHaveLength(1)
   })
 
+  it('never archives a revolving debt (credit card), even fully paid', async () => {
+    const bank = await createAccount({
+      name: 'Banco',
+      emoji: '🏦',
+      kind: 'account',
+      debtDirection: null,
+      debtAmount: null,
+      revolving: false,
+    })
+    const card = await createAccount({
+      name: 'Crédito B. Chile',
+      emoji: '💳',
+      kind: 'debt',
+      debtDirection: 'i_owe',
+      debtAmount: 100000,
+      revolving: true,
+    })
+    await createTransaction({
+      accountId: bank.id,
+      categoryId: card.categoryId as string,
+      type: 'expense',
+      amount: 100000,
+      date: '2026-08-01',
+      notes: '',
+    })
+    expect(await getDebtProgress(card)).toEqual({ paid: 100000, remaining: 0, percent: 100 })
+
+    await archiveDebtIfPaid(card.id)
+
+    expect(await listAccounts('debt')).toHaveLength(1)
+  })
+
   it('does not archive a debt that is only partially paid', async () => {
     const bank = await createAccount({
       name: 'Banco',
@@ -572,6 +626,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const debt = await createAccount({
       name: 'Paula',
@@ -579,6 +634,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       kind: 'debt',
       debtDirection: 'owed_to_me',
       debtAmount: 5000,
+      revolving: false,
     })
     await createTransaction({
       accountId: bank.id,
@@ -603,6 +659,7 @@ describe('getMonthlyTotalsForYear', () => {
       kind: 'account',
       debtDirection: null,
       debtAmount: null,
+      revolving: false,
     })
     const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
     const groceries = await createCategory({

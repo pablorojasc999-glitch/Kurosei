@@ -27,6 +27,8 @@ export interface CreateAccountInput {
   kind: FinanceAccountKind
   debtDirection: DebtDirection | null
   debtAmount: number | null
+  /** Only meaningful when `kind` is `debt`; irrelevant (pass `false`) for a plain account. */
+  revolving: boolean
 }
 
 /** Type of the auto-created category that tracks payments toward/against a debt, given its direction. */
@@ -104,20 +106,26 @@ export async function getCategoryTotal(categoryId: string): Promise<number> {
   return transactions.reduce((sum, t) => sum + t.amount, 0)
 }
 
-/** How much of a debt's goal amount has been paid, via its linked category's transactions. */
+/** How much of a debt's stated amount has been paid off, and what's left — via its linked category's transactions. */
 export async function getDebtProgress(
   debt: FinanceAccount,
-): Promise<{ paid: number; percent: number }> {
-  if (!debt.categoryId || !debt.debtAmount) return { paid: 0, percent: 0 }
+): Promise<{ paid: number; remaining: number; percent: number }> {
+  if (!debt.categoryId || !debt.debtAmount) return { paid: 0, remaining: debt.debtAmount ?? 0, percent: 0 }
   const paid = await getCategoryTotal(debt.categoryId)
+  const remaining = Math.max(0, debt.debtAmount - paid)
   const percent = Math.min(100, Math.round((paid / debt.debtAmount) * 100))
-  return { paid, percent }
+  return { paid, remaining, percent }
 }
 
-/** Once a debt's linked category covers its full goal amount, archive the debt account — its category and transaction history stay untouched. */
+/**
+ * Once a fixed debt's linked category covers its full amount, archive it — its category
+ * and transaction history stay untouched. A `revolving` debt (credit card, line of credit)
+ * never auto-archives: hitting $0 owed just means it's paid off for now, not closed.
+ */
 export async function archiveDebtIfPaid(accountId: string): Promise<void> {
   const account = await db.finance_accounts.get(accountId)
   if (!account || account.kind !== 'debt' || !account.categoryId || account.deletedAt) return
+  if (account.revolving) return
   const { percent } = await getDebtProgress(account)
   if (percent >= 100) await softDeleteAccount(account.id)
 }
