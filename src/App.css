@@ -2492,6 +2492,8 @@ section {
 }
 
 .nutrition-progress-goal {
+  display: block;
+  margin-top: 2px;
   font-family: var(--mono);
   font-size: 12px;
   font-weight: 400;
