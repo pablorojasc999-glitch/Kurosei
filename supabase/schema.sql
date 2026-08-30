@@ -254,6 +254,7 @@ create table if not exists "finance_accounts" (
   "debtDirection" text,
   "debtAmount" double precision,
   "categoryId" uuid,
+  "revolving" boolean not null default false,
   "order" integer not null,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
@@ -277,6 +278,7 @@ create table if not exists "finance_categories" (
 -- exists` above won't retroactively add them to an already-provisioned
 -- database, so re-running this file needs these too.
 alter table "finance_accounts" add column if not exists "categoryId" uuid;
+alter table "finance_accounts" add column if not exists "revolving" boolean not null default false;
 alter table "finance_categories" add column if not exists "monthlyBudget" double precision;
 
 create table if not exists "finance_transactions" (

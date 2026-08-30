@@ -11,10 +11,12 @@ export interface FinanceAccount extends SyncedEntity {
   emoji: string
   kind: FinanceAccountKind
   debtDirection: DebtDirection | null
-  /** The debt's goal amount; only set (non-null) when `kind` is `debt`. Progress toward it is tracked by `categoryId`'s transactions, not by editing this down. */
+  /** The debt's current total amount; only set (non-null) when `kind` is `debt`. Payments toward it are tracked via `categoryId`'s transactions rather than editing this down — but for a `revolving` debt it's expected to be bumped back up whenever a new charge is added. */
   debtAmount: number | null
-  /** Only set for a `debt` account — the auto-created category (income for `owed_to_me`, expense for `i_owe`) whose transactions track payments toward this debt. Once they cover `debtAmount` the account is archived, but the category and its transactions stay. */
+  /** Only set for a `debt` account — the auto-created category (income for `owed_to_me`, expense for `i_owe`) whose transactions track payments toward this debt. */
   categoryId: string | null
+  /** Only meaningful for a `debt` account. false (default): a fixed one-off debt (a loan) that archives itself once fully paid. true: an ongoing balance (a credit card, a line of credit) that keeps accepting new charges via `debtAmount` edits and never auto-archives. */
+  revolving: boolean
   order: number
 }
 

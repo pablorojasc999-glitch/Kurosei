@@ -57,6 +57,7 @@ export function CuentasPage() {
   const [emoji, setEmoji] = useState('')
   const [debtDirection, setDebtDirection] = useState<DebtDirection>('i_owe')
   const [debtAmount, setDebtAmount] = useState('')
+  const [revolving, setRevolving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { isSubmitting, guard } = useSubmitGuard()
 
@@ -67,6 +68,7 @@ export function CuentasPage() {
     setEmoji('')
     setDebtDirection('i_owe')
     setDebtAmount('')
+    setRevolving(false)
     setError(null)
   }
 
@@ -85,6 +87,7 @@ export function CuentasPage() {
     setEmoji(debt.emoji)
     setDebtDirection(debt.debtDirection ?? 'i_owe')
     setDebtAmount(debt.debtAmount !== null ? String(debt.debtAmount) : '')
+    setRevolving(debt.revolving ?? false)
     setError(null)
   }
 
@@ -108,6 +111,7 @@ export function CuentasPage() {
               emoji: trimmedEmoji,
               debtDirection,
               debtAmount: amount,
+              revolving,
             })
           } else {
             await createAccount({
@@ -116,6 +120,7 @@ export function CuentasPage() {
               kind: 'debt',
               debtDirection,
               debtAmount: amount,
+              revolving,
             })
           }
         } else {
@@ -128,6 +133,7 @@ export function CuentasPage() {
               kind: 'account',
               debtDirection: null,
               debtAmount: null,
+              revolving: false,
             })
           }
         }
@@ -142,11 +148,11 @@ export function CuentasPage() {
   const iOweTotal =
     debts
       ?.filter(({ debt }) => debt.debtDirection === 'i_owe')
-      .reduce((s, { debt }) => s + (debt.debtAmount ?? 0), 0) ?? 0
+      .reduce((s, { progress }) => s + progress.remaining, 0) ?? 0
   const owedToMeTotal =
     debts
       ?.filter(({ debt }) => debt.debtDirection === 'owed_to_me')
-      .reduce((s, { debt }) => s + (debt.debtAmount ?? 0), 0) ?? 0
+      .reduce((s, { progress }) => s + progress.remaining, 0) ?? 0
 
   const isEmpty = (accountRows?.length ?? 0) === 0 && (debts?.length ?? 0) === 0
 
@@ -197,7 +203,7 @@ export function CuentasPage() {
                       : 'finance-amount--income'
                   }`}
                 >
-                  {formatMoney(debt.debtAmount ?? 0)}
+                  {formatMoney(progress.remaining)}
                 </span>
               </div>
               <div className="finance-debt-progress">
@@ -208,7 +214,9 @@ export function CuentasPage() {
                   />
                 </div>
                 <span className="finance-debt-progress-label">
-                  {formatMoney(progress.paid)} pagado · {progress.percent}%
+                  {formatMoney(progress.paid)} pagado de {formatMoney(debt.debtAmount ?? 0)} ·{' '}
+                  {progress.percent}%
+                  {debt.revolving && ' · variable'}
                 </span>
               </div>
             </button>
@@ -317,6 +325,21 @@ export function CuentasPage() {
                     required
                   />
                 </label>
+                <label className="checkbox-row">
+                  <input
+                    type="checkbox"
+                    checked={revolving}
+                    onChange={(e) => setRevolving(e.target.checked)}
+                  />
+                  Es un saldo variable (tarjeta de crédito, línea de crédito)
+                </label>
+                {revolving && (
+                  <p className="contributions-hint">
+                    Vas a poder editar el monto cada vez que sumes un cargo nuevo. Los pagos se
+                    registran como transacciones de esta categoría y, a diferencia de un préstamo,
+                    no se archiva sola al quedar en $0.
+                  </p>
+                )}
               </>
             )}
             {error && <p className="error">{error}</p>}
