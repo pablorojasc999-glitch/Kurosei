@@ -22,3 +22,10 @@ export function formatDate(iso: string): string {
     year: 'numeric',
   })
 }
+
+/** Same as `formatDate`, prefixed with the short weekday name (e.g. "sáb 29/08/2026") — used where knowing which day of the week a date falls on matters, like chart axis labels. */
+export function formatDateWithWeekday(iso: string): string {
+  const date = DATE_ONLY_PATTERN.test(iso) ? parseDateInput(iso) : new Date(iso)
+  const weekday = date.toLocaleDateString('es-AR', { weekday: 'short' })
+  return `${weekday} ${formatDate(iso)}`
+}

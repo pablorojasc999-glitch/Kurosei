@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { formatDate } from './format'
+import { formatDate, formatDateWithWeekday } from './format'
 
 // This app's tsconfig only pulls in browser globals; the vitest process
 // (Node) still has `process.env` at runtime, so declare just enough of it
@@ -27,5 +27,12 @@ describe('formatDate', () => {
 
   it('still formats a full ISO instant correctly', () => {
     expect(formatDate('2026-08-01T04:00:00.000Z')).toBe('01/08/2026')
+  })
+})
+
+describe('formatDateWithWeekday', () => {
+  it('prefixes the date with its short weekday name', () => {
+    // 2026-08-29 is a Saturday.
+    expect(formatDateWithWeekday('2026-08-29')).toBe('sáb 29/08/2026')
   })
 })

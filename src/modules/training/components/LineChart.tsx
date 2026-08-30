@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { buildLineChartGeometry, computeJointRange, dateToX } from '../lib/lineChart'
 import type { ChartPoint } from '../lib/lineChart'
-import { formatDate } from '../lib/format'
+import { formatDateWithWeekday } from '../lib/format'
 
 export interface ChartSeries {
   label: string
@@ -26,8 +26,8 @@ interface LineChartProps {
 }
 
 const WIDTH = 300
-const HEIGHT = 120
-const PADDING_Y = 14
+const HEIGHT = 150
+const PADDING_Y = 16
 
 export function LineChart({
   domainDates,
@@ -78,6 +78,12 @@ export function LineChart({
   const activeX = activeDate !== null ? dateToX(domainDates, activeDate, WIDTH) : null
   const extra = activeDate !== null ? (tooltipExtra?.(activeDate) ?? null) : null
 
+  // Every series shares one y-range once `jointRange` is applied, so the
+  // first plotted series' geometry already reflects the chart-wide min/max.
+  const { min: rangeMin, max: rangeMax } = plotted[0].geometry
+  const rangeMid = (rangeMin + rangeMax) / 2
+  const latestPoint = plotted[0].geometry.points[plotted[0].geometry.points.length - 1]
+
   return (
     <div className="line-chart">
       {series.length > 1 && (
@@ -94,7 +100,7 @@ export function LineChart({
       <div className="line-chart-tooltip">
         {activeDate !== null ? (
           <>
-            <span className="line-chart-tooltip-date">{formatDate(activeDate)}</span>
+            <span className="line-chart-tooltip-date">{formatDateWithWeekday(activeDate)}</span>
             {series.map((s) => {
               const point = s.points.find((p) => p.date === activeDate)
               return (
@@ -111,63 +117,100 @@ export function LineChart({
             )}
           </>
         ) : (
-          <span className="line-chart-tooltip-hint">Toca el gráfico para ver el detalle de cada día.</span>
+          <span className="line-chart-tooltip-hint">
+            <span className="line-chart-tooltip-item">
+              Último {latestPoint.value.toFixed(1)}
+              {unit} ({formatDateWithWeekday(latestPoint.date)})
+            </span>
+            <span className="line-chart-tooltip-item">
+              Rango {rangeMin.toFixed(1)}–{rangeMax.toFixed(1)}
+              {unit}
+            </span>
+            <span className="line-chart-tooltip-item">Toca para ver un día</span>
+          </span>
         )}
       </div>
 
-      <svg
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        className="line-chart-svg"
-        preserveAspectRatio="none"
-        onPointerDown={handlePointer}
-        onPointerMove={handlePointer}
-      >
-        {marks.map((date) => (
-          <line
-            key={date}
-            className="line-chart-mark"
-            x1={dateToX(domainDates, date, WIDTH)}
-            x2={dateToX(domainDates, date, WIDTH)}
-            y1={0}
-            y2={HEIGHT}
-          />
-        ))}
-        {activeX !== null && (
-          <line
-            className="line-chart-crosshair"
-            x1={activeX}
-            x2={activeX}
-            y1={0}
-            y2={HEIGHT}
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-        {plotted.map(({ series: s, geometry }) => (
-          <g key={s.label}>
-            <path
-              d={geometry.path}
-              fill="none"
-              style={{ stroke: s.color }}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
+      <div className="line-chart-plot">
+        <div className="line-chart-yaxis">
+          <span>
+            {rangeMax.toFixed(1)}
+            {unit}
+          </span>
+          <span>
+            {rangeMid.toFixed(1)}
+            {unit}
+          </span>
+          <span>
+            {rangeMin.toFixed(1)}
+            {unit}
+          </span>
+        </div>
+        <svg
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          className="line-chart-svg"
+          preserveAspectRatio="none"
+          onPointerDown={handlePointer}
+          onPointerMove={handlePointer}
+        >
+          {[0, 0.5, 1].map((fraction) => (
+            <line
+              key={fraction}
+              className="line-chart-gridline"
+              x1={0}
+              x2={WIDTH}
+              y1={PADDING_Y + fraction * (HEIGHT - PADDING_Y * 2)}
+              y2={PADDING_Y + fraction * (HEIGHT - PADDING_Y * 2)}
               vectorEffect="non-scaling-stroke"
             />
-            {geometry.points.map((p) => (
-              <circle
-                key={p.date}
-                cx={p.x}
-                cy={p.y}
-                r={p.date === activeDate ? 5 : 3.5}
-                style={{ fill: s.color }}
+          ))}
+          {marks.map((date) => (
+            <line
+              key={date}
+              className="line-chart-mark"
+              x1={dateToX(domainDates, date, WIDTH)}
+              x2={dateToX(domainDates, date, WIDTH)}
+              y1={0}
+              y2={HEIGHT}
+            />
+          ))}
+          {activeX !== null && (
+            <line
+              className="line-chart-crosshair"
+              x1={activeX}
+              x2={activeX}
+              y1={0}
+              y2={HEIGHT}
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          {plotted.map(({ series: s, geometry }) => (
+            <g key={s.label}>
+              <path
+                d={geometry.path}
+                fill="none"
+                style={{ stroke: s.color }}
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
               />
-            ))}
-          </g>
-        ))}
-      </svg>
+              {geometry.points.map((p) => (
+                <circle
+                  key={p.date}
+                  cx={p.x}
+                  cy={p.y}
+                  r={p.date === activeDate ? 5 : 3.5}
+                  style={{ fill: s.color }}
+                />
+              ))}
+            </g>
+          ))}
+        </svg>
+      </div>
       <div className="line-chart-range">
-        <span>{formatDate(domainDates[0])}</span>
-        <span>{formatDate(domainDates[domainDates.length - 1])}</span>
+        <span>{formatDateWithWeekday(domainDates[0])}</span>
+        <span>{formatDateWithWeekday(domainDates[domainDates.length - 1])}</span>
       </div>
     </div>
   )
