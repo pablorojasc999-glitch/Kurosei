@@ -9,6 +9,16 @@ import {
   IconTransactions,
 } from './modules/finance/components/icons'
 import { TransaccionesPage } from './modules/finance/components/TransaccionesPage'
+import { AguaPage } from './modules/nutrition/components/AguaPage'
+import { BibliotecaPage as NutritionBibliotecaPage } from './modules/nutrition/components/BibliotecaPage'
+import {
+  IconFoodLibrary,
+  IconNutritionRegistro,
+  IconTemplates,
+  IconWater,
+} from './modules/nutrition/components/icons'
+import { PlantillasPage } from './modules/nutrition/components/PlantillasPage'
+import { RegistroPage as NutritionRegistroPage } from './modules/nutrition/components/RegistroPage'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { E1rmCalculatorPage } from './modules/training/components/E1rmCalculatorPage'
 import { ExerciseLibraryPage } from './modules/training/components/ExerciseLibraryPage'
@@ -39,11 +49,14 @@ type Tab =
 
 type FinanceTab = 'cuentas' | 'categorias' | 'transacciones' | 'estadisticas'
 
+type NutritionTab = 'registro' | 'plantillas' | 'agua' | 'biblioteca'
+
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('entrenamiento')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [tab, setTab] = useState<Tab>('registro')
   const [financeTab, setFinanceTab] = useState<FinanceTab>('cuentas')
+  const [nutritionTab, setNutritionTab] = useState<NutritionTab>('registro')
   const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
 
@@ -86,6 +99,21 @@ function App() {
             </div>
             <div hidden={financeTab !== 'estadisticas'}>
               <EstadisticasPage />
+            </div>
+          </>
+        ) : appModule === 'nutricion' ? (
+          <>
+            <div hidden={nutritionTab !== 'registro'}>
+              <NutritionRegistroPage />
+            </div>
+            <div hidden={nutritionTab !== 'plantillas'}>
+              <PlantillasPage />
+            </div>
+            <div hidden={nutritionTab !== 'agua'}>
+              <AguaPage />
+            </div>
+            <div hidden={nutritionTab !== 'biblioteca'}>
+              <NutritionBibliotecaPage />
             </div>
           </>
         ) : (
@@ -147,6 +175,41 @@ function App() {
           >
             <IconStatistics />
             Estadísticas
+          </button>
+        </nav>
+      ) : appModule === 'nutricion' ? (
+        <nav className="tabs">
+          <button
+            type="button"
+            className={nutritionTab === 'registro' ? 'active' : ''}
+            onClick={() => setNutritionTab('registro')}
+          >
+            <IconNutritionRegistro />
+            Registro
+          </button>
+          <button
+            type="button"
+            className={nutritionTab === 'plantillas' ? 'active' : ''}
+            onClick={() => setNutritionTab('plantillas')}
+          >
+            <IconTemplates />
+            Plantillas
+          </button>
+          <button
+            type="button"
+            className={nutritionTab === 'agua' ? 'active' : ''}
+            onClick={() => setNutritionTab('agua')}
+          >
+            <IconWater />
+            Agua
+          </button>
+          <button
+            type="button"
+            className={nutritionTab === 'biblioteca' ? 'active' : ''}
+            onClick={() => setNutritionTab('biblioteca')}
+          >
+            <IconFoodLibrary />
+            Biblioteca
           </button>
         </nav>
       ) : (

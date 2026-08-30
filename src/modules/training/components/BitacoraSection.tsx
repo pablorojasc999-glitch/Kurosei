@@ -32,15 +32,10 @@ const EMPTY_PROFILE_FORM: ProfileFormState = {
 
 interface DailyLogFormState {
   bodyWeightKg: string
-  calories: string
-  carbsG: string
-  proteinG: string
-  fatG: string
   sleepHours: string
   creatineTaken: boolean
   omega3Taken: boolean
   vitaminDTaken: boolean
-  waterLiters: string
   stress: string
   stimulants: string
   fatigue: string
@@ -49,15 +44,10 @@ interface DailyLogFormState {
 
 const EMPTY_LOG_FORM: DailyLogFormState = {
   bodyWeightKg: '',
-  calories: '',
-  carbsG: '',
-  proteinG: '',
-  fatG: '',
   sleepHours: '',
   creatineTaken: false,
   omega3Taken: false,
   vitaminDTaken: false,
-  waterLiters: '',
   stress: '',
   stimulants: '',
   fatigue: '',
@@ -128,15 +118,10 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       dailyLog
         ? {
             bodyWeightKg: dailyLog.bodyWeightKg?.toString() ?? '',
-            calories: dailyLog.calories?.toString() ?? '',
-            carbsG: dailyLog.carbsG?.toString() ?? '',
-            proteinG: dailyLog.proteinG?.toString() ?? '',
-            fatG: dailyLog.fatG?.toString() ?? '',
             sleepHours: dailyLog.sleepHours?.toString() ?? '',
             creatineTaken: dailyLog.creatineTaken,
             omega3Taken: dailyLog.omega3Taken,
             vitaminDTaken: dailyLog.vitaminDTaken,
-            waterLiters: dailyLog.waterLiters?.toString() ?? '',
             stress: dailyLog.stress?.toString() ?? '',
             stimulants: dailyLog.stimulants?.toString() ?? '',
             fatigue: dailyLog.fatigue?.toString() ?? '',
@@ -169,15 +154,17 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     await guardLog(async () => {
       await upsertDailyLog(dateKey, {
         bodyWeightKg: parseNum(logForm.bodyWeightKg),
-        calories: parseNum(logForm.calories),
-        carbsG: parseNum(logForm.carbsG),
-        proteinG: parseNum(logForm.proteinG),
-        fatG: parseNum(logForm.fatG),
+        // Calorías/macros/agua vienen de Nutrición, no de este formulario —
+        // se preservan tal cual estén en el registro actual del día.
+        calories: dailyLog?.calories ?? null,
+        carbsG: dailyLog?.carbsG ?? null,
+        proteinG: dailyLog?.proteinG ?? null,
+        fatG: dailyLog?.fatG ?? null,
+        waterLiters: dailyLog?.waterLiters ?? null,
         sleepHours: parseNum(logForm.sleepHours),
         creatineTaken: logForm.creatineTaken,
         omega3Taken: logForm.omega3Taken,
         vitaminDTaken: logForm.vitaminDTaken,
-        waterLiters: parseNum(logForm.waterLiters),
         stress: parseNum(logForm.stress),
         stimulants: parseNum(logForm.stimulants),
         fatigue: parseNum(logForm.fatigue),
@@ -192,15 +179,10 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       dailyLog
         ? {
             bodyWeightKg: dailyLog.bodyWeightKg?.toString() ?? '',
-            calories: dailyLog.calories?.toString() ?? '',
-            carbsG: dailyLog.carbsG?.toString() ?? '',
-            proteinG: dailyLog.proteinG?.toString() ?? '',
-            fatG: dailyLog.fatG?.toString() ?? '',
             sleepHours: dailyLog.sleepHours?.toString() ?? '',
             creatineTaken: dailyLog.creatineTaken,
             omega3Taken: dailyLog.omega3Taken,
             vitaminDTaken: dailyLog.vitaminDTaken,
-            waterLiters: dailyLog.waterLiters?.toString() ?? '',
             stress: dailyLog.stress?.toString() ?? '',
             stimulants: dailyLog.stimulants?.toString() ?? '',
             fatigue: dailyLog.fatigue?.toString() ?? '',
@@ -337,46 +319,29 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             onChange={(e) => setLogForm((prev) => ({ ...prev, bodyWeightKg: e.target.value }))}
           />
         </label>
-        <label>
-          Calorías
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.calories}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, calories: e.target.value }))}
-          />
-        </label>
-        <label>
-          Carbohidratos (g)
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.carbsG}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, carbsG: e.target.value }))}
-          />
-        </label>
-        <label>
-          Proteína (g)
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.proteinG}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, proteinG: e.target.value }))}
-          />
-        </label>
-        <label>
-          Grasa (g)
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.fatG}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, fatG: e.target.value }))}
-          />
-        </label>
+        <div className="bitacora-nutrition-summary">
+          <span className="bitacora-nutrition-summary-label">
+            Calorías y macros — desde Nutrición
+          </span>
+          <div className="finance-summary-row">
+            <div className="finance-summary-card">
+              <span>Calorías</span>
+              <strong>{dailyLog?.calories ?? 0}</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Proteínas</span>
+              <strong>{dailyLog?.proteinG ?? 0} g</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Carbos</span>
+              <strong>{dailyLog?.carbsG ?? 0} g</strong>
+            </div>
+            <div className="finance-summary-card">
+              <span>Grasas</span>
+              <strong>{dailyLog?.fatG ?? 0} g</strong>
+            </div>
+          </div>
+        </div>
         <label>
           Horas de sueño
           <input
@@ -387,16 +352,10 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             onChange={(e) => setLogForm((prev) => ({ ...prev, sleepHours: e.target.value }))}
           />
         </label>
-        <label>
-          Agua (litros)
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.waterLiters}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, waterLiters: e.target.value }))}
-          />
-        </label>
+        <div className="bitacora-nutrition-summary">
+          <span className="bitacora-nutrition-summary-label">Agua — desde Nutrición</span>
+          <strong>{(dailyLog?.waterLiters ?? 0).toLocaleString('es-CL')} L</strong>
+        </div>
         <label>
           Pasos
           <input

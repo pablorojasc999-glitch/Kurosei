@@ -296,6 +296,123 @@ create table if not exists "finance_transactions" (
 );
 
 -- ---------------------------------------------------------------------
+-- Nutrición — foods (with a full macro + micronutrient panel per serving),
+-- reusable meal sections, per-date log entries, water logs, and day-shaped
+-- meal templates that can be applied onto any date.
+-- ---------------------------------------------------------------------
+
+create table if not exists "nutrition_foods" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "brand" text not null,
+  "emoji" text not null,
+  "servingAmount" double precision not null,
+  "servingUnit" text not null,
+  "calories" double precision not null,
+  "proteinG" double precision not null,
+  "carbsG" double precision not null,
+  "fatG" double precision not null,
+  "saturatedFatG" double precision,
+  "transFatG" double precision,
+  "fiberG" double precision,
+  "sugarG" double precision,
+  "sodiumMg" double precision,
+  "cholesterolMg" double precision,
+  "potassiumMg" double precision,
+  "calciumMg" double precision,
+  "ironMg" double precision,
+  "magnesiumMg" double precision,
+  "zincMg" double precision,
+  "vitaminAMcg" double precision,
+  "vitaminCMg" double precision,
+  "vitaminDMcg" double precision,
+  "vitaminEMg" double precision,
+  "vitaminKMcg" double precision,
+  "vitaminB1Mg" double precision,
+  "vitaminB2Mg" double precision,
+  "vitaminB3Mg" double precision,
+  "vitaminB6Mg" double precision,
+  "vitaminB9Mcg" double precision,
+  "vitaminB12Mcg" double precision,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "nutrition_meal_sections" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "nutrition_entries" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "date" text not null,
+  "sectionId" uuid not null,
+  "order" integer not null,
+  "kind" text not null,
+  "foodId" uuid,
+  "quantity" double precision,
+  "manualName" text not null,
+  "calories" double precision not null,
+  "proteinG" double precision not null,
+  "carbsG" double precision not null,
+  "fatG" double precision not null,
+  "notes" text not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "nutrition_water_entries" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "date" text not null,
+  "amountMl" double precision not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "nutrition_meal_templates" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "emoji" text not null,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "nutrition_meal_template_entries" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "templateId" uuid not null,
+  "sectionId" uuid not null,
+  "order" integer not null,
+  "kind" text not null,
+  "foodId" uuid,
+  "quantity" double precision,
+  "manualName" text not null,
+  "calories" double precision not null,
+  "proteinG" double precision not null,
+  "carbsG" double precision not null,
+  "fatG" double precision not null,
+  "notes" text not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+-- ---------------------------------------------------------------------
 -- Indexes — every sync pull filters by (userId, updatedAt)
 -- ---------------------------------------------------------------------
 
@@ -317,6 +434,12 @@ create index if not exists "training_daily_logs_sync_idx" on "training_daily_log
 create index if not exists "finance_accounts_sync_idx" on "finance_accounts" ("userId", "updatedAt");
 create index if not exists "finance_categories_sync_idx" on "finance_categories" ("userId", "updatedAt");
 create index if not exists "finance_transactions_sync_idx" on "finance_transactions" ("userId", "updatedAt");
+create index if not exists "nutrition_foods_sync_idx" on "nutrition_foods" ("userId", "updatedAt");
+create index if not exists "nutrition_meal_sections_sync_idx" on "nutrition_meal_sections" ("userId", "updatedAt");
+create index if not exists "nutrition_entries_sync_idx" on "nutrition_entries" ("userId", "updatedAt");
+create index if not exists "nutrition_water_entries_sync_idx" on "nutrition_water_entries" ("userId", "updatedAt");
+create index if not exists "nutrition_meal_templates_sync_idx" on "nutrition_meal_templates" ("userId", "updatedAt");
+create index if not exists "nutrition_meal_template_entries_sync_idx" on "nutrition_meal_template_entries" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
 -- Row Level Security — every user only ever sees/writes their own rows
@@ -344,7 +467,13 @@ begin
     'training_daily_logs',
     'finance_accounts',
     'finance_categories',
-    'finance_transactions'
+    'finance_transactions',
+    'nutrition_foods',
+    'nutrition_meal_sections',
+    'nutrition_entries',
+    'nutrition_water_entries',
+    'nutrition_meal_templates',
+    'nutrition_meal_template_entries'
   ]
   loop
     execute format('alter table %I enable row level security', tbl);
