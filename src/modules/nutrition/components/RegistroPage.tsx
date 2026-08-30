@@ -8,18 +8,23 @@ import {
   applyTemplateToDate,
   createMealSection,
   listEntriesForDate,
+  listEntriesForDateRange,
   listFoods,
+  listGoalPlans,
   listMealSections,
   listMealTemplates,
   moveEntry,
   softDeleteEntry,
 } from '../db/nutritionRepository'
 import type { NutritionEntry } from '../domain/types'
-import { sumMacros } from '../lib/macros'
+import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans'
+import { sumMacros, type MacroTotals } from '../lib/macros'
 import { formatNutrient } from '../lib/nutrients'
+import { weekDates } from '../lib/weekStrip'
 import { AddEntryForm } from './AddEntryForm'
 import { EntryRow } from './EntryRow'
 import { FoodDetail } from './FoodDetail'
+import { WeekStrip } from './WeekStrip'
 
 const LONG_PRESS_MS = 350
 const MOVE_CANCEL_THRESHOLD_PX = 10
@@ -33,12 +38,53 @@ interface DragMeta {
   started: boolean
 }
 
+function MacroCard({
+  label,
+  consumed,
+  unit,
+  target,
+}: {
+  label: string
+  consumed: number
+  unit: string
+  target: number | null
+}) {
+  return (
+    <div className="finance-summary-card">
+      <span>{label}</span>
+      <strong>
+        {formatNutrient(consumed)}
+        {unit}
+        {target !== null && (
+          <span className="nutrition-progress-goal"> / {formatNutrient(target)}{unit}</span>
+        )}
+      </strong>
+      {target !== null && (
+        <div className="nutrition-progress-track">
+          <div
+            className="nutrition-progress-fill"
+            style={{ width: `${progressPercent(consumed, target)}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function RegistroPage() {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()))
   const dateKey = toDateKey(selectedDate)
+  const days = weekDates(selectedDate)
+  const weekStartKey = toDateKey(days[0])
+  const weekEndKey = toDateKey(days[6])
 
   const sections = useLiveQuery(() => listMealSections(), [])
   const entries = useLiveQuery(() => listEntriesForDate(dateKey), [dateKey])
+  const weekEntries = useLiveQuery(
+    () => listEntriesForDateRange(weekStartKey, weekEndKey),
+    [weekStartKey, weekEndKey],
+  )
+  const goalPlans = useLiveQuery(() => listGoalPlans(), [])
   const foods = useLiveQuery(() => listFoods(), [])
   const templates = useLiveQuery(() => listMealTemplates(), [])
   const foodById = new Map((foods ?? []).map((f) => [f.id, f]))
@@ -158,10 +204,21 @@ export function RegistroPage() {
   }
 
   const dayTotals = sumMacros(entries ?? [])
+  const activePlan = findActivePlan(goalPlans ?? [], dateKey)
+
+  const weekDayStatuses = days.map((date) => {
+    const key = toDateKey(date)
+    const dayEntries = (weekEntries ?? []).filter((e) => e.date === key)
+    const totals: MacroTotals = sumMacros(dayEntries)
+    const plan = findActivePlan(goalPlans ?? [], key)
+    return { date, status: getGoalStatus(plan, totals.calories, dayEntries.length > 0) }
+  })
 
   return (
     <div className="page">
       <h1>Registro</h1>
+
+      <WeekStrip days={weekDayStatuses} selectedDate={selectedDate} onSelect={setSelectedDate} />
 
       <div className="day-nav">
         <button
@@ -184,22 +241,30 @@ export function RegistroPage() {
       </div>
 
       <div className="finance-summary-row">
-        <div className="finance-summary-card">
-          <span>Calorías</span>
-          <strong>{formatNutrient(dayTotals.calories)}</strong>
-        </div>
-        <div className="finance-summary-card">
-          <span>Proteínas</span>
-          <strong>{formatNutrient(dayTotals.proteinG)} g</strong>
-        </div>
-        <div className="finance-summary-card">
-          <span>Carbos</span>
-          <strong>{formatNutrient(dayTotals.carbsG)} g</strong>
-        </div>
-        <div className="finance-summary-card">
-          <span>Grasas</span>
-          <strong>{formatNutrient(dayTotals.fatG)} g</strong>
-        </div>
+        <MacroCard
+          label="Calorías"
+          consumed={dayTotals.calories}
+          unit=""
+          target={activePlan?.targetCalories ?? null}
+        />
+        <MacroCard
+          label="Proteínas"
+          consumed={dayTotals.proteinG}
+          unit=" g"
+          target={activePlan?.targetProteinG ?? null}
+        />
+        <MacroCard
+          label="Carbos"
+          consumed={dayTotals.carbsG}
+          unit=" g"
+          target={activePlan?.targetCarbsG ?? null}
+        />
+        <MacroCard
+          label="Grasas"
+          consumed={dayTotals.fatG}
+          unit=" g"
+          target={activePlan?.targetFatG ?? null}
+        />
       </div>
 
       {sections?.map((section) => {
@@ -212,8 +277,9 @@ export function RegistroPage() {
             <div className="nutrition-meal-section-header">
               <h2>{section.name}</h2>
               <span className="nutrition-meal-section-totals">
-                {formatNutrient(sectionTotals.calories)} kcal · P {formatNutrient(sectionTotals.proteinG)} ·
-                C {formatNutrient(sectionTotals.carbsG)} · G {formatNutrient(sectionTotals.fatG)}
+                🔥 {formatNutrient(sectionTotals.calories)} kcal · P{' '}
+                {formatNutrient(sectionTotals.proteinG)} · C {formatNutrient(sectionTotals.carbsG)} ·
+                G {formatNutrient(sectionTotals.fatG)}
               </span>
             </div>
             <div
@@ -271,10 +337,11 @@ export function RegistroPage() {
             ) : (
               <button
                 type="button"
-                className="collapsible-toggle"
+                className="nutrition-add-pill"
+                aria-label={`Agregar a ${section.name}`}
                 onClick={() => setAddingToSectionId(section.id)}
               >
-                + Agregar a {section.name}
+                +
               </button>
             )}
           </section>

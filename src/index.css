@@ -17,6 +17,8 @@
   --success: #4ade80;
   --success-bg: rgba(74, 222, 128, 0.1);
   --success-muted: #53ac72;
+  --warning: #fbbf24;
+  --warning-bg: rgba(251, 191, 36, 0.12);
 
   /* Secondary/tertiary series colors for multi-line charts (Progreso) —
      validated for CVD-safe separation against --accent (ΔE > 15, see

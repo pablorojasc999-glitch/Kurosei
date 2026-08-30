@@ -111,3 +111,23 @@ export interface MealTemplateEntry extends SyncedEntity {
   fatG: number
   notes: string
 }
+
+/**
+ * A date-ranged nutrition goal — analogous to a training mesociclo, but flat:
+ * one set of daily targets (calories, macros, water) held for a period.
+ * `endDate: null` means "open-ended, still in effect". When a date falls
+ * inside more than one plan's range, the plan with the latest `startDate`
+ * wins — the same "most specific override wins" rule a training block would
+ * use for an overlapping adjustment.
+ */
+export interface NutritionGoalPlan extends SyncedEntity {
+  name: string
+  startDate: string
+  endDate: string | null
+  targetCalories: number
+  targetProteinG: number
+  targetCarbsG: number
+  targetFatG: number
+  targetWaterMl: number
+  order: number
+}

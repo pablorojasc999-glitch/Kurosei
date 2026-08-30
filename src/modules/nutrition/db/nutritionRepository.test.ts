@@ -9,19 +9,24 @@ import {
   addWaterEntry,
   applyTemplateToDate,
   createFood,
+  createGoalPlan,
   createMealSection,
   createMealTemplate,
+  getActiveGoalPlanForDate,
   listEntriesForDate,
   listFoods,
+  listGoalPlans,
   listMealTemplates,
   listTemplateEntries,
   listWaterEntriesForDate,
   moveEntry,
   softDeleteEntry,
   softDeleteFood,
+  softDeleteGoalPlan,
   softDeleteTemplateEntry,
   softDeleteWaterEntry,
   updateFoodEntryQuantity,
+  updateGoalPlan,
 } from './nutritionRepository'
 
 const NO_MICROS = {
@@ -305,5 +310,44 @@ describe('meal templates', () => {
 
     await softDeleteTemplateEntry(templateEntries[1].id)
     expect(await listTemplateEntries(template.id)).toHaveLength(1)
+  })
+})
+
+describe('goal plans', () => {
+  const baseInput = {
+    name: 'Volumen',
+    startDate: '2026-01-01',
+    endDate: '2026-01-31',
+    targetCalories: 2500,
+    targetProteinG: 180,
+    targetCarbsG: 300,
+    targetFatG: 70,
+    targetWaterMl: 3000,
+  }
+
+  it('creates a plan and lists it newest-startDate-first', async () => {
+    await createGoalPlan(baseInput)
+    await createGoalPlan({ ...baseInput, name: 'Corte', startDate: '2026-02-01', endDate: null })
+    const plans = await listGoalPlans()
+    expect(plans.map((p) => p.name)).toEqual(['Corte', 'Volumen'])
+  })
+
+  it('resolves the active plan for a date within its range, null outside it', async () => {
+    const plan = await createGoalPlan(baseInput)
+    expect((await getActiveGoalPlanForDate('2026-01-15'))?.id).toBe(plan.id)
+    expect(await getActiveGoalPlanForDate('2026-02-15')).toBeNull()
+  })
+
+  it('updates a plan in place', async () => {
+    const plan = await createGoalPlan(baseInput)
+    await updateGoalPlan(plan.id, { ...baseInput, targetCalories: 2200 })
+    const [updated] = await listGoalPlans()
+    expect(updated.targetCalories).toBe(2200)
+  })
+
+  it('excludes a soft-deleted plan', async () => {
+    const plan = await createGoalPlan(baseInput)
+    await softDeleteGoalPlan(plan.id)
+    expect(await listGoalPlans()).toEqual([])
   })
 })

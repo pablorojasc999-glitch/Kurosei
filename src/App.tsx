@@ -13,10 +13,12 @@ import { AguaPage } from './modules/nutrition/components/AguaPage'
 import { BibliotecaPage as NutritionBibliotecaPage } from './modules/nutrition/components/BibliotecaPage'
 import {
   IconFoodLibrary,
+  IconGoals,
   IconNutritionRegistro,
   IconTemplates,
   IconWater,
 } from './modules/nutrition/components/icons'
+import { MetasPage } from './modules/nutrition/components/MetasPage'
 import { PlantillasPage } from './modules/nutrition/components/PlantillasPage'
 import { RegistroPage as NutritionRegistroPage } from './modules/nutrition/components/RegistroPage'
 import { CalendarPage } from './modules/training/components/CalendarPage'
@@ -49,7 +51,7 @@ type Tab =
 
 type FinanceTab = 'cuentas' | 'categorias' | 'transacciones' | 'estadisticas'
 
-type NutritionTab = 'registro' | 'plantillas' | 'agua' | 'biblioteca'
+type NutritionTab = 'registro' | 'plantillas' | 'agua' | 'biblioteca' | 'metas'
 
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('entrenamiento')
@@ -114,6 +116,9 @@ function App() {
             </div>
             <div hidden={nutritionTab !== 'biblioteca'}>
               <NutritionBibliotecaPage />
+            </div>
+            <div hidden={nutritionTab !== 'metas'}>
+              <MetasPage />
             </div>
           </>
         ) : (
@@ -210,6 +215,14 @@ function App() {
           >
             <IconFoodLibrary />
             Biblioteca
+          </button>
+          <button
+            type="button"
+            className={nutritionTab === 'metas' ? 'active' : ''}
+            onClick={() => setNutritionTab('metas')}
+          >
+            <IconGoals />
+            Metas
           </button>
         </nav>
       ) : (

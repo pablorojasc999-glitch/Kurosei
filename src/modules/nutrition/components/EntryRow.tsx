@@ -29,13 +29,15 @@ export function EntryRow({
   onToggleDetail,
   onDelete,
 }: EntryRowProps) {
-  const title =
+  const emoji = entry.kind === 'food' && food ? food.emoji : null
+  const name =
     entry.kind === 'food' && food
-      ? `${food.emoji} ${food.name}`
+      ? food.name
       : entry.kind === 'food'
         ? '(alimento eliminado)'
         : entry.manualName
-  const subtitle =
+  const subtitle = entry.kind === 'food' && food ? food.brand : null
+  const quantity =
     entry.kind === 'food' && food
       ? `${entry.quantity} ${food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}`
       : null
@@ -65,17 +67,28 @@ export function EntryRow({
       <span className="nutrition-entry-drag-handle" aria-hidden="true">
         ⠿
       </span>
+      {emoji && (
+        <span className="nutrition-entry-emoji" aria-hidden="true">
+          {emoji}
+        </span>
+      )}
       <span className="nutrition-entry-info">
-        <strong>{title}</strong>
+        <strong>{name}</strong>
         {subtitle && <span className="finance-transaction-subtitle">{subtitle}</span>}
       </span>
-      <span className="nutrition-entry-macros">{formatNutrient(entry.calories)} kcal</span>
+      <span className="nutrition-entry-macros">
+        {quantity && <span className="nutrition-entry-quantity">{quantity}</span>}
+        <span className="nutrition-entry-kcal">{formatNutrient(entry.calories)} kcal</span>
+      </span>
+      <span className="nutrition-entry-check" aria-hidden="true">
+        ✓
+      </span>
       <span onClick={(e) => e.stopPropagation()}>
         <ConfirmDeleteButton
           variant="icon"
           className="icon-button"
           label="Eliminar registro"
-          confirmMessage={`¿Eliminar "${title}"?`}
+          confirmMessage={`¿Eliminar "${name}"?`}
           onConfirm={onDelete}
         />
       </span>
