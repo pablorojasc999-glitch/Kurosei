@@ -229,7 +229,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
   }
 
   return (
-    <section>
+    <section className="elevated-section">
       <h2>Bitácora</h2>
 
       <div className="bitacora-profile">

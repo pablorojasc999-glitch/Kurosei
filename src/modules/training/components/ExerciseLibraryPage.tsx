@@ -124,7 +124,7 @@ export function ExerciseLibraryPage() {
     <div className="page">
       <h1>Biblioteca de ejercicios</h1>
 
-      <section>
+      <section className="elevated-section">
         <h2>{editingExerciseId ? 'Editar ejercicio' : 'Nuevo ejercicio'}</h2>
         <form onSubmit={handleSubmit} className="exercise-form">
           <label>
@@ -203,7 +203,7 @@ export function ExerciseLibraryPage() {
         </form>
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Ejercicios</h2>
         <input
           type="search"
