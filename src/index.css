@@ -1,5 +1,5 @@
 :root {
-  --bg: #0a0a0c;
+  --bg: #000000;
   --surface: #150f1c;
   --surface-2: #1d1526;
   --surface-3: #251a33;
@@ -64,9 +64,7 @@ textarea {
 body {
   margin: 0;
   color: var(--text);
-  background:
-    radial-gradient(circle at 50% -10%, rgba(139, 92, 246, 0.1), transparent 55%),
-    var(--bg);
+  background: var(--bg);
   min-height: 100svh;
   overflow-x: hidden;
 }
