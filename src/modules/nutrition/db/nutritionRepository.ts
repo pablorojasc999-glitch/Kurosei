@@ -484,6 +484,57 @@ export async function softDeleteTemplateEntry(id: string): Promise<void> {
   await db.nutrition_meal_template_entries.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }
 
+/** Re-scales a `food`-kind template entry's stored macros for a new quantity. */
+export async function updateTemplateFoodEntryQuantity(id: string, quantity: number): Promise<void> {
+  const entry = await db.nutrition_meal_template_entries.get(id)
+  if (!entry || !entry.foodId) return
+  const food = await db.nutrition_foods.get(entry.foodId)
+  if (!food) return
+  const macros = scaleMacros(food, quantity)
+  await db.nutrition_meal_template_entries.update(id, { quantity, ...macros, updatedAt: nowIso() })
+}
+
+export interface UpdateTemplateManualEntryInput {
+  manualName: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+  notes: string
+}
+
+export async function updateTemplateManualEntry(
+  id: string,
+  input: UpdateTemplateManualEntryInput,
+): Promise<void> {
+  const entry = await db.nutrition_meal_template_entries.get(id)
+  if (!entry) return
+  await db.nutrition_meal_template_entries.update(id, { ...input, updatedAt: nowIso() })
+}
+
+/** Moves a template entry to `targetSectionId` at `targetIndex` — a plain reorder when the section is unchanged, a cross-meal move otherwise. Same operation as `moveEntry`, scoped to a template instead of a date. */
+export async function moveTemplateEntry(
+  entryId: string,
+  targetSectionId: string,
+  targetIndex: number,
+): Promise<void> {
+  const entry = await db.nutrition_meal_template_entries.get(entryId)
+  if (!entry || entry.deletedAt) return
+  const templateEntries = await listTemplateEntries(entry.templateId)
+  const changed = moveItem(templateEntries, entryId, targetSectionId, targetIndex)
+  if (changed.length === 0) return
+  const timestamp = nowIso()
+  await Promise.all(
+    changed.map((c) =>
+      db.nutrition_meal_template_entries.update(c.id, {
+        sectionId: c.sectionId,
+        order: c.order,
+        updatedAt: timestamp,
+      }),
+    ),
+  )
+}
+
 /** Appends a template's entries onto `date` — never overwrites what's already logged there. */
 export async function applyTemplateToDate(templateId: string, date: string): Promise<void> {
   const templateEntries = await listTemplateEntries(templateId)

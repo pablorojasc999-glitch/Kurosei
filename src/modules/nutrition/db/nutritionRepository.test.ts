@@ -20,6 +20,7 @@ import {
   listTemplateEntries,
   listWaterEntriesForDate,
   moveEntry,
+  moveTemplateEntry,
   softDeleteEntry,
   softDeleteFood,
   softDeleteGoalPlan,
@@ -27,6 +28,8 @@ import {
   softDeleteWaterEntry,
   updateFoodEntryQuantity,
   updateGoalPlan,
+  updateTemplateFoodEntryQuantity,
+  updateTemplateManualEntry,
 } from './nutritionRepository'
 
 const NO_MICROS = {
@@ -310,6 +313,83 @@ describe('meal templates', () => {
 
     await softDeleteTemplateEntry(templateEntries[1].id)
     expect(await listTemplateEntries(template.id)).toHaveLength(1)
+  })
+
+  it('re-scales a template food entry when its quantity is edited', async () => {
+    const section = await createMealSection('Desayuno')
+    const food = await createFood({
+      name: 'Avena',
+      brand: '',
+      emoji: '🌾',
+      servingAmount: 30,
+      servingUnit: 'g',
+      calories: 120,
+      proteinG: 4,
+      carbsG: 20,
+      fatG: 2,
+      ...NO_MICROS,
+    })
+    const template = await createMealTemplate('Bloque', '')
+    const entry = await addFoodEntryToTemplate({
+      templateId: template.id,
+      sectionId: section.id,
+      foodId: food.id,
+      quantity: 30,
+      notes: '',
+    })
+
+    await updateTemplateFoodEntryQuantity(entry.id, 60)
+    const [updated] = await listTemplateEntries(template.id)
+    expect(updated.quantity).toBe(60)
+    expect(updated.calories).toBe(240)
+  })
+
+  it('overwrites a template manual entry in place when edited', async () => {
+    const section = await createMealSection('Desayuno')
+    const template = await createMealTemplate('Bloque', '')
+    const entry = await addManualEntryToTemplate({
+      templateId: template.id,
+      sectionId: section.id,
+      manualName: 'Batido',
+      calories: 200,
+      proteinG: 20,
+      carbsG: 10,
+      fatG: 5,
+      notes: '',
+    })
+
+    await updateTemplateManualEntry(entry.id, {
+      manualName: 'Batido de proteína',
+      calories: 250,
+      proteinG: 30,
+      carbsG: 10,
+      fatG: 6,
+      notes: '',
+    })
+    const [updated] = await listTemplateEntries(template.id)
+    expect(updated.manualName).toBe('Batido de proteína')
+    expect(updated.calories).toBe(250)
+  })
+
+  it('moves a template entry to a different section', async () => {
+    const breakfast = await createMealSection('Desayuno')
+    const lunch = await createMealSection('Almuerzo')
+    const template = await createMealTemplate('Bloque', '')
+    const entry = await addManualEntryToTemplate({
+      templateId: template.id,
+      sectionId: breakfast.id,
+      manualName: 'Algo',
+      calories: 100,
+      proteinG: 1,
+      carbsG: 1,
+      fatG: 1,
+      notes: '',
+    })
+
+    await moveTemplateEntry(entry.id, lunch.id, 0)
+    const [moved] = await listTemplateEntries(template.id)
+    expect(moved.sectionId).toBe(lunch.id)
+    expect(moved.order).toBe(0)
   })
 })
 

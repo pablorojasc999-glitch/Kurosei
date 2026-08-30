@@ -1,9 +1,20 @@
-import type { FoodItem, NutritionEntry } from '../domain/types'
+import type { FoodItem, NutritionEntryKind } from '../domain/types'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { formatNutrient } from '../lib/nutrients'
 
+/** Shape shared by `NutritionEntry` and `MealTemplateEntry` — everything this row reads, regardless of which one it's showing. */
+interface DisplayEntry {
+  kind: NutritionEntryKind
+  quantity: number | null
+  manualName: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+}
+
 interface EntryRowProps {
-  entry: NutritionEntry
+  entry: DisplayEntry
   food: FoodItem | undefined
   isDragging: boolean
   dragOffset: { dx: number; dy: number } | null
@@ -36,8 +47,7 @@ export function EntryRow({
       : entry.kind === 'food'
         ? '(alimento eliminado)'
         : entry.manualName
-  const subtitle = entry.kind === 'food' && food ? food.brand : null
-  const quantity =
+  const quantityLabel =
     entry.kind === 'food' && food
       ? `${entry.quantity} ${food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}`
       : null
@@ -73,12 +83,16 @@ export function EntryRow({
         </span>
       )}
       <span className="nutrition-entry-info">
-        <strong>{name}</strong>
-        {subtitle && <span className="finance-transaction-subtitle">{subtitle}</span>}
-      </span>
-      <span className="nutrition-entry-macros">
-        {quantity && <span className="nutrition-entry-quantity">{quantity}</span>}
-        <span className="nutrition-entry-kcal">{formatNutrient(entry.calories)} kcal</span>
+        <strong>
+          {name}
+          {quantityLabel && (
+            <span className="nutrition-entry-quantity-inline"> | {quantityLabel}</span>
+          )}
+        </strong>
+        <span className="nutrition-entry-macro-line">
+          {formatNutrient(entry.calories)} kcal · C {formatNutrient(entry.carbsG)} · P{' '}
+          {formatNutrient(entry.proteinG)} · G {formatNutrient(entry.fatG)}
+        </span>
       </span>
       <span className="nutrition-entry-check" aria-hidden="true">
         ✓

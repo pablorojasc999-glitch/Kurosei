@@ -12,12 +12,18 @@ import {
   listMealSections,
   listMealTemplates,
   listTemplateEntries,
+  moveTemplateEntry,
   softDeleteMealTemplate,
   softDeleteTemplateEntry,
+  updateTemplateFoodEntryQuantity,
+  updateTemplateManualEntry,
 } from '../db/nutritionRepository'
 import { sumMacros } from '../lib/macros'
 import { formatNutrient } from '../lib/nutrients'
+import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { AddEntryForm } from './AddEntryForm'
+import { EntryEditor } from './EntryEditor'
+import { EntryRow } from './EntryRow'
 
 export function PlantillasPage() {
   const templates = useLiveQuery(() => listMealTemplates(), [])
@@ -36,11 +42,26 @@ export function PlantillasPage() {
   const [addingToSectionId, setAddingToSectionId] = useState<string | null>(null)
   const [showNewSection, setShowNewSection] = useState(false)
   const [newSectionName, setNewSectionName] = useState('')
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null)
 
   const [applyDate, setApplyDate] = useState(() => toDateKey(new Date()))
   const [applied, setApplied] = useState(false)
 
   const openTemplate = templates?.find((t) => t.id === openTemplateId)
+
+  const {
+    rowRefs,
+    sectionListRefs,
+    draggingId,
+    dragOffset,
+    dropTarget,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+    consumeJustDragged,
+  } = useEntryDragReorder(templateEntries, sections, (entryId, targetSectionId, targetIndex) => {
+    void moveTemplateEntry(entryId, targetSectionId, targetIndex)
+  })
 
   async function handleCreateTemplate(e: React.FormEvent) {
     e.preventDefault()
@@ -114,37 +135,56 @@ export function PlantillasPage() {
                   G {formatNutrient(sectionTotals.fatG)}
                 </span>
               </div>
-              <div className="nutrition-entry-list">
+              <div
+                ref={(el) => {
+                  if (el) sectionListRefs.current.set(section.id, el)
+                  else sectionListRefs.current.delete(section.id)
+                }}
+                className={`nutrition-entry-list${
+                  dropTarget?.sectionId === section.id ? ' nutrition-entry-list--drop-target' : ''
+                }`}
+              >
                 {sectionEntries.map((entry) => {
                   const entryFood = entry.foodId ? foodById.get(entry.foodId) : undefined
-                  const title =
-                    entry.kind === 'food' && entryFood
-                      ? `${entryFood.emoji} ${entryFood.name}`
-                      : entry.kind === 'food'
-                        ? '(alimento eliminado)'
-                        : entry.manualName
                   return (
-                    <div key={entry.id} className="nutrition-entry-row">
-                      <span className="nutrition-entry-info">
-                        <strong>{title}</strong>
-                        {entry.kind === 'food' && entryFood && (
-                          <span className="finance-transaction-subtitle">
-                            {entry.quantity}{' '}
-                            {entryFood.servingUnit === 'unidad' ? 'unidad' : entryFood.servingUnit}
-                          </span>
+                    <div key={entry.id}>
+                      <EntryRow
+                        entry={entry}
+                        food={entryFood}
+                        isDragging={draggingId === entry.id}
+                        dragOffset={draggingId === entry.id ? dragOffset : null}
+                        showDetail={expandedEntryId === entry.id}
+                        registerRef={(el) => {
+                          if (el) rowRefs.current.set(entry.id, el)
+                          else rowRefs.current.delete(entry.id)
+                        }}
+                        onPointerDown={(e) => handlePointerDown(entry.id, e)}
+                        onPointerMove={handlePointerMove}
+                        onPointerUp={handlePointerUp}
+                        onToggleDetail={() => {
+                          if (consumeJustDragged()) return
+                          setExpandedEntryId((prev) => (prev === entry.id ? null : entry.id))
+                        }}
+                        onDelete={() => void softDeleteTemplateEntry(entry.id)}
+                      />
+                      {expandedEntryId === entry.id &&
+                        (entry.kind === 'manual' || entryFood) && (
+                          <EntryEditor
+                            entry={entry}
+                            food={entryFood}
+                            onSaveQuantity={async (quantity) => {
+                              await updateTemplateFoodEntryQuantity(entry.id, quantity)
+                              setExpandedEntryId(null)
+                            }}
+                            onSaveManual={async (input) => {
+                              await updateTemplateManualEntry(entry.id, {
+                                ...input,
+                                notes: entry.notes,
+                              })
+                              setExpandedEntryId(null)
+                            }}
+                          />
                         )}
-                      </span>
-                      <span className="nutrition-entry-macros">
-                        {formatNutrient(entry.calories)} kcal
-                      </span>
-                      <button
-                        type="button"
-                        className="icon-button"
-                        aria-label="Eliminar de la plantilla"
-                        onClick={() => void softDeleteTemplateEntry(entry.id)}
-                      >
-                        ×
-                      </button>
                     </div>
                   )
                 })}
