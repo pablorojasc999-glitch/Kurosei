@@ -41,3 +41,13 @@ export function IconFoodLibrary() {
     </svg>
   )
 }
+
+export function IconGoals() {
+  return (
+    <svg {...ICON_PROPS}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" />
+    </svg>
+  )
+}

@@ -10,9 +10,11 @@ import type {
   NutrientProfile,
   NutritionEntry,
   NutritionEntryKind,
+  NutritionGoalPlan,
   ServingUnit,
   WaterEntry,
 } from '../domain/types'
+import { findActivePlan } from '../lib/goalPlans'
 import { scaleMacros, sumMacros, type MacroTotals } from '../lib/macros'
 import { moveItem, reindex } from '../lib/reorder'
 
@@ -125,6 +127,18 @@ export async function listEntriesForDate(date: string): Promise<NutritionEntry[]
     .filter((e) => e.deletedAt === null)
     .toArray()
   return entries.sort((a, b) => a.order - b.order)
+}
+
+/** All entries within `[startDate, endDate]` inclusive — used to compute the week strip's per-day status without one query per day. */
+export async function listEntriesForDateRange(
+  startDate: string,
+  endDate: string,
+): Promise<NutritionEntry[]> {
+  return db.nutrition_entries
+    .where('date')
+    .between(startDate, endDate, true, true)
+    .filter((e) => e.deletedAt === null)
+    .toArray()
 }
 
 export function getEntryMacroTotals(entries: MacroTotals[]): MacroTotals {
@@ -507,4 +521,53 @@ export async function applyTemplateToDate(templateId: string, date: string): Pro
 export async function softDeleteMealTemplate(id: string): Promise<void> {
   const timestamp = nowIso()
   await db.nutrition_meal_templates.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+}
+
+// ---------------------------------------------------------------------
+// Goal plans — date-ranged daily targets (calories, macros, water)
+// ---------------------------------------------------------------------
+
+export async function listGoalPlans(): Promise<NutritionGoalPlan[]> {
+  const plans = await db.nutrition_goal_plans.filter((p) => p.deletedAt === null).toArray()
+  return plans.sort((a, b) => b.startDate.localeCompare(a.startDate))
+}
+
+export async function getActiveGoalPlanForDate(date: string): Promise<NutritionGoalPlan | null> {
+  return findActivePlan(await listGoalPlans(), date)
+}
+
+export interface GoalPlanInput {
+  name: string
+  startDate: string
+  endDate: string | null
+  targetCalories: number
+  targetProteinG: number
+  targetCarbsG: number
+  targetFatG: number
+  targetWaterMl: number
+}
+
+export async function createGoalPlan(input: GoalPlanInput): Promise<NutritionGoalPlan> {
+  const siblings = await listGoalPlans()
+  const nextOrder = siblings.length ? Math.max(...siblings.map((p) => p.order)) + 1 : 0
+  const timestamp = nowIso()
+  const plan: NutritionGoalPlan = {
+    id: generateId(),
+    ...input,
+    order: nextOrder,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+  }
+  await db.nutrition_goal_plans.add(plan)
+  return plan
+}
+
+export async function updateGoalPlan(id: string, input: GoalPlanInput): Promise<void> {
+  await db.nutrition_goal_plans.update(id, { ...input, updatedAt: nowIso() })
+}
+
+export async function softDeleteGoalPlan(id: string): Promise<void> {
+  const timestamp = nowIso()
+  await db.nutrition_goal_plans.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }

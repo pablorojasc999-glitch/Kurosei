@@ -109,7 +109,7 @@ export function PlantillasPage() {
               <div className="nutrition-meal-section-header">
                 <h2>{section.name}</h2>
                 <span className="nutrition-meal-section-totals">
-                  {formatNutrient(sectionTotals.calories)} kcal · P{' '}
+                  🔥 {formatNutrient(sectionTotals.calories)} kcal · P{' '}
                   {formatNutrient(sectionTotals.proteinG)} · C {formatNutrient(sectionTotals.carbsG)} ·
                   G {formatNutrient(sectionTotals.fatG)}
                 </span>
@@ -176,10 +176,11 @@ export function PlantillasPage() {
               ) : (
                 <button
                   type="button"
-                  className="collapsible-toggle"
+                  className="nutrition-add-pill"
+                  aria-label={`Agregar a ${section.name}`}
                   onClick={() => setAddingToSectionId(section.id)}
                 >
-                  + Agregar a {section.name}
+                  +
                 </button>
               )}
             </section>
