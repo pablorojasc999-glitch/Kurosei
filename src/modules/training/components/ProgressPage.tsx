@@ -446,13 +446,15 @@ export function ProgressPage() {
           <ul className="pr-table">
             {personalRecords.map((pr) => (
               <li key={pr.exerciseId} className="pr-row">
-                <span>{exerciseName(pr.exerciseId)}</span>
-                <span className="numeric">
-                  {pr.maxWeight} kg
-                  {pr.maxWeightReps !== null && ` × ${pr.maxWeightReps}`}
-                  {pr.maxWeightRpe !== null && ` · RPE ${pr.maxWeightRpe}`}
+                <span className="pr-row-name">{exerciseName(pr.exerciseId)}</span>
+                <span className="pr-row-stats">
+                  <span className="numeric">
+                    {pr.maxWeight} kg
+                    {pr.maxWeightReps !== null && ` × ${pr.maxWeightReps}`}
+                    {pr.maxWeightRpe !== null && ` · RPE ${pr.maxWeightRpe}`}
+                  </span>
+                  <span className="numeric pr-row-e1rm">e1RM {Math.round(pr.maxE1rm)}</span>
                 </span>
-                <span className="numeric">e1RM {Math.round(pr.maxE1rm)}</span>
               </li>
             ))}
           </ul>
