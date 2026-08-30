@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
-import type { FoodItem, NutritionEntry } from '../domain/types'
+import type { FoodItem, NutritionEntryKind } from '../domain/types'
 import { FoodDetail } from './FoodDetail'
 
 export interface ManualEditValues {
@@ -11,8 +11,19 @@ export interface ManualEditValues {
   fatG: number
 }
 
+/** Shape shared by `NutritionEntry` and `MealTemplateEntry` — everything this editor reads, regardless of which one it's editing. */
+interface EditableEntry {
+  kind: NutritionEntryKind
+  quantity: number | null
+  manualName: string
+  calories: number
+  proteinG: number
+  carbsG: number
+  fatG: number
+}
+
 interface EntryEditorProps {
-  entry: NutritionEntry
+  entry: EditableEntry
   food: FoodItem | undefined
   onSaveQuantity: (quantity: number) => Promise<void>
   onSaveManual: (input: ManualEditValues) => Promise<void>
