@@ -2731,6 +2731,17 @@ section {
   font-size: 13px;
 }
 
+.nutrition-entry-editor {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  margin: 4px 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .nutrition-food-detail {
   background: var(--surface-2);
   border: 1px solid var(--border);
