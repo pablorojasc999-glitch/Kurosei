@@ -12,6 +12,7 @@ import { listCardioSessions } from '../db/cardioRepository'
 import { findDayByDate } from '../db/planningRepository'
 import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { toDateKey } from '../lib/calendarGrid'
+import { formatNutrient } from '../../nutrition/lib/nutrients'
 import type { Sex } from '../domain/types'
 
 interface ProfileFormState {
@@ -326,19 +327,19 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <div className="finance-summary-row">
             <div className="finance-summary-card">
               <span>Calorías</span>
-              <strong>{dailyLog?.calories ?? 0}</strong>
+              <strong>{formatNutrient(dailyLog?.calories ?? 0)}</strong>
             </div>
             <div className="finance-summary-card">
               <span>Proteínas</span>
-              <strong>{dailyLog?.proteinG ?? 0} g</strong>
+              <strong>{formatNutrient(dailyLog?.proteinG ?? 0)} g</strong>
             </div>
             <div className="finance-summary-card">
               <span>Carbos</span>
-              <strong>{dailyLog?.carbsG ?? 0} g</strong>
+              <strong>{formatNutrient(dailyLog?.carbsG ?? 0)} g</strong>
             </div>
             <div className="finance-summary-card">
               <span>Grasas</span>
-              <strong>{dailyLog?.fatG ?? 0} g</strong>
+              <strong>{formatNutrient(dailyLog?.fatG ?? 0)} g</strong>
             </div>
           </div>
         </div>
@@ -354,7 +355,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         </label>
         <div className="bitacora-nutrition-summary">
           <span className="bitacora-nutrition-summary-label">Agua — desde Nutrición</span>
-          <strong>{(dailyLog?.waterLiters ?? 0).toLocaleString('es-CL')} L</strong>
+          <strong>{formatNutrient(dailyLog?.waterLiters ?? 0)} L</strong>
         </div>
         <label>
           Pasos

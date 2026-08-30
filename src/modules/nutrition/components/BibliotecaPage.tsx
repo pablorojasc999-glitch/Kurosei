@@ -3,39 +3,13 @@ import { useState } from 'react'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { createFood, listFoods, softDeleteFood, updateFood } from '../db/nutritionRepository'
-import type { FoodItem, NutrientProfile, ServingUnit } from '../domain/types'
+import type { FoodItem, ServingUnit } from '../domain/types'
+import { MICRO_FIELDS, type MicroFieldKey, formatNutrient } from '../lib/nutrients'
 
 function parseNum(value: string): number | null {
   const trimmed = value.trim()
   return trimmed === '' ? null : Number(trimmed)
 }
-
-type MicroFieldKey = Exclude<keyof NutrientProfile, 'calories' | 'proteinG' | 'carbsG' | 'fatG'>
-
-const MICRO_FIELDS: Array<{ key: MicroFieldKey; label: string }> = [
-  { key: 'saturatedFatG', label: 'Grasas saturadas (g)' },
-  { key: 'transFatG', label: 'Grasas trans (g)' },
-  { key: 'fiberG', label: 'Fibra (g)' },
-  { key: 'sugarG', label: 'Azúcares (g)' },
-  { key: 'sodiumMg', label: 'Sodio (mg)' },
-  { key: 'cholesterolMg', label: 'Colesterol (mg)' },
-  { key: 'potassiumMg', label: 'Potasio (mg)' },
-  { key: 'calciumMg', label: 'Calcio (mg)' },
-  { key: 'ironMg', label: 'Hierro (mg)' },
-  { key: 'magnesiumMg', label: 'Magnesio (mg)' },
-  { key: 'zincMg', label: 'Zinc (mg)' },
-  { key: 'vitaminAMcg', label: 'Vitamina A (mcg)' },
-  { key: 'vitaminCMg', label: 'Vitamina C (mg)' },
-  { key: 'vitaminDMcg', label: 'Vitamina D (mcg)' },
-  { key: 'vitaminEMg', label: 'Vitamina E (mg)' },
-  { key: 'vitaminKMcg', label: 'Vitamina K (mcg)' },
-  { key: 'vitaminB1Mg', label: 'Vitamina B1 (mg)' },
-  { key: 'vitaminB2Mg', label: 'Vitamina B2 (mg)' },
-  { key: 'vitaminB3Mg', label: 'Vitamina B3 (mg)' },
-  { key: 'vitaminB6Mg', label: 'Vitamina B6 (mg)' },
-  { key: 'vitaminB9Mcg', label: 'Vitamina B9 / Folato (mcg)' },
-  { key: 'vitaminB12Mcg', label: 'Vitamina B12 (mcg)' },
-]
 
 interface FoodFormState {
   name: string
@@ -291,9 +265,9 @@ export function BibliotecaPage() {
             </button>
             {showMicros && (
               <div className="micronutrient-grid">
-                {MICRO_FIELDS.map(({ key, label }) => (
+                {MICRO_FIELDS.map(({ key, label, unit }) => (
                   <label key={key}>
-                    {label}
+                    {label} ({unit})
                     <input
                       type="number"
                       step="any"
@@ -336,7 +310,7 @@ export function BibliotecaPage() {
                 </strong>{' '}
                 {food.brand && <span className="tag">{food.brand}</span>}
                 <div className="finance-transaction-subtitle">
-                  {food.calories} kcal por {food.servingAmount}{' '}
+                  {formatNutrient(food.calories)} kcal por {food.servingAmount}{' '}
                   {food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}
                 </div>
               </div>

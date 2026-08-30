@@ -1,21 +1,25 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useRef, useState } from 'react'
-import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { addDays, startOfDay, toDateKey } from '../../training/lib/calendarGrid'
 import { DayHeaderLabel } from '../../training/components/DayHeaderLabel'
 import {
+  addFoodEntry,
+  addManualEntry,
+  applyTemplateToDate,
   createMealSection,
   listEntriesForDate,
   listFoods,
   listMealSections,
+  listMealTemplates,
   moveEntry,
-  saveDateAsTemplate,
   softDeleteEntry,
 } from '../db/nutritionRepository'
 import type { NutritionEntry } from '../domain/types'
 import { sumMacros } from '../lib/macros'
+import { formatNutrient } from '../lib/nutrients'
 import { AddEntryForm } from './AddEntryForm'
 import { EntryRow } from './EntryRow'
+import { FoodDetail } from './FoodDetail'
 
 const LONG_PRESS_MS = 350
 const MOVE_CANCEL_THRESHOLD_PX = 10
@@ -36,16 +40,14 @@ export function RegistroPage() {
   const sections = useLiveQuery(() => listMealSections(), [])
   const entries = useLiveQuery(() => listEntriesForDate(dateKey), [dateKey])
   const foods = useLiveQuery(() => listFoods(), [])
+  const templates = useLiveQuery(() => listMealTemplates(), [])
   const foodById = new Map((foods ?? []).map((f) => [f.id, f]))
 
   const [addingToSectionId, setAddingToSectionId] = useState<string | null>(null)
   const [showNewSection, setShowNewSection] = useState(false)
   const [newSectionName, setNewSectionName] = useState('')
-  const [showSaveTemplate, setShowSaveTemplate] = useState(false)
-  const [templateName, setTemplateName] = useState('')
-  const [templateEmoji, setTemplateEmoji] = useState('')
-  const [templateError, setTemplateError] = useState<string | null>(null)
-  const { isSubmitting: savingTemplate, guard: guardTemplate } = useSubmitGuard()
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null)
 
   // --- Long-press drag: reorder within a meal, or move to a different one ---
   const dragMeta = useRef<DragMeta | null>(null)
@@ -150,24 +152,9 @@ export function RegistroPage() {
     setShowNewSection(false)
   }
 
-  async function handleSaveTemplate(e: React.FormEvent) {
-    e.preventDefault()
-    setTemplateError(null)
-    await guardTemplate(async () => {
-      try {
-        const name = templateName.trim()
-        if (!name) throw new Error('El nombre no puede estar vacío.')
-        if ((entries ?? []).length === 0) {
-          throw new Error('Este día todavía no tiene nada registrado.')
-        }
-        await saveDateAsTemplate(dateKey, name, templateEmoji.trim())
-        setShowSaveTemplate(false)
-        setTemplateName('')
-        setTemplateEmoji('')
-      } catch (err) {
-        setTemplateError(err instanceof Error ? err.message : 'Error desconocido')
-      }
-    })
+  async function handleApplyTemplate(templateId: string) {
+    await applyTemplateToDate(templateId, dateKey)
+    setShowTemplatePicker(false)
   }
 
   const dayTotals = sumMacros(entries ?? [])
@@ -199,19 +186,19 @@ export function RegistroPage() {
       <div className="finance-summary-row">
         <div className="finance-summary-card">
           <span>Calorías</span>
-          <strong>{Math.round(dayTotals.calories)}</strong>
+          <strong>{formatNutrient(dayTotals.calories)}</strong>
         </div>
         <div className="finance-summary-card">
           <span>Proteínas</span>
-          <strong>{Math.round(dayTotals.proteinG)} g</strong>
+          <strong>{formatNutrient(dayTotals.proteinG)} g</strong>
         </div>
         <div className="finance-summary-card">
           <span>Carbos</span>
-          <strong>{Math.round(dayTotals.carbsG)} g</strong>
+          <strong>{formatNutrient(dayTotals.carbsG)} g</strong>
         </div>
         <div className="finance-summary-card">
           <span>Grasas</span>
-          <strong>{Math.round(dayTotals.fatG)} g</strong>
+          <strong>{formatNutrient(dayTotals.fatG)} g</strong>
         </div>
       </div>
 
@@ -224,8 +211,9 @@ export function RegistroPage() {
           <section key={section.id} className="nutrition-meal-section">
             <div className="nutrition-meal-section-header">
               <h2>{section.name}</h2>
-              <span className="finance-transaction-subtitle">
-                {Math.round(sectionTotals.calories)} kcal
+              <span className="nutrition-meal-section-totals">
+                {formatNutrient(sectionTotals.calories)} kcal · P {formatNutrient(sectionTotals.proteinG)} ·
+                C {formatNutrient(sectionTotals.carbsG)} · G {formatNutrient(sectionTotals.fatG)}
               </span>
             </div>
             <div
@@ -237,32 +225,47 @@ export function RegistroPage() {
                 dropTarget?.sectionId === section.id ? ' nutrition-entry-list--drop-target' : ''
               }`}
             >
-              {sectionEntries.map((entry) => (
-                <EntryRow
-                  key={entry.id}
-                  entry={entry}
-                  food={entry.foodId ? foodById.get(entry.foodId) : undefined}
-                  isDragging={draggingId === entry.id}
-                  dragOffset={draggingId === entry.id ? dragOffset : null}
-                  registerRef={(el) => {
-                    if (el) rowRefs.current.set(entry.id, el)
-                    else rowRefs.current.delete(entry.id)
-                  }}
-                  onPointerDown={(e) => handlePointerDown(entry.id, e)}
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={handlePointerUp}
-                  onDelete={() => void softDeleteEntry(entry.id)}
-                />
-              ))}
+              {sectionEntries.map((entry) => {
+                const entryFood = entry.foodId ? foodById.get(entry.foodId) : undefined
+                return (
+                  <div key={entry.id}>
+                    <EntryRow
+                      entry={entry}
+                      food={entryFood}
+                      isDragging={draggingId === entry.id}
+                      dragOffset={draggingId === entry.id ? dragOffset : null}
+                      showDetail={expandedEntryId === entry.id}
+                      registerRef={(el) => {
+                        if (el) rowRefs.current.set(entry.id, el)
+                        else rowRefs.current.delete(entry.id)
+                      }}
+                      onPointerDown={(e) => handlePointerDown(entry.id, e)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onToggleDetail={() =>
+                        setExpandedEntryId((prev) => (prev === entry.id ? null : entry.id))
+                      }
+                      onDelete={() => void softDeleteEntry(entry.id)}
+                    />
+                    {expandedEntryId === entry.id && entryFood && entry.quantity !== null && (
+                      <FoodDetail food={entryFood} quantity={entry.quantity} />
+                    )}
+                  </div>
+                )
+              })}
               {sectionEntries.length === 0 && (
                 <p className="empty-hint">Sin registros todavía.</p>
               )}
             </div>
             {addingToSectionId === section.id ? (
               <AddEntryForm
-                date={dateKey}
-                sectionId={section.id}
                 foods={foods ?? []}
+                onAddFood={async (foodId, quantity, notes) => {
+                  await addFoodEntry({ date: dateKey, sectionId: section.id, foodId, quantity, notes })
+                }}
+                onAddManual={async (input) => {
+                  await addManualEntry({ date: dateKey, sectionId: section.id, ...input })
+                }}
                 onDone={() => setAddingToSectionId(null)}
               />
             ) : (
@@ -301,41 +304,30 @@ export function RegistroPage() {
         </button>
       )}
 
-      {showSaveTemplate ? (
-        <form onSubmit={handleSaveTemplate} className="entity-form">
-          <label>
-            Nombre de la plantilla
-            <input
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              placeholder="Ej. Día de entrenamiento"
-              autoFocus
-              required
-            />
-          </label>
-          <label>
-            Emoji (opcional)
-            <input
-              value={templateEmoji}
-              onChange={(e) => setTemplateEmoji(e.target.value)}
-              placeholder="🏋️"
-              maxLength={4}
-            />
-          </label>
-          {templateError && <p className="error">{templateError}</p>}
-          <button type="submit" disabled={savingTemplate}>
-            Guardar plantilla
-          </button>
-          <button type="button" onClick={() => setShowSaveTemplate(false)}>
+      {showTemplatePicker ? (
+        <div className="nutrition-template-picker">
+          <span className="bitacora-nutrition-summary-label">Elegí una plantilla</span>
+          <ul>
+            {templates?.map((template) => (
+              <li key={template.id}>
+                <button type="button" onClick={() => void handleApplyTemplate(template.id)}>
+                  {template.emoji} {template.name}
+                </button>
+              </li>
+            ))}
+            {templates?.length === 0 && (
+              <p className="empty-hint">Todavía no creaste ninguna plantilla.</p>
+            )}
+          </ul>
+          <button type="button" onClick={() => setShowTemplatePicker(false)}>
             Cancelar
           </button>
-        </form>
+        </div>
       ) : (
-        <button type="button" onClick={() => setShowSaveTemplate(true)}>
-          Guardar este día como plantilla
+        <button type="button" onClick={() => setShowTemplatePicker(true)}>
+          Cargar plantilla
         </button>
       )}
     </div>
   )
 }
-

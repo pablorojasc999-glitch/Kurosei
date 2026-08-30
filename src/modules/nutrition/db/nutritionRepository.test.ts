@@ -3,20 +3,23 @@ import { db } from '../../../shared/db/database'
 import { getDailyLog } from '../../training/db/bitacoraRepository'
 import {
   addFoodEntry,
+  addFoodEntryToTemplate,
   addManualEntry,
+  addManualEntryToTemplate,
   addWaterEntry,
   applyTemplateToDate,
   createFood,
   createMealSection,
+  createMealTemplate,
   listEntriesForDate,
   listFoods,
   listMealTemplates,
   listTemplateEntries,
   listWaterEntriesForDate,
   moveEntry,
-  saveDateAsTemplate,
   softDeleteEntry,
   softDeleteFood,
+  softDeleteTemplateEntry,
   softDeleteWaterEntry,
   updateFoodEntryQuantity,
 } from './nutritionRepository'
@@ -243,21 +246,44 @@ describe('water', () => {
 })
 
 describe('meal templates', () => {
-  it('saves a date as a template and applies it onto a different date, appending after what is already there', async () => {
+  it('builds a template from scratch (food + manual entries) and applies it onto a date, appending after what is already there', async () => {
     const section = await createMealSection('Desayuno')
-    await addManualEntry({
-      date: '2026-08-01',
+    const food = await createFood({
+      name: 'Avena',
+      brand: '',
+      emoji: '🌾',
+      servingAmount: 30,
+      servingUnit: 'g',
+      calories: 120,
+      proteinG: 4,
+      carbsG: 20,
+      fatG: 2,
+      ...NO_MICROS,
+    })
+
+    const template = await createMealTemplate('Día de entrenamiento', '🏋️')
+    expect((await listMealTemplates()).map((t) => t.name)).toEqual(['Día de entrenamiento'])
+
+    await addFoodEntryToTemplate({
+      templateId: template.id,
       sectionId: section.id,
-      manualName: 'Avena con leche',
-      calories: 300,
-      proteinG: 10,
-      carbsG: 40,
-      fatG: 8,
+      foodId: food.id,
+      quantity: 60,
       notes: '',
     })
-    const template = await saveDateAsTemplate('2026-08-01', 'Día de entrenamiento', '🏋️')
-    expect((await listMealTemplates()).map((t) => t.name)).toEqual(['Día de entrenamiento'])
-    expect(await listTemplateEntries(template.id)).toHaveLength(1)
+    await addManualEntryToTemplate({
+      templateId: template.id,
+      sectionId: section.id,
+      manualName: 'Leche',
+      calories: 60,
+      proteinG: 3,
+      carbsG: 5,
+      fatG: 2,
+      notes: '',
+    })
+    const templateEntries = await listTemplateEntries(template.id)
+    expect(templateEntries.map((e) => e.manualName || 'Avena')).toEqual(['Avena', 'Leche'])
+    expect(templateEntries[0].calories).toBe(240) // scaled 30g -> 60g
 
     // the target date already has something logged, in the same section
     await addManualEntry({
@@ -273,8 +299,11 @@ describe('meal templates', () => {
 
     await applyTemplateToDate(template.id, '2026-08-15')
     const entries = await listEntriesForDate('2026-08-15')
-    expect(entries.map((e) => e.manualName)).toEqual(['Café', 'Avena con leche'])
+    expect(entries.map((e) => e.manualName || 'Avena')).toEqual(['Café', 'Avena', 'Leche'])
     const log = await getDailyLog('2026-08-15')
-    expect(log?.calories).toBe(305)
+    expect(log?.calories).toBe(305) // 5 + 240 + 60
+
+    await softDeleteTemplateEntry(templateEntries[1].id)
+    expect(await listTemplateEntries(template.id)).toHaveLength(1)
   })
 })
