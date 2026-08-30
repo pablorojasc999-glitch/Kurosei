@@ -2379,6 +2379,10 @@ section {
   outline: 1px dashed var(--accent-border);
 }
 
+.nutrition-entry-row--clickable {
+  cursor: pointer;
+}
+
 .nutrition-entry-row {
   display: flex;
   align-items: center;

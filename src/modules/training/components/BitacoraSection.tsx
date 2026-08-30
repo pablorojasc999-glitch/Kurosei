@@ -343,6 +343,15 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             </div>
           </div>
         </div>
+        <div className="bitacora-nutrition-summary">
+          <span className="bitacora-nutrition-summary-label">Agua — desde Nutrición</span>
+          <div className="finance-summary-row">
+            <div className="finance-summary-card">
+              <span>Agua</span>
+              <strong>{formatNutrient(dailyLog?.waterLiters ?? 0)} L</strong>
+            </div>
+          </div>
+        </div>
         <label>
           Horas de sueño
           <input
@@ -353,10 +362,6 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             onChange={(e) => setLogForm((prev) => ({ ...prev, sleepHours: e.target.value }))}
           />
         </label>
-        <div className="bitacora-nutrition-summary">
-          <span className="bitacora-nutrition-summary-label">Agua — desde Nutrición</span>
-          <strong>{formatNutrient(dailyLog?.waterLiters ?? 0)} L</strong>
-        </div>
         <label>
           Pasos
           <input

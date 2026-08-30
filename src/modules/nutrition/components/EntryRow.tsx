@@ -1,4 +1,5 @@
 import type { FoodItem, NutritionEntry } from '../domain/types'
+import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { formatNutrient } from '../lib/nutrients'
 
 interface EntryRowProps {
@@ -38,11 +39,14 @@ export function EntryRow({
     entry.kind === 'food' && food
       ? `${entry.quantity} ${food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}`
       : null
+  const canShowDetail = entry.kind === 'food' && !!food
 
   return (
     <div
       ref={registerRef}
-      className={`nutrition-entry-row${isDragging ? ' nutrition-entry-row--dragging' : ''}`}
+      className={`nutrition-entry-row${isDragging ? ' nutrition-entry-row--dragging' : ''}${
+        canShowDetail ? ' nutrition-entry-row--clickable' : ''
+      }`}
       style={
         isDragging && dragOffset
           ? { transform: `translate(${dragOffset.dx}px, ${dragOffset.dy}px)` }
@@ -52,6 +56,11 @@ export function EntryRow({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
+      onClick={canShowDetail ? onToggleDetail : undefined}
+      role={canShowDetail ? 'button' : undefined}
+      tabIndex={canShowDetail ? 0 : undefined}
+      aria-expanded={canShowDetail ? showDetail : undefined}
+      aria-label={canShowDetail ? (showDetail ? 'Ocultar detalle del alimento' : 'Ver detalle del alimento') : undefined}
     >
       <span className="nutrition-entry-drag-handle" aria-hidden="true">
         ⠿
@@ -61,24 +70,15 @@ export function EntryRow({
         {subtitle && <span className="finance-transaction-subtitle">{subtitle}</span>}
       </span>
       <span className="nutrition-entry-macros">{formatNutrient(entry.calories)} kcal</span>
-      {entry.kind === 'food' && food && (
-        <button
-          type="button"
+      <span onClick={(e) => e.stopPropagation()}>
+        <ConfirmDeleteButton
+          variant="icon"
           className="icon-button"
-          aria-label={showDetail ? 'Ocultar detalle' : 'Ver detalle del alimento'}
-          onClick={onToggleDetail}
-        >
-          ⓘ
-        </button>
-      )}
-      <button
-        type="button"
-        className="icon-button"
-        aria-label="Eliminar registro"
-        onClick={onDelete}
-      >
-        ×
-      </button>
+          label="Eliminar registro"
+          confirmMessage={`¿Eliminar "${title}"?`}
+          onConfirm={onDelete}
+        />
+      </span>
     </div>
   )
 }
