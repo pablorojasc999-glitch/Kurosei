@@ -15,6 +15,8 @@ import {
   listMealTemplates,
   moveEntry,
   softDeleteEntry,
+  updateFoodEntryQuantity,
+  updateManualEntry,
 } from '../db/nutritionRepository'
 import type { NutritionEntry } from '../domain/types'
 import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans'
@@ -22,8 +24,8 @@ import { sumMacros, type MacroTotals } from '../lib/macros'
 import { formatNutrient } from '../lib/nutrients'
 import { weekDates } from '../lib/weekStrip'
 import { AddEntryForm } from './AddEntryForm'
+import { EntryEditor } from './EntryEditor'
 import { EntryRow } from './EntryRow'
-import { FoodDetail } from './FoodDetail'
 import { WeekStrip } from './WeekStrip'
 
 const LONG_PRESS_MS = 350
@@ -313,9 +315,21 @@ export function RegistroPage() {
                       }
                       onDelete={() => void softDeleteEntry(entry.id)}
                     />
-                    {expandedEntryId === entry.id && entryFood && entry.quantity !== null && (
-                      <FoodDetail food={entryFood} quantity={entry.quantity} />
-                    )}
+                    {expandedEntryId === entry.id &&
+                      (entry.kind === 'manual' || entryFood) && (
+                        <EntryEditor
+                          entry={entry}
+                          food={entryFood}
+                          onSaveQuantity={async (quantity) => {
+                            await updateFoodEntryQuantity(entry.id, quantity)
+                            setExpandedEntryId(null)
+                          }}
+                          onSaveManual={async (input) => {
+                            await updateManualEntry(entry.id, { ...input, notes: entry.notes })
+                            setExpandedEntryId(null)
+                          }}
+                        />
+                      )}
                   </div>
                 )
               })}

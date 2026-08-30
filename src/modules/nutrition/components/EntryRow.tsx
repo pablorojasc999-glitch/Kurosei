@@ -41,13 +41,13 @@ export function EntryRow({
     entry.kind === 'food' && food
       ? `${entry.quantity} ${food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}`
       : null
-  const canShowDetail = entry.kind === 'food' && !!food
+  const canExpand = entry.kind === 'manual' || (entry.kind === 'food' && !!food)
 
   return (
     <div
       ref={registerRef}
       className={`nutrition-entry-row${isDragging ? ' nutrition-entry-row--dragging' : ''}${
-        canShowDetail ? ' nutrition-entry-row--clickable' : ''
+        canExpand ? ' nutrition-entry-row--clickable' : ''
       }`}
       style={
         isDragging && dragOffset
@@ -58,11 +58,11 @@ export function EntryRow({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onClick={canShowDetail ? onToggleDetail : undefined}
-      role={canShowDetail ? 'button' : undefined}
-      tabIndex={canShowDetail ? 0 : undefined}
-      aria-expanded={canShowDetail ? showDetail : undefined}
-      aria-label={canShowDetail ? (showDetail ? 'Ocultar detalle del alimento' : 'Ver detalle del alimento') : undefined}
+      onClick={canExpand ? onToggleDetail : undefined}
+      role={canExpand ? 'button' : undefined}
+      tabIndex={canExpand ? 0 : undefined}
+      aria-expanded={canExpand ? showDetail : undefined}
+      aria-label={canExpand ? (showDetail ? 'Cerrar edición' : 'Editar registro') : undefined}
     >
       <span className="nutrition-entry-drag-handle" aria-hidden="true">
         ⠿
