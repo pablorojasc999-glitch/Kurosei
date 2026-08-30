@@ -121,12 +121,12 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
             Editar plan del día
           </button>
 
-          <section className="elevated-section">
+          <section>
             <h2>Fuerza</h2>
             <SessionView dayId={day.id} />
           </section>
 
-          <section className="elevated-section">
+          <section>
             <h2>Cardio</h2>
             <CardioView dayId={day.id} />
           </section>
