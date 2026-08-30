@@ -435,7 +435,7 @@ export function PeriodizationPage({
       </nav>
 
       {!macrocycleId && (
-        <section>
+        <section className="elevated-section">
           <h2>Macrociclos</h2>
           <ul className="entity-list">
             {macrocycles?.map((m) => (
@@ -473,13 +473,13 @@ export function PeriodizationPage({
               <button type="button" onClick={resetMacroForm}>Cancelar</button>
             </form>
           ) : (
-            <button type="button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
+            <button type="button" className="finance-add-button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
           )}
         </section>
       )}
 
       {macrocycleId && !mesocycleId && (
-        <section>
+        <section className="elevated-section">
           <h2>Mesociclos de {selectedMacrocycle?.name}</h2>
           <ul className="entity-list">
             {mesocycles?.map((m) => (
@@ -521,13 +521,13 @@ export function PeriodizationPage({
               <button type="button" onClick={resetMesoForm}>Cancelar</button>
             </form>
           ) : (
-            <button type="button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
+            <button type="button" className="finance-add-button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
           )}
         </section>
       )}
 
       {mesocycleId && !weekId && (
-        <section>
+        <section className="elevated-section">
           <h2>Semanas de {selectedMesocycle?.name}</h2>
           <ul className="entity-list">
             {weeks?.map((w, index) => (
@@ -569,12 +569,12 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          <button type="button" onClick={handleCreateWeek} disabled={isCreatingWeek}>+ Agregar semana</button>
+          <button type="button" className="finance-add-button" onClick={handleCreateWeek} disabled={isCreatingWeek}>+ Agregar semana</button>
         </section>
       )}
 
       {weekId && !dayId && (
-        <section>
+        <section className="elevated-section">
           <h2>Días de la semana {selectedWeek ? selectedWeek.order + 1 : ''}</h2>
           <ul className="entity-list">
             {days?.map((d) => (
@@ -632,13 +632,13 @@ export function PeriodizationPage({
               <button type="button" onClick={resetDayForm}>Cancelar</button>
             </form>
           ) : (
-            <button type="button" onClick={openNewDayForm}>+ Agregar día</button>
+            <button type="button" className="finance-add-button" onClick={openNewDayForm}>+ Agregar día</button>
           )}
         </section>
       )}
 
       {dayId && (
-        <section>
+        <section className="elevated-section">
           <div className="planned-exercise-header">
             <h2>Plan del día</h2>
             <button

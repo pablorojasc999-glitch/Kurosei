@@ -363,7 +363,7 @@ export function ProgressPage() {
     <div className="page">
       <h1>Progreso</h1>
 
-      <section>
+      <section className="elevated-section">
         <h2>Periodo</h2>
         <div className="sub-tabs">
           {(Object.keys(SCOPE_KIND_LABELS) as ScopeKind[]).map((kind) => (
@@ -438,7 +438,7 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Récords personales</h2>
         {personalRecords.length === 0 ? (
           <p className="empty-hint">Sin series registradas en este periodo.</p>
@@ -459,13 +459,13 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Mapa corporal</h2>
         <p className="empty-hint">Solo cuentan las series con RPE ≥ 6.</p>
         <BodyMap valuesByRegion={valuesByRegion} maxValue={maxRegionValue} />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Series por grupo muscular</h2>
         {volumeByGroup.length === 0 ? (
           <p className="empty-hint">Sin series en este periodo.</p>
@@ -489,7 +489,7 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Estrés por grupo muscular</h2>
         {stressByGroup.length === 0 ? (
           <p className="empty-hint">Sin series con RPE cargado en este periodo.</p>
@@ -511,7 +511,7 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Tendencia de e1RM</h2>
         {allExerciseIds.length === 0 ? (
           <p className="empty-hint">
@@ -543,7 +543,7 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Peso corporal</h2>
         <LineChart
           domainDates={domainDates}
@@ -553,7 +553,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Balance calórico</h2>
         {!profileComplete ? (
           <p className="empty-hint">
@@ -570,7 +570,7 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Cardio: calorías quemadas</h2>
         <LineChart
           domainDates={domainDates}
@@ -580,7 +580,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Cardio: distancia</h2>
         <LineChart
           domainDates={domainDates}
@@ -590,7 +590,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Macronutrientes</h2>
         <LineChart
           domainDates={domainDates}
@@ -600,7 +600,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Sueño</h2>
         <LineChart
           domainDates={domainDates}
@@ -610,7 +610,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Estrés, estimulantes y fatiga</h2>
         <LineChart
           domainDates={domainDates}
@@ -619,7 +619,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Pasos</h2>
         <LineChart
           domainDates={domainDates}
@@ -629,7 +629,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Agua</h2>
         <LineChart
           domainDates={domainDates}
@@ -639,7 +639,7 @@ export function ProgressPage() {
         />
       </section>
 
-      <section>
+      <section className="elevated-section">
         <h2>Suplementos</h2>
         {loggedDays.length === 0 ? (
           <p className="empty-hint">Sin bitácora registrada en este periodo.</p>
