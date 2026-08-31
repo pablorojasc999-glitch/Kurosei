@@ -1703,6 +1703,10 @@ section {
 
 .line-chart-svg {
   flex: 1;
+  /* Without this, a flex item that's a replaced element (like <svg>) floors
+     its width at the viewBox's intrinsic size regardless of `width: 100%`,
+     overflowing a container narrower than that. */
+  min-width: 0;
   width: 100%;
   height: 150px;
   display: block;
