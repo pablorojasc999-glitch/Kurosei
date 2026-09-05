@@ -41,34 +41,33 @@ import { AccountPanel } from './modules/sync/components/AccountPanel'
 import { AppSidebar, type AppModule } from './shared/components/AppSidebar'
 import './App.css'
 
-type Tab =
-  | 'registro'
-  | 'periodizacion'
-  | 'calendario'
-  | 'progreso'
-  | 'biblioteca'
-  | 'calculadora'
+type Tab = 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca' | 'calculadora'
 
-type FinanceTab = 'cuentas' | 'categorias' | 'transacciones' | 'estadisticas'
+type FinanceTab = 'cuentas' | 'categorias' | 'estadisticas'
 
-type NutritionTab = 'registro' | 'plantillas' | 'agua' | 'biblioteca' | 'metas'
+type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
+
+type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas'
 
 function App() {
-  const [appModule, setAppModule] = useState<AppModule>('entrenamiento')
+  const [appModule, setAppModule] = useState<AppModule>('registro')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [tab, setTab] = useState<Tab>('registro')
+  const [registroTab, setRegistroTab] = useState<RegistroTab>('entrenamiento')
+  const [tab, setTab] = useState<Tab>('periodizacion')
   const [financeTab, setFinanceTab] = useState<FinanceTab>('cuentas')
-  const [nutritionTab, setNutritionTab] = useState<NutritionTab>('registro')
+  const [nutritionTab, setNutritionTab] = useState<NutritionTab>('plantillas')
   const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
 
   function handleOpenDay(date: Date) {
     setJumpToDate(date)
-    setTab('registro')
+    setAppModule('registro')
+    setRegistroTab('entrenamiento')
   }
 
   function handleEditPlan(dayId: string) {
     setJumpToDayId(dayId)
+    setAppModule('entrenamiento')
     setTab('periodizacion')
   }
 
@@ -88,7 +87,19 @@ function App() {
         </div>
       </header>
       <main className="app-content">
-        {appModule === 'finanzas' ? (
+        {appModule === 'registro' ? (
+          <>
+            <div hidden={registroTab !== 'entrenamiento'}>
+              <RegistroPage jumpToDate={jumpToDate} onEditPlan={handleEditPlan} />
+            </div>
+            <div hidden={registroTab !== 'nutricion'}>
+              <NutritionRegistroPage />
+            </div>
+            <div hidden={registroTab !== 'finanzas'}>
+              <TransaccionesPage />
+            </div>
+          </>
+        ) : appModule === 'finanzas' ? (
           <>
             <div hidden={financeTab !== 'cuentas'}>
               <CuentasPage />
@@ -96,18 +107,12 @@ function App() {
             <div hidden={financeTab !== 'categorias'}>
               <CategoriasPage />
             </div>
-            <div hidden={financeTab !== 'transacciones'}>
-              <TransaccionesPage />
-            </div>
             <div hidden={financeTab !== 'estadisticas'}>
               <EstadisticasPage />
             </div>
           </>
         ) : appModule === 'nutricion' ? (
           <>
-            <div hidden={nutritionTab !== 'registro'}>
-              <NutritionRegistroPage />
-            </div>
             <div hidden={nutritionTab !== 'plantillas'}>
               <PlantillasPage />
             </div>
@@ -123,9 +128,6 @@ function App() {
           </>
         ) : (
           <>
-            <div hidden={tab !== 'registro'}>
-              <RegistroPage jumpToDate={jumpToDate} onEditPlan={handleEditPlan} />
-            </div>
             <div hidden={tab !== 'periodizacion'}>
               <PeriodizationPage
                 jumpToDayId={jumpToDayId}
@@ -147,7 +149,34 @@ function App() {
           </>
         )}
       </main>
-      {appModule === 'finanzas' ? (
+      {appModule === 'registro' ? (
+        <nav className="tabs">
+          <button
+            type="button"
+            className={registroTab === 'entrenamiento' ? 'active' : ''}
+            onClick={() => setRegistroTab('entrenamiento')}
+          >
+            <IconRegistro />
+            Entrenamiento
+          </button>
+          <button
+            type="button"
+            className={registroTab === 'nutricion' ? 'active' : ''}
+            onClick={() => setRegistroTab('nutricion')}
+          >
+            <IconNutritionRegistro />
+            Nutrición
+          </button>
+          <button
+            type="button"
+            className={registroTab === 'finanzas' ? 'active' : ''}
+            onClick={() => setRegistroTab('finanzas')}
+          >
+            <IconTransactions />
+            Finanzas
+          </button>
+        </nav>
+      ) : appModule === 'finanzas' ? (
         <nav className="tabs">
           <button
             type="button"
@@ -167,14 +196,6 @@ function App() {
           </button>
           <button
             type="button"
-            className={financeTab === 'transacciones' ? 'active' : ''}
-            onClick={() => setFinanceTab('transacciones')}
-          >
-            <IconTransactions />
-            Transacciones
-          </button>
-          <button
-            type="button"
             className={financeTab === 'estadisticas' ? 'active' : ''}
             onClick={() => setFinanceTab('estadisticas')}
           >
@@ -184,14 +205,6 @@ function App() {
         </nav>
       ) : appModule === 'nutricion' ? (
         <nav className="tabs">
-          <button
-            type="button"
-            className={nutritionTab === 'registro' ? 'active' : ''}
-            onClick={() => setNutritionTab('registro')}
-          >
-            <IconNutritionRegistro />
-            Registro
-          </button>
           <button
             type="button"
             className={nutritionTab === 'plantillas' ? 'active' : ''}
@@ -227,14 +240,6 @@ function App() {
         </nav>
       ) : (
         <nav className="tabs">
-          <button
-            type="button"
-            className={tab === 'registro' ? 'active' : ''}
-            onClick={() => setTab('registro')}
-          >
-            <IconRegistro />
-            Registro
-          </button>
           <button
             type="button"
             className={tab === 'periodizacion' ? 'active' : ''}
