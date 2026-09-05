@@ -7,6 +7,7 @@ import {
   addManualEntry,
   applyTemplateToDate,
   createMealSection,
+  getEntryMacroTotals,
   listEntriesForDate,
   listEntriesForDateRange,
   listFoods,
@@ -15,12 +16,13 @@ import {
   listMealTemplates,
   moveEntry,
   softDeleteEntry,
+  toggleEntryChecked,
   updateFoodEntryQuantity,
   updateManualEntry,
 } from '../db/nutritionRepository'
 import type { NutritionEntry } from '../domain/types'
 import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans'
-import { sumMacros, type MacroTotals } from '../lib/macros'
+import type { MacroTotals } from '../lib/macros'
 import { formatNutrient } from '../lib/nutrients'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { weekDates } from '../lib/weekStrip'
@@ -114,13 +116,13 @@ export function RegistroPage() {
     setShowTemplatePicker(false)
   }
 
-  const dayTotals = sumMacros(entries ?? [])
+  const dayTotals = getEntryMacroTotals(entries ?? [])
   const activePlan = findActivePlan(goalPlans ?? [], dateKey)
 
   const weekDayStatuses = days.map((date) => {
     const key = toDateKey(date)
     const dayEntries = (weekEntries ?? []).filter((e) => e.date === key)
-    const totals: MacroTotals = sumMacros(dayEntries)
+    const totals: MacroTotals = getEntryMacroTotals(dayEntries)
     const plan = findActivePlan(goalPlans ?? [], key)
     return { date, status: getGoalStatus(plan, totals.calories, dayEntries.length > 0) }
   })
@@ -182,7 +184,7 @@ export function RegistroPage() {
         const sectionEntries = (entries ?? [])
           .filter((e: NutritionEntry) => e.sectionId === section.id)
           .sort((a, b) => a.order - b.order)
-        const sectionTotals = sumMacros(sectionEntries)
+        const sectionTotals = getEntryMacroTotals(sectionEntries)
         return (
           <section key={section.id} className="nutrition-meal-section">
             <div className="nutrition-meal-section-header">
@@ -212,6 +214,8 @@ export function RegistroPage() {
                       isDragging={draggingId === entry.id}
                       dragOffset={draggingId === entry.id ? dragOffset : null}
                       showDetail={expandedEntryId === entry.id}
+                      checked={entry.checked !== false}
+                      onToggleChecked={() => void toggleEntryChecked(entry.id)}
                       registerRef={(el) => {
                         if (el) rowRefs.current.set(entry.id, el)
                         else rowRefs.current.delete(entry.id)

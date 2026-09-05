@@ -280,6 +280,7 @@ create table if not exists "finance_categories" (
 alter table "finance_accounts" add column if not exists "categoryId" uuid;
 alter table "finance_accounts" add column if not exists "revolving" boolean not null default false;
 alter table "finance_categories" add column if not exists "monthlyBudget" double precision;
+alter table "nutrition_entries" add column if not exists "checked" boolean not null default true;
 
 create table if not exists "finance_transactions" (
   "id" uuid primary key,
@@ -366,6 +367,7 @@ create table if not exists "nutrition_entries" (
   "carbsG" double precision not null,
   "fatG" double precision not null,
   "notes" text not null,
+  "checked" boolean not null default true,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz

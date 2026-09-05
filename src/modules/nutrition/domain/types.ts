@@ -81,6 +81,8 @@ export interface NutritionEntry extends SyncedEntity {
   carbsG: number
   fatG: number
   notes: string
+  /** Whether this entry counts toward the day's totals — lets Registro work as a checklist (plan it, then check it off as eaten). Entries from before this field existed have it `undefined`, which counts the same as `true`. */
+  checked: boolean
 }
 
 /** One free-form water log for a calendar date (e.g. "293" ml from a glass) — summed per day, individually deletable. */
