@@ -2525,6 +2525,31 @@ section {
   font-size: 15px;
 }
 
+.nutrition-entry-row--unchecked .nutrition-entry-info {
+  opacity: 0.5;
+}
+
+.nutrition-entry-checkbox {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: transparent;
+  font-size: 13px;
+  padding: 0;
+}
+
+.nutrition-entry-checkbox--checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 .nutrition-add-entry {
   background: var(--surface-3);
   border: 1px solid var(--border);

@@ -26,6 +26,7 @@ import {
   softDeleteGoalPlan,
   softDeleteTemplateEntry,
   softDeleteWaterEntry,
+  toggleEntryChecked,
   updateFoodEntryQuantity,
   updateGoalPlan,
   updateTemplateFoodEntryQuantity,
@@ -180,9 +181,9 @@ describe('entries', () => {
     expect(entry.calories).toBe(800)
   })
 
-  it('writes the day totals through to the daily bitácora log', async () => {
+  it('adds a new entry unchecked, so it does not count toward the day total yet', async () => {
     const section = await createMealSection('Almuerzo')
-    await addManualEntry({
+    const entry = await addManualEntry({
       date: '2026-08-30',
       sectionId: section.id,
       manualName: 'Almuerzo restaurante X',
@@ -192,9 +193,47 @@ describe('entries', () => {
       fatG: 25,
       notes: '',
     })
+    expect(entry.checked).toBe(false)
+    const log = await getDailyLog('2026-08-30')
+    expect(log?.calories).toBe(0)
+  })
+
+  it('writes the day totals through to the daily bitácora log once checked', async () => {
+    const section = await createMealSection('Almuerzo')
+    const entry = await addManualEntry({
+      date: '2026-08-30',
+      sectionId: section.id,
+      manualName: 'Almuerzo restaurante X',
+      calories: 800,
+      proteinG: 40,
+      carbsG: 90,
+      fatG: 25,
+      notes: '',
+    })
+    await toggleEntryChecked(entry.id)
     const log = await getDailyLog('2026-08-30')
     expect(log?.calories).toBe(800)
     expect(log?.proteinG).toBe(40)
+  })
+
+  it('toggling a checked entry back off removes it from the day total', async () => {
+    const section = await createMealSection('Almuerzo')
+    const entry = await addManualEntry({
+      date: '2026-08-30',
+      sectionId: section.id,
+      manualName: 'Almuerzo restaurante X',
+      calories: 800,
+      proteinG: 40,
+      carbsG: 90,
+      fatG: 25,
+      notes: '',
+    })
+    await toggleEntryChecked(entry.id)
+    await toggleEntryChecked(entry.id)
+    const [updated] = await listEntriesForDate('2026-08-30')
+    expect(updated.checked).toBe(false)
+    const log = await getDailyLog('2026-08-30')
+    expect(log?.calories).toBe(0)
   })
 
   it('excludes a soft-deleted entry from the day total', async () => {
@@ -209,6 +248,7 @@ describe('entries', () => {
       fatG: 25,
       notes: '',
     })
+    await toggleEntryChecked(entry.id)
     await softDeleteEntry(entry.id)
     expect(await listEntriesForDate('2026-08-30')).toEqual([])
     const log = await getDailyLog('2026-08-30')
@@ -308,6 +348,9 @@ describe('meal templates', () => {
     await applyTemplateToDate(template.id, '2026-08-15')
     const entries = await listEntriesForDate('2026-08-15')
     expect(entries.map((e) => e.manualName || 'Avena')).toEqual(['Café', 'Avena', 'Leche'])
+    expect(entries.every((e) => e.checked === false)).toBe(true)
+
+    await Promise.all(entries.map((e) => toggleEntryChecked(e.id)))
     const log = await getDailyLog('2026-08-15')
     expect(log?.calories).toBe(305) // 5 + 240 + 60
 

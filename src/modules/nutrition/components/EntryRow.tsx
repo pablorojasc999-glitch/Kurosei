@@ -25,6 +25,9 @@ interface EntryRowProps {
   onPointerUp: (e: React.PointerEvent) => void
   onToggleDetail: () => void
   onDelete: () => void
+  /** Only Registro passes these — whether this entry counts toward the day's totals, and how to flip it. Omitted entirely in Plantillas, where a template has no notion of "already eaten". */
+  checked?: boolean
+  onToggleChecked?: () => void
 }
 
 export function EntryRow({
@@ -39,6 +42,8 @@ export function EntryRow({
   onPointerUp,
   onToggleDetail,
   onDelete,
+  checked,
+  onToggleChecked,
 }: EntryRowProps) {
   const emoji = entry.kind === 'food' && food ? food.emoji : null
   const name =
@@ -58,7 +63,7 @@ export function EntryRow({
       ref={registerRef}
       className={`nutrition-entry-row${isDragging ? ' nutrition-entry-row--dragging' : ''}${
         canExpand ? ' nutrition-entry-row--clickable' : ''
-      }`}
+      }${onToggleChecked && !checked ? ' nutrition-entry-row--unchecked' : ''}`}
       style={
         isDragging && dragOffset
           ? { transform: `translate(${dragOffset.dx}px, ${dragOffset.dy}px)` }
@@ -98,6 +103,20 @@ export function EntryRow({
           <span className="nutrition-entry-macro-item">G {formatNutrient(entry.fatG)}</span>
         </span>
       </span>
+      {onToggleChecked && (
+        <button
+          type="button"
+          className={`nutrition-entry-checkbox${checked ? ' nutrition-entry-checkbox--checked' : ''}`}
+          aria-pressed={checked}
+          aria-label={checked ? 'Desmarcar como consumido' : 'Marcar como consumido'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleChecked()
+          }}
+        >
+          {checked ? '✓' : ''}
+        </button>
+      )}
       <span onClick={(e) => e.stopPropagation()}>
         <ConfirmDeleteButton
           variant="icon"

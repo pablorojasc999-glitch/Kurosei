@@ -141,8 +141,9 @@ export async function listEntriesForDateRange(
     .toArray()
 }
 
-export function getEntryMacroTotals(entries: MacroTotals[]): MacroTotals {
-  return sumMacros(entries)
+/** Only entries the user has checked off count toward the day's totals — entries from before this field existed have `checked === undefined`, which counts the same as `true`. */
+export function getEntryMacroTotals(entries: NutritionEntry[]): MacroTotals {
+  return sumMacros(entries.filter((e) => e.checked !== false))
 }
 
 export interface AddFoodEntryInput {
@@ -220,12 +221,22 @@ async function insertEntry(input: InsertEntryInput): Promise<NutritionEntry> {
     id: generateId(),
     ...input,
     order: nextOrder,
+    checked: false,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
   }
   await db.nutrition_entries.add(entry)
   return entry
+}
+
+/** Toggles whether an entry counts toward the day's totals. */
+export async function toggleEntryChecked(id: string): Promise<void> {
+  const entry = await db.nutrition_entries.get(id)
+  if (!entry) return
+  const checked = entry.checked === false
+  await db.nutrition_entries.update(id, { checked, updatedAt: nowIso() })
+  await syncNutritionTotalsToDailyLog(entry.date)
 }
 
 /** Re-scales a `food`-kind entry's stored macros for a new quantity. */
@@ -560,6 +571,7 @@ export async function applyTemplateToDate(templateId: string, date: string): Pro
       carbsG: te.carbsG,
       fatG: te.fatG,
       notes: te.notes,
+      checked: false,
       createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,
