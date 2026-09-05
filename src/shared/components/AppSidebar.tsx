@@ -1,6 +1,6 @@
 import type { ReactElement } from 'react'
 
-export type AppModule = 'entrenamiento' | 'finanzas' | 'nutricion'
+export type AppModule = 'registro' | 'entrenamiento' | 'finanzas' | 'nutricion'
 
 interface AppSidebarProps {
   open: boolean
@@ -18,6 +18,15 @@ const ICON_PROPS = {
   strokeLinejoin: 'round' as const,
   className: 'sidebar-nav-icon',
   'aria-hidden': true,
+}
+
+function IconRegistroModule() {
+  return (
+    <svg {...ICON_PROPS}>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 8h8M8 12h8M8 16h5" />
+    </svg>
+  )
 }
 
 function IconDumbbell() {
@@ -47,6 +56,7 @@ function IconNutrition() {
 }
 
 const MODULES: Array<{ id: AppModule; label: string; icon: () => ReactElement }> = [
+  { id: 'registro', label: 'Registro', icon: IconRegistroModule },
   { id: 'entrenamiento', label: 'Entrenamiento', icon: IconDumbbell },
   { id: 'finanzas', label: 'Finanzas', icon: IconFinance },
   { id: 'nutricion', label: 'Nutrición', icon: IconNutrition },
