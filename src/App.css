@@ -2452,7 +2452,7 @@ section {
 .nutrition-entry-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -2504,10 +2504,10 @@ section {
 .nutrition-entry-macro-line {
   display: flex;
   flex-wrap: wrap;
-  column-gap: 5px;
+  column-gap: 4px;
   row-gap: 0;
   font-family: var(--mono);
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
 }
 
@@ -2520,9 +2520,10 @@ section {
 }
 
 .nutrition-entry-delete {
-  width: 22px;
-  height: 22px;
-  font-size: 15px;
+  width: 20px;
+  height: 20px;
+  min-height: auto;
+  font-size: 14px;
 }
 
 .nutrition-entry-row--unchecked .nutrition-entry-info {
@@ -2531,8 +2532,9 @@ section {
 
 .nutrition-entry-checkbox {
   flex: none;
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
+  min-height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2540,7 +2542,8 @@ section {
   border: 1px solid var(--border);
   background: transparent;
   color: transparent;
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1;
   padding: 0;
 }
 
