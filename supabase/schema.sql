@@ -414,6 +414,24 @@ create table if not exists "nutrition_meal_template_entries" (
   "deletedAt" timestamptz
 );
 
+create table if not exists "nutrition_goal_plans" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "startDate" date not null,
+  -- null = la meta sigue vigente, sin fecha de término
+  "endDate" date,
+  "targetCalories" double precision not null,
+  "targetProteinG" double precision not null,
+  "targetCarbsG" double precision not null,
+  "targetFatG" double precision not null,
+  "targetWaterMl" double precision not null,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
 -- ---------------------------------------------------------------------
 -- Atlas Personal — perfiles y su árbol de nodos
 -- ---------------------------------------------------------------------
@@ -492,53 +510,156 @@ create index if not exists "nutrition_entries_sync_idx" on "nutrition_entries" (
 create index if not exists "nutrition_water_entries_sync_idx" on "nutrition_water_entries" ("userId", "updatedAt");
 create index if not exists "nutrition_meal_templates_sync_idx" on "nutrition_meal_templates" ("userId", "updatedAt");
 create index if not exists "nutrition_meal_template_entries_sync_idx" on "nutrition_meal_template_entries" ("userId", "updatedAt");
+create index if not exists "nutrition_goal_plans_sync_idx" on "nutrition_goal_plans" ("userId", "updatedAt");
 create index if not exists "atlas_profiles_sync_idx" on "atlas_profiles" ("userId", "updatedAt");
 create index if not exists "atlas_nodes_sync_idx" on "atlas_nodes" ("userId", "updatedAt");
 create index if not exists "grocery_items_sync_idx" on "grocery_items" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
--- Row Level Security — every user only ever sees/writes their own rows
+-- Row Level Security — cada persona sólo ve y escribe sus propias filas.
+--
+-- Van como sentencias sueltas y no dentro de un bloque anónimo con comillas
+-- de dólar: ese bloque es válido en Postgres, pero cualquier cliente que
+-- parta el script por `;` lo corta por dentro y falla con "unterminated
+-- dollar-quoted string". Así el archivo se puede pegar entero o por partes.
 -- ---------------------------------------------------------------------
 
-do $$
-declare
-  tbl text;
-begin
-  foreach tbl in array array[
-    'training_muscle_groups',
-    'training_exercises',
-    'training_exercise_muscle_contributions',
-    'training_macrocycles',
-    'training_mesocycles',
-    'training_weeks',
-    'training_days',
-    'training_planned_exercises',
-    'training_planned_sets',
-    'training_sessions',
-    'training_session_exercises',
-    'training_executed_sets',
-    'training_cardio_sessions',
-    'training_user_profile',
-    'training_daily_logs',
-    'finance_accounts',
-    'finance_categories',
-    'finance_transactions',
-    'nutrition_foods',
-    'nutrition_meal_sections',
-    'nutrition_entries',
-    'nutrition_water_entries',
-    'nutrition_meal_templates',
-    'nutrition_meal_template_entries',
-    'atlas_profiles',
-    'atlas_nodes',
-    'grocery_items'
-  ]
-  loop
-    execute format('alter table %I enable row level security', tbl);
-    execute format('drop policy if exists "owner_all" on %I', tbl);
-    execute format(
-      'create policy "owner_all" on %I for all using ("userId" = auth.uid()) with check ("userId" = auth.uid())',
-      tbl
-    );
-  end loop;
-end $$;
+alter table "atlas_nodes" enable row level security;
+drop policy if exists "owner_all" on "atlas_nodes";
+create policy "owner_all" on "atlas_nodes" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "atlas_profiles" enable row level security;
+drop policy if exists "owner_all" on "atlas_profiles";
+create policy "owner_all" on "atlas_profiles" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "finance_accounts" enable row level security;
+drop policy if exists "owner_all" on "finance_accounts";
+create policy "owner_all" on "finance_accounts" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "finance_categories" enable row level security;
+drop policy if exists "owner_all" on "finance_categories";
+create policy "owner_all" on "finance_categories" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "finance_transactions" enable row level security;
+drop policy if exists "owner_all" on "finance_transactions";
+create policy "owner_all" on "finance_transactions" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "grocery_items" enable row level security;
+drop policy if exists "owner_all" on "grocery_items";
+create policy "owner_all" on "grocery_items" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_entries" enable row level security;
+drop policy if exists "owner_all" on "nutrition_entries";
+create policy "owner_all" on "nutrition_entries" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_foods" enable row level security;
+drop policy if exists "owner_all" on "nutrition_foods";
+create policy "owner_all" on "nutrition_foods" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_goal_plans" enable row level security;
+drop policy if exists "owner_all" on "nutrition_goal_plans";
+create policy "owner_all" on "nutrition_goal_plans" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_meal_sections" enable row level security;
+drop policy if exists "owner_all" on "nutrition_meal_sections";
+create policy "owner_all" on "nutrition_meal_sections" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_meal_template_entries" enable row level security;
+drop policy if exists "owner_all" on "nutrition_meal_template_entries";
+create policy "owner_all" on "nutrition_meal_template_entries" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_meal_templates" enable row level security;
+drop policy if exists "owner_all" on "nutrition_meal_templates";
+create policy "owner_all" on "nutrition_meal_templates" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "nutrition_water_entries" enable row level security;
+drop policy if exists "owner_all" on "nutrition_water_entries";
+create policy "owner_all" on "nutrition_water_entries" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_cardio_sessions" enable row level security;
+drop policy if exists "owner_all" on "training_cardio_sessions";
+create policy "owner_all" on "training_cardio_sessions" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_daily_logs" enable row level security;
+drop policy if exists "owner_all" on "training_daily_logs";
+create policy "owner_all" on "training_daily_logs" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_days" enable row level security;
+drop policy if exists "owner_all" on "training_days";
+create policy "owner_all" on "training_days" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_executed_sets" enable row level security;
+drop policy if exists "owner_all" on "training_executed_sets";
+create policy "owner_all" on "training_executed_sets" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_exercise_muscle_contributions" enable row level security;
+drop policy if exists "owner_all" on "training_exercise_muscle_contributions";
+create policy "owner_all" on "training_exercise_muscle_contributions" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_exercises" enable row level security;
+drop policy if exists "owner_all" on "training_exercises";
+create policy "owner_all" on "training_exercises" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_macrocycles" enable row level security;
+drop policy if exists "owner_all" on "training_macrocycles";
+create policy "owner_all" on "training_macrocycles" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_mesocycles" enable row level security;
+drop policy if exists "owner_all" on "training_mesocycles";
+create policy "owner_all" on "training_mesocycles" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_muscle_groups" enable row level security;
+drop policy if exists "owner_all" on "training_muscle_groups";
+create policy "owner_all" on "training_muscle_groups" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_planned_exercises" enable row level security;
+drop policy if exists "owner_all" on "training_planned_exercises";
+create policy "owner_all" on "training_planned_exercises" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_planned_sets" enable row level security;
+drop policy if exists "owner_all" on "training_planned_sets";
+create policy "owner_all" on "training_planned_sets" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_session_exercises" enable row level security;
+drop policy if exists "owner_all" on "training_session_exercises";
+create policy "owner_all" on "training_session_exercises" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_sessions" enable row level security;
+drop policy if exists "owner_all" on "training_sessions";
+create policy "owner_all" on "training_sessions" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_user_profile" enable row level security;
+drop policy if exists "owner_all" on "training_user_profile";
+create policy "owner_all" on "training_user_profile" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "training_weeks" enable row level security;
+drop policy if exists "owner_all" on "training_weeks";
+create policy "owner_all" on "training_weeks" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
