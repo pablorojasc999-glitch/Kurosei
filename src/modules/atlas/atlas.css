@@ -16,7 +16,6 @@
   --atlas-rule: #2b2928;
   --atlas-border: #35322f;
   --atlas-border-soft: #2f2c2a;
-  --atlas-dot: #312e2c;
   --atlas-ink: #f4f1ef;
   --atlas-ink-2: #cdc8c5;
   --atlas-ink-3: #d6d1ce;
@@ -29,7 +28,14 @@
   --atlas-verde: #3fbf7f;
 
   flex: 1;
+  /* `min-width: auto` en un ítem flex se apoya en el ancho mínimo del
+     contenido: con tres pestañas la tira medía 480px y estiraba TODO el
+     módulo, así que `main` ganaba scroll horizontal y al enfocar una pestaña
+     desplazaba lienzo, nodos y barra de acción a la vez. La tira ya scrollea
+     sola por dentro; el módulo se queda en el ancho de la pantalla. */
+  min-width: 0;
   min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--atlas-canvas);
@@ -59,6 +65,7 @@
 
 .app-content--atlas > div:not([hidden]) {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: flex;
 }
@@ -131,6 +138,7 @@
   display: flex;
   align-items: stretch;
   flex: none;
+  min-width: 0;
   height: 42px;
   background: var(--atlas-panel);
   border-bottom: 2px solid var(--atlas-rule-strong);
@@ -213,14 +221,6 @@
   min-height: 0;
   overflow: auto;
   background-color: var(--atlas-canvas);
-  background-image: radial-gradient(var(--atlas-dot) 1px, transparent 1px);
-  background-size: 36px 36px;
-  background-position: 12px 12px;
-}
-
-.atlas-canvas--desktop {
-  background-size: 44px 44px;
-  background-position: 14px 14px;
 }
 
 .atlas-stage {
@@ -504,6 +504,10 @@
   display: flex;
   align-items: stretch;
   flex: none;
+  /* Los nodos van en absoluto dentro del lienzo. Si el alto del shell baila
+     (la barra de URL del navegador móvil mueve `dvh`), la barra gana igual. */
+  position: relative;
+  z-index: 1;
   height: 66px;
   background: var(--atlas-chrome);
   border-top: 1px solid var(--atlas-rule);
@@ -555,6 +559,8 @@
   justify-content: space-between;
   gap: 16px;
   flex: none;
+  position: relative;
+  z-index: 1;
   height: 36px;
   padding: 0 18px;
   background: var(--atlas-chrome);
@@ -838,9 +844,6 @@
   box-sizing: border-box;
   padding: 56px 22px 24px;
   background-color: var(--atlas-canvas);
-  background-image: radial-gradient(#262322 1px, transparent 1px);
-  background-size: 36px 36px;
-  background-position: 12px 12px;
 }
 
 .atlas-empty-inner {

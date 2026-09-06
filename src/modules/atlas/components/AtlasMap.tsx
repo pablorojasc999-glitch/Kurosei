@@ -209,7 +209,7 @@ export function AtlasMap({
   const draftPlaced = draftNode ? byId.get(DRAFT_ID) : null
 
   return (
-    <div className={`atlas-canvas${desktop ? ' atlas-canvas--desktop' : ''}`}>
+    <div className="atlas-canvas">
       <div
         ref={stageRef}
         className="atlas-stage"
