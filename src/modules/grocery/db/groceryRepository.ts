@@ -1,7 +1,6 @@
 import { db } from '../../../shared/db/database'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
-import { moveItem } from '../../nutrition/lib/reorder'
 import type { GroceryItem, PurchaseCadence } from '../domain/types'
 import { todayKey } from '../lib/groceryCadence'
 
@@ -68,7 +67,12 @@ export async function updateItem(id: string, input: UpdateItemInput): Promise<vo
     if (!name) throw new Error('El nombre no puede estar vacío.')
     patch.name = name
   }
-  if (input.quantity !== undefined) patch.quantity = input.quantity.trim()
+  if (input.quantity !== undefined) {
+    patch.quantity = input.quantity.trim()
+    // Vaciar la cantidad es decir "ya lo tengo": dejarlo marcado para la compra
+    // sería el estado contrario a la vez.
+    if (patch.quantity === '') patch.checked = false
+  }
   if (input.note !== undefined) patch.note = input.note.trim()
   // Reclasificar es mover de lista: el artículo se va al final de la nueva.
   if (input.cadence !== undefined && input.cadence !== item.cadence) {
@@ -123,33 +127,4 @@ export async function completeShoppingRun(today = todayKey()): Promise<number> {
 export async function softDeleteItem(id: string): Promise<void> {
   const timestamp = nowIso()
   await db.grocery_items.update(id, { deletedAt: timestamp, updatedAt: timestamp })
-}
-
-/**
- * Reordena dentro de una lista o mueve el artículo a otra. La cadencia hace
- * de sección, así que se reutiliza el mismo `moveItem` que ya usa Nutrición.
- */
-export async function moveItemToCadence(
-  id: string,
-  targetCadence: PurchaseCadence,
-  targetIndex: number,
-): Promise<void> {
-  const items = await listItems()
-  const changed = moveItem(
-    items.map((i) => ({ ...i, sectionId: i.cadence })),
-    id,
-    targetCadence,
-    targetIndex,
-  )
-  if (changed.length === 0) return
-  const timestamp = nowIso()
-  await Promise.all(
-    changed.map((i) =>
-      db.grocery_items.update(i.id, {
-        cadence: i.sectionId as PurchaseCadence,
-        order: i.order,
-        updatedAt: timestamp,
-      }),
-    ),
-  )
 }

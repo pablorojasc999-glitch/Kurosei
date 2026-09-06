@@ -48,15 +48,47 @@ export function isDue(item: GroceryItem, today: string): boolean {
   return daysSince(item.lastBoughtAt, today) >= cycle
 }
 
+/**
+ * La cantidad es lo que dice cuánto hay que comprar. Sin cantidad el artículo
+ * está en casa: sigue en la lista como parte del catálogo, pero no entra en la
+ * ida al súper.
+ */
+export function hasQuantity(item: GroceryItem): boolean {
+  return item.quantity.trim() !== ''
+}
+
+/**
+ * Lo que de verdad hay que llevar: además de que le toque por ciclo, tiene que
+ * hacer falta. Es lo que cuentan las tarjetas de arriba y lo que marca de golpe
+ * el botón de la barra de compra.
+ */
+export function needsBuying(item: GroceryItem, today: string): boolean {
+  return hasQuantity(item) && isDue(item, today)
+}
+
 /** Línea secundaria de cada fila: cuándo se compró por última vez y si ya toca. */
 export function lastBoughtLabel(item: GroceryItem, today: string): string {
-  if (item.lastBoughtAt === null) {
-    return CADENCE_DAYS[item.cadence] === null ? 'Nunca comprado' : 'Nunca comprado · toca'
-  }
-  const days = daysSince(item.lastBoughtAt, today)
   const ago =
-    days <= 0 ? 'Comprado hoy' : days === 1 ? 'Hace 1 día' : `Hace ${days} días`
-  return isDue(item, today) ? `${ago} · toca` : ago
+    item.lastBoughtAt === null
+      ? 'Nunca comprado'
+      : (() => {
+          const days = daysSince(item.lastBoughtAt, today)
+          return days <= 0 ? 'Comprado hoy' : days === 1 ? 'Hace 1 día' : `Hace ${days} días`
+        })()
+  return needsBuying(item, today) ? `${ago} · toca` : ago
+}
+
+/**
+ * Orden de cada lista: primero lo que hay que comprar y luego lo que ya está en
+ * casa, alfabético dentro de cada bloque. `localeCompare` con `es` para que la
+ * ñ y los acentos caigan donde uno los busca.
+ */
+export function sortForDisplay(items: GroceryItem[]): GroceryItem[] {
+  return [...items].sort((a, b) => {
+    const byNeed = Number(hasQuantity(b)) - Number(hasQuantity(a))
+    if (byNeed !== 0) return byNeed
+    return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+  })
 }
 
 /** Fecha de hoy en el formato que guarda `lastBoughtAt`. */
@@ -67,19 +99,25 @@ export function todayKey(): string {
 export interface CadenceGroup {
   cadence: PurchaseCadence
   items: GroceryItem[]
+  /** Cuántos hay que llevar: les toca por ciclo y tienen cantidad puesta. */
   dueCount: number
+  /** Cuántos están en casa (sin cantidad) y quedan fuera de esta ida al súper. */
+  stockedCount: number
 }
 
 /**
- * Reparte los artículos en los tres grupos, cada uno ya ordenado por `order`.
+ * Reparte los artículos en los tres grupos, cada uno ya en orden de pantalla.
  * Devuelve siempre los tres, aunque estén vacíos: las tres listas son la
  * estructura de la pantalla, no un resultado de los datos.
  */
 export function groupByCadence(items: GroceryItem[], today: string): CadenceGroup[] {
   return (['quincenal', 'mensual', 'esporadico'] as PurchaseCadence[]).map((cadence) => {
-    const group = items
-      .filter((item) => item.cadence === cadence)
-      .sort((a, b) => a.order - b.order)
-    return { cadence, items: group, dueCount: group.filter((i) => isDue(i, today)).length }
+    const group = sortForDisplay(items.filter((item) => item.cadence === cadence))
+    return {
+      cadence,
+      items: group,
+      dueCount: group.filter((i) => needsBuying(i, today)).length,
+      stockedCount: group.filter((i) => !hasQuantity(i)).length,
+    }
   })
 }

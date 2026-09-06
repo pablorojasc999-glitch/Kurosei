@@ -6,7 +6,6 @@ import {
   completeShoppingRun,
   createItem,
   listItems,
-  moveItemToCadence,
   softDeleteItem,
   toggleItemChecked,
   updateItem,
@@ -88,6 +87,22 @@ describe('editar', () => {
     expect((await listItems()).find((i) => i.id === item.id)?.order).toBe(1)
   })
 
+  it('vaciar la cantidad desmarca: "ya lo tengo" y "lo llevo" no conviven', async () => {
+    const item = await createItem({ name: 'Manzana', cadence: 'quincenal', quantity: '4' })
+    await toggleItemChecked(item.id)
+    expect((await listItems())[0].checked).toBe(true)
+
+    await updateItem(item.id, { quantity: '   ' })
+    expect((await listItems())[0]).toMatchObject({ quantity: '', checked: false })
+  })
+
+  it('editar otra cosa no desmarca lo que ya estaba marcado', async () => {
+    const item = await createItem({ name: 'Manzana', cadence: 'quincenal', quantity: '4' })
+    await toggleItemChecked(item.id)
+    await updateItem(item.id, { note: 'las rojas' })
+    expect((await listItems())[0].checked).toBe(true)
+  })
+
   it('rechaza dejar el nombre vacío', async () => {
     const item = await createItem({ name: 'Leche', cadence: 'quincenal' })
     await expect(updateItem(item.id, { name: '  ' })).rejects.toThrow(
@@ -137,40 +152,6 @@ describe('marcar y cerrar la compra', () => {
     expect(items.every((i) => !i.checked)).toBe(true)
     // Vaciar no es comprar: nadie estrena fecha.
     expect(items.every((i) => i.lastBoughtAt === null)).toBe(true)
-  })
-})
-
-describe('mover entre listas', () => {
-  it('reordena dentro de la misma lista', async () => {
-    await createItem({ name: 'A', cadence: 'quincenal' })
-    await createItem({ name: 'B', cadence: 'quincenal' })
-    const c = await createItem({ name: 'C', cadence: 'quincenal' })
-
-    await moveItemToCadence(c.id, 'quincenal', 0)
-    expect(names(await listItems()).slice(0, 3)).toEqual(['C', 'A', 'B'])
-  })
-
-  it('mueve a otra lista en la posición pedida', async () => {
-    const a = await createItem({ name: 'A', cadence: 'quincenal' })
-    await createItem({ name: 'X', cadence: 'mensual' })
-    await createItem({ name: 'Y', cadence: 'mensual' })
-
-    await moveItemToCadence(a.id, 'mensual', 1)
-    const mensual = (await listItems())
-      .filter((i) => i.cadence === 'mensual')
-      .sort((x, y) => x.order - y.order)
-    expect(names(mensual)).toEqual(['X', 'A', 'Y'])
-    expect((await listItems()).filter((i) => i.cadence === 'quincenal')).toEqual([])
-  })
-
-  it('un índice pasado del final se pega al final', async () => {
-    const a = await createItem({ name: 'A', cadence: 'quincenal' })
-    await createItem({ name: 'X', cadence: 'mensual' })
-    await moveItemToCadence(a.id, 'mensual', 99)
-    const mensual = (await listItems())
-      .filter((i) => i.cadence === 'mensual')
-      .sort((x, y) => x.order - y.order)
-    expect(names(mensual)).toEqual(['X', 'A'])
   })
 })
 

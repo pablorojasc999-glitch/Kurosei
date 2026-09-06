@@ -3018,6 +3018,26 @@ section {
   background: var(--accent-bg);
 }
 
+/* Sin cantidad = ya lo tienes en casa: se queda en el catálogo pero fuera de
+   la compra. Se apaga en vez de tacharse, que es lo que ya significa "lo
+   llevo" en una fila marcada. */
+.grocery-row--stocked {
+  background: var(--surface);
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+.grocery-row-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .grocery-row--dragging {
   position: relative;
   z-index: 2;
@@ -3025,11 +3045,11 @@ section {
   box-shadow: var(--shadow-md);
 }
 
-.grocery-drop-line {
-  height: 2px;
-  margin: 2px 0;
-  border-radius: 999px;
-  background: var(--accent);
+/* Arrastrar cambia de lista, no de posición: se resalta la lista entera. */
+.grocery-list--drop {
+  outline: 2px dashed var(--accent-border);
+  outline-offset: 6px;
+  border-radius: var(--radius-md);
 }
 
 .grocery-check {
@@ -3095,6 +3115,12 @@ section {
 
 .grocery-row--due .grocery-row-meta {
   color: var(--warning);
+}
+
+.grocery-field-hint {
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .grocery-form {
