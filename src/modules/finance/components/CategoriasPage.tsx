@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
@@ -173,8 +174,10 @@ export function CategoriasPage() {
       </div>
 
       {showForm && (
-        <section>
-          <h2>{editingId ? 'Editar categoría' : 'Nueva categoría'}</h2>
+        <BottomSheet
+          title={editingId ? 'Editar categoría' : 'Nueva categoría'}
+          onClose={resetForm}
+        >
 
           {editingId && notesForCategory && notesForCategory.length > 0 && (
             <div className="finance-note-breakdown">
@@ -258,7 +261,7 @@ export function CategoriasPage() {
               Cancelar
             </button>
           </form>
-        </section>
+        </BottomSheet>
       )}
     </div>
   )

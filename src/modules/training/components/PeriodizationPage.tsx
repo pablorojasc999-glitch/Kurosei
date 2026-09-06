@@ -29,6 +29,7 @@ import {
 } from '../db/planningRepository'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { BlockGrid } from './BlockGrid'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
@@ -459,7 +460,9 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          {showMacroForm ? (
+          <button type="button" className="finance-add-button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
+          {showMacroForm && (
+            <BottomSheet title={editingMacroId ? 'Editar macrociclo' : 'Nuevo macrociclo'} onClose={resetMacroForm}>
             <form onSubmit={handleSubmitMacrocycle} className="entity-form">
               <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
               <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
@@ -476,8 +479,7 @@ export function PeriodizationPage({
               </button>
               <button type="button" onClick={resetMacroForm}>Cancelar</button>
             </form>
-          ) : (
-            <button type="button" className="finance-add-button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
+            </BottomSheet>
           )}
         </section>
       )}
@@ -503,7 +505,9 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          {showMesoForm ? (
+          <button type="button" className="finance-add-button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
+          {showMesoForm && (
+            <BottomSheet title={editingMesoId ? 'Editar mesociclo' : 'Nuevo mesociclo'} onClose={resetMesoForm}>
             <form onSubmit={handleSubmitMesocycle} className="entity-form">
               <input value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
               <select value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
@@ -524,8 +528,7 @@ export function PeriodizationPage({
               </button>
               <button type="button" onClick={resetMesoForm}>Cancelar</button>
             </form>
-          ) : (
-            <button type="button" className="finance-add-button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
+            </BottomSheet>
           )}
         </section>
       )}
@@ -639,7 +642,9 @@ export function PeriodizationPage({
               </li>
             ))}
           </ul>
-          {showDayForm ? (
+          <button type="button" className="finance-add-button" onClick={openNewDayForm}>+ Agregar día</button>
+          {showDayForm && (
+            <BottomSheet title={editingDayId ? 'Editar día' : 'Nuevo día'} onClose={resetDayForm}>
             <form onSubmit={handleSubmitDay} className="entity-form">
               <label>
                 Fecha
@@ -668,8 +673,7 @@ export function PeriodizationPage({
               </button>
               <button type="button" onClick={resetDayForm}>Cancelar</button>
             </form>
-          ) : (
-            <button type="button" className="finance-add-button" onClick={openNewDayForm}>+ Agregar día</button>
+            </BottomSheet>
           )}
         </section>
       )}

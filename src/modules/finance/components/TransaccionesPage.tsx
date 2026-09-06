@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { toDateKey } from '../../training/lib/calendarGrid'
@@ -202,8 +203,10 @@ export function TransaccionesPage() {
       )}
 
       {showForm && (
-        <section>
-          <h2>{editingId ? 'Editar transacción' : 'Nueva transacción'}</h2>
+        <BottomSheet
+          title={editingId ? 'Editar transacción' : 'Nueva transacción'}
+          onClose={resetForm}
+        >
           <form onSubmit={handleSubmit} className="entity-form">
             <label>
               Tipo
@@ -267,7 +270,7 @@ export function TransaccionesPage() {
               Cancelar
             </button>
           </form>
-        </section>
+        </BottomSheet>
       )}
 
       <ul className="finance-transaction-groups">

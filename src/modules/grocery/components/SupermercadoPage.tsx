@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { useEntryDragReorder } from '../../nutrition/lib/useEntryDragReorder'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
@@ -260,7 +261,12 @@ export function SupermercadoPage() {
           </div>
 
           {openCadence === group.cadence && (
-            <form className="entity-form grocery-form" onSubmit={handleSubmit}>
+            <BottomSheet
+              title={editingId ? 'Editar artículo' : 'Nuevo artículo'}
+              subtitle={CADENCE_LABEL[group.cadence]}
+              onClose={resetForm}
+            >
+              <form className="entity-form" onSubmit={handleSubmit}>
               <label>
                 Nombre
                 <input
@@ -304,15 +310,16 @@ export function SupermercadoPage() {
                 </select>
               </label>
               {error && <p className="error">{error}</p>}
-              <div className="list-card-actions">
-                <button type="button" onClick={resetForm}>
-                  Cancelar
-                </button>
-                <button type="submit" disabled={isSubmitting}>
-                  {editingId ? 'Guardar' : 'Añadir'}
-                </button>
-              </div>
-            </form>
+                <div className="sheet-actions">
+                  <button type="button" onClick={resetForm}>
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={isSubmitting}>
+                    {editingId ? 'Guardar' : 'Añadir'}
+                  </button>
+                </div>
+              </form>
+            </BottomSheet>
           )}
         </section>
       ))}

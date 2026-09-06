@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addExerciseToSlot,
@@ -318,32 +319,27 @@ function ExercisePicker({
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 
   return (
-    <>
-      <div className="grid-sheet-backdrop" onClick={onCancel} aria-hidden="true" />
-      <section className="grid-sheet">
-        <h3>
-          Añadir a {slotLabel} · Semana {weekNumber}
-        </h3>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar ejercicio…"
-          aria-label="Buscar ejercicio"
-          autoFocus
-        />
-        <div className="grid-sheet-list">
-          {matches.length === 0 && <p className="empty-hint">Nada coincide con esa búsqueda.</p>}
-          {matches.map((exercise) => (
-            <button key={exercise.id} type="button" onClick={() => onPick(exercise.id)}>
-              {exercise.name}
-            </button>
-          ))}
-        </div>
-        <button type="button" onClick={onCancel}>
-          Cancelar
-        </button>
-      </section>
-    </>
+    <BottomSheet
+      title="Añadir ejercicio"
+      subtitle={`${slotLabel} · Semana ${weekNumber}`}
+      onClose={onCancel}
+    >
+      <input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar ejercicio…"
+        aria-label="Buscar ejercicio"
+        autoFocus
+      />
+      <div className="sheet-list">
+        {matches.length === 0 && <p className="empty-hint">Nada coincide con esa búsqueda.</p>}
+        {matches.map((exercise) => (
+          <button key={exercise.id} type="button" onClick={() => onPick(exercise.id)}>
+            {exercise.name}
+          </button>
+        ))}
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -445,16 +441,12 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
   const date = slot.dates[weekIndex]
 
   return (
-    <>
-      <div className="grid-sheet-backdrop" onClick={onClose} aria-hidden="true" />
-      <section className="grid-sheet" aria-label={`Editar ${row.exerciseName}`}>
-        <h3>{row.exerciseName}</h3>
-        <p className="grid-sheet-context">
-          {slot.label} · Semana {weekIndex + 1}
-          {date && ` · ${shortDate(date)}`}
-        </p>
-
-        <div className="set-editor">
+    <BottomSheet
+      title={row.exerciseName}
+      subtitle={`${slot.label} · Semana ${weekIndex + 1}${date ? ` · ${shortDate(date)}` : ''}`}
+      onClose={onClose}
+    >
+      <div className="set-editor">
           <div className="set-editor-head" aria-hidden="true">
             <span>#</span>
             <span>Peso</span>
@@ -522,30 +514,29 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
           </div>
         )}
 
-        {error && <p className="error">{error}</p>}
+      {error && <p className="error">{error}</p>}
 
-        <div className="grid-sheet-actions">
-          <button type="button" onClick={onClose}>
-            Cancelar
-          </button>
-          <button type="button" disabled={isSubmitting} onClick={() => void handleSave(true)}>
-            Guardar y fijar
-          </button>
-          <button type="button" disabled={isSubmitting} onClick={() => void handleSave(false)}>
-            Guardar
-          </button>
-        </div>
+      <div className="sheet-actions">
+        <button type="button" onClick={onClose}>
+          Cancelar
+        </button>
+        <button type="button" disabled={isSubmitting} onClick={() => void handleSave(true)}>
+          Guardar y fijar
+        </button>
+        <button type="button" disabled={isSubmitting} onClick={() => void handleSave(false)}>
+          Guardar
+        </button>
+      </div>
 
-        {cell.dayId && (
-          <button
-            type="button"
-            className="grid-sheet-link"
-            onClick={() => onOpenDay(cell.weekId, cell.dayId as string)}
-          >
-            Abrir el día completo →
-          </button>
-        )}
-      </section>
-    </>
+      {cell.dayId && (
+        <button
+          type="button"
+          className="sheet-link"
+          onClick={() => onOpenDay(cell.weekId, cell.dayId as string)}
+        >
+          Abrir el día completo →
+        </button>
+      )}
+    </BottomSheet>
   )
 }

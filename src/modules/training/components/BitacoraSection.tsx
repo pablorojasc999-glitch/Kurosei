@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   getDailyLog,
@@ -233,8 +234,19 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       <h2>Bitácora</h2>
 
       <div className="bitacora-profile">
-        {showProfileForm ? (
-          <form onSubmit={handleSubmitProfile} className="entity-form">
+        <div className="bitacora-profile-summary">
+          <span>{profileSummary || 'Completa tu perfil para calcular el gasto calórico.'}</span>
+          <button type="button" onClick={() => setShowProfileForm(true)}>
+            {profile ? 'Editar perfil' : 'Completar perfil'}
+          </button>
+        </div>
+
+        {showProfileForm && (
+          <BottomSheet
+            title={profile ? 'Editar perfil' : 'Completar perfil'}
+            onClose={() => setShowProfileForm(false)}
+          >
+            <form onSubmit={handleSubmitProfile} className="entity-form">
             <label>
               Estatura (cm)
               <input
@@ -298,14 +310,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <button type="button" onClick={() => setShowProfileForm(false)}>
               Cancelar
             </button>
-          </form>
-        ) : (
-          <div className="bitacora-profile-summary">
-            <span>{profileSummary || 'Completa tu perfil para calcular el gasto calórico.'}</span>
-            <button type="button" onClick={() => setShowProfileForm(true)}>
-              {profile ? 'Editar perfil' : 'Completar perfil'}
-            </button>
-          </div>
+            </form>
+          </BottomSheet>
         )}
       </div>
 
