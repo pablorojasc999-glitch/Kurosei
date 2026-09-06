@@ -669,3 +669,211 @@ export async function getOrCreateDayForDate(date: Date): Promise<Day> {
   })
 }
 
+
+// ---------------------------------------------------------------------
+// Planilla del bloque
+// ---------------------------------------------------------------------
+
+/** Todo lo que la planilla del bloque necesita, en una sola pasada. */
+export interface BlockGridData {
+  weeks: Week[]
+  days: Day[]
+  plannedExercises: PlannedExercise[]
+  plannedSets: PlannedSet[]
+}
+
+export async function getBlockGridData(mesocycleId: string): Promise<BlockGridData> {
+  const weeks = await listWeeks(mesocycleId)
+  const weekIds = new Set(weeks.map((w) => w.id))
+  const days = (
+    await db.training_days.filter((d) => d.deletedAt === null && d.weekId !== null).toArray()
+  ).filter((d) => weekIds.has(d.weekId as string))
+
+  const dayIds = new Set(days.map((d) => d.id))
+  const plannedExercises = (
+    await db.training_planned_exercises.filter((pe) => pe.deletedAt === null).toArray()
+  ).filter((pe) => dayIds.has(pe.dayId))
+
+  const peIds = new Set(plannedExercises.map((pe) => pe.id))
+  const plannedSets = (
+    await db.training_planned_sets.filter((ps) => ps.deletedAt === null).toArray()
+  ).filter((ps) => peIds.has(ps.plannedExerciseId))
+
+  return { weeks, days, plannedExercises, plannedSets }
+}
+
+/** La prescripción uniforme que se edita desde una celda de la planilla. */
+export interface UniformPrescription {
+  sets: number
+  reps: number
+  weightKg: number | null
+  rpe: number | null
+  restSecondsTarget: number | null
+}
+
+/**
+ * Reescribe las series de un ejercicio planificado como N series iguales, que
+ * es la forma en la que se prescribe el 90% del powerlifting. El detalle serie
+ * a serie se sigue editando en la pantalla del día; acá se busca velocidad.
+ *
+ * Se reutilizan las filas que ya existen en vez de borrarlas y recrearlas: así
+ * la sincronización ve una edición y no un borrado más un alta.
+ */
+export async function setUniformPrescription(
+  plannedExerciseId: string,
+  input: UniformPrescription,
+): Promise<void> {
+  if (input.sets < 1) throw new Error('Tiene que haber al menos una serie.')
+  if (input.reps < 1) throw new Error('Tiene que haber al menos una repetición.')
+
+  const timestamp = nowIso()
+  const existing = await listPlannedSets(plannedExerciseId)
+
+  await db.transaction('rw', db.training_planned_sets, async () => {
+    for (let i = 0; i < input.sets; i++) {
+      const current = existing[i]
+      const fields = {
+        targetWeightKg: input.weightKg,
+        targetReps: input.reps,
+        targetRpe: input.rpe,
+        restSecondsTarget: input.restSecondsTarget,
+        setNumber: i + 1,
+        updatedAt: timestamp,
+      }
+      if (current) await db.training_planned_sets.update(current.id, fields)
+      else {
+        await db.training_planned_sets.add({
+          id: generateId(),
+          plannedExerciseId,
+          ...fields,
+          createdAt: timestamp,
+          deletedAt: null,
+        })
+      }
+    }
+    // Las que sobran se borran: bajar de 5 a 3 series tiene que dejar 3.
+    for (const extra of existing.slice(input.sets)) {
+      await db.training_planned_sets.update(extra.id, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      })
+    }
+  })
+}
+
+export interface PinExerciseResult {
+  /** En cuántas semanas quedó el ejercicio con esa prescripción. */
+  applied: number
+  /** Semanas del bloque que no tienen ese día, así que no se pudo aplicar. */
+  skipped: number
+}
+
+/**
+ * Fija un ejercicio en la misma posición de día de todas las semanas del
+ * bloque, con la prescripción de la celda de origen. Es lo que hace útil que
+ * el "día 1" sea siempre el mismo trabajo: se define una vez y se replica.
+ *
+ * Una semana que no llega a tener ese día se salta en vez de inventarle una
+ * fecha, y se informa cuántas fueron.
+ */
+export async function pinExerciseAcrossBlock(
+  mesocycleId: string,
+  slotIndex: number,
+  exerciseId: string,
+  sourcePlannedExerciseId: string,
+): Promise<PinExerciseResult> {
+  const source = await db.training_planned_exercises.get(sourcePlannedExerciseId)
+  if (!source) throw new Error('No se encontró el ejercicio de origen.')
+  const sourceSets = await listPlannedSets(sourcePlannedExerciseId)
+
+  const { weeks, days } = await getBlockGridData(mesocycleId)
+  let applied = 0
+  let skipped = 0
+
+  for (const week of weeks) {
+    const weekDays = days
+      .filter((d) => d.weekId === week.id)
+      .sort((a, b) => a.date.localeCompare(b.date))
+    const target = weekDays[slotIndex]
+    if (!target) {
+      skipped += 1
+      continue
+    }
+
+    const existing = (await listPlannedExercises(target.id)).find(
+      (pe) => pe.exerciseId === exerciseId,
+    )
+    const plannedExercise =
+      existing ??
+      (await createPlannedExercise({
+        dayId: target.id,
+        exerciseId,
+        notes: source.notes,
+      }))
+
+    if (plannedExercise.id !== sourcePlannedExerciseId) {
+      await replaceSetsFrom(plannedExercise.id, sourceSets)
+    }
+    applied += 1
+  }
+
+  return { applied, skipped }
+}
+
+/** Deja las series de `plannedExerciseId` idénticas a `sourceSets`, reutilizando filas. */
+async function replaceSetsFrom(
+  plannedExerciseId: string,
+  sourceSets: PlannedSet[],
+): Promise<void> {
+  const timestamp = nowIso()
+  const existing = await listPlannedSets(plannedExerciseId)
+
+  await db.transaction('rw', db.training_planned_sets, async () => {
+    for (let i = 0; i < sourceSets.length; i++) {
+      const fields = {
+        targetWeightKg: sourceSets[i].targetWeightKg,
+        targetReps: sourceSets[i].targetReps,
+        targetRpe: sourceSets[i].targetRpe,
+        restSecondsTarget: sourceSets[i].restSecondsTarget,
+        setNumber: i + 1,
+        updatedAt: timestamp,
+      }
+      const current = existing[i]
+      if (current) await db.training_planned_sets.update(current.id, fields)
+      else {
+        await db.training_planned_sets.add({
+          id: generateId(),
+          plannedExerciseId,
+          ...fields,
+          createdAt: timestamp,
+          deletedAt: null,
+        })
+      }
+    }
+    for (const extra of existing.slice(sourceSets.length)) {
+      await db.training_planned_sets.update(extra.id, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      })
+    }
+  })
+}
+
+/**
+ * Añade un ejercicio a la posición de día de una semana concreta — el `+` de
+ * una celda vacía de la planilla.
+ */
+export async function addExerciseToSlot(
+  weekId: string,
+  slotIndex: number,
+  exerciseId: string,
+): Promise<PlannedExercise | null> {
+  const weekDays = await listDays(weekId)
+  const target = [...weekDays].sort((a, b) => a.date.localeCompare(b.date))[slotIndex]
+  if (!target) return null
+  const existing = (await listPlannedExercises(target.id)).find(
+    (pe) => pe.exerciseId === exerciseId,
+  )
+  if (existing) return existing
+  return createPlannedExercise({ dayId: target.id, exerciseId, notes: '' })
+}

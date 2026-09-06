@@ -3130,3 +3130,269 @@ section {
   border-radius: var(--radius-md);
   background: var(--surface);
 }
+
+/* --------------------------------------------------------------------
+   Planilla del bloque — filas de ejercicio, columnas de semana
+   -------------------------------------------------------------------- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* El scroll horizontal vive acá, no en la página: la columna de nombres se
+   ancla y las semanas pasan por detrás. */
+.block-grid-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  margin: 0 -16px;
+  padding: 0;
+}
+
+.block-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+}
+
+.block-grid th,
+.block-grid td {
+  padding: 0;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.block-grid thead th {
+  height: 28px;
+  padding-bottom: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.block-grid td {
+  width: 60px;
+  min-width: 60px;
+}
+
+/* La columna de nombres queda fija mientras las semanas se desplazan. */
+.block-grid-corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 112px;
+  min-width: 112px;
+  padding-right: 8px;
+  padding-left: 16px;
+  /* Del color de la tarjeta, no del fondo: al scrollear tapa las celdas sin
+     dibujar un canal negro dentro del panel. */
+  background: var(--surface-2);
+}
+
+.block-grid-name {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  padding: 6px 8px 6px 0;
+}
+
+.block-grid-slot th {
+  padding-top: 14px;
+  color: var(--accent-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.block-grid-slot td {
+  padding-top: 14px;
+  text-align: center;
+}
+
+.block-grid-date {
+  width: 100%;
+  min-height: auto;
+  padding: 2px 0;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.block-grid-date:hover {
+  color: var(--accent-2);
+}
+
+.block-grid-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 54px;
+  min-height: 44px;
+  margin: 2px 3px;
+  padding: 4px 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+}
+
+.block-grid-cell--empty {
+  border-style: dashed;
+  background: none;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.block-grid-volume {
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.block-grid-intensity {
+  color: var(--accent-2);
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.block-grid-missing {
+  display: block;
+  color: var(--border);
+  text-align: center;
+}
+
+.block-grid-add-row th {
+  padding: 4px 0 2px;
+}
+
+.block-grid-add {
+  min-height: auto;
+  padding: 4px 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------------
+   Hoja de edición de la planilla
+   -------------------------------------------------------------------- */
+
+.grid-sheet {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.grid-sheet h3 {
+  margin: 0 0 2px;
+}
+
+.grid-sheet-context {
+  margin: 0 0 14px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.grid-sheet-fields {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.grid-sheet-fields label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.grid-sheet-fields input {
+  width: 100%;
+}
+
+.grid-sheet-note {
+  margin: 12px 0 0;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.grid-sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.grid-sheet-actions button {
+  min-height: 38px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.grid-sheet-link {
+  min-height: auto;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12.5px;
+}
+
+.grid-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 10px 0;
+}
+
+.grid-sheet-list button {
+  justify-content: flex-start;
+  min-height: 40px;
+  text-align: left;
+}
+
+.grid-notice {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  background: var(--accent-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.grid-notice-dismiss {
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent-2);
+  font-size: 13px;
+  text-decoration: underline;
+}
