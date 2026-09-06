@@ -5,11 +5,14 @@ import { deleteCardioSession, listCardioSessions } from './cardioRepository'
 import { deleteSession, getSessionForDay } from './executionRepository'
 import type {
   Day,
+  ExecutedSet,
   Macrocycle,
   Mesocycle,
   PhaseType,
   PlannedExercise,
   PlannedSet,
+  SessionExercise,
+  StrengthSession,
   Week,
 } from '../domain/types'
 
@@ -680,6 +683,10 @@ export interface BlockGridData {
   days: Day[]
   plannedExercises: PlannedExercise[]
   plannedSets: PlannedSet[]
+  /** Lo realizado, para poder contrastarlo contra el plan en la misma celda. */
+  sessions: StrengthSession[]
+  sessionExercises: SessionExercise[]
+  executedSets: ExecutedSet[]
 }
 
 export async function getBlockGridData(mesocycleId: string): Promise<BlockGridData> {
@@ -699,7 +706,27 @@ export async function getBlockGridData(mesocycleId: string): Promise<BlockGridDa
     await db.training_planned_sets.filter((ps) => ps.deletedAt === null).toArray()
   ).filter((ps) => peIds.has(ps.plannedExerciseId))
 
-  return { weeks, days, plannedExercises, plannedSets }
+  const sessions = (
+    await db.training_sessions.filter((s) => s.deletedAt === null).toArray()
+  ).filter((s) => dayIds.has(s.dayId))
+  const sessionIds = new Set(sessions.map((s) => s.id))
+  const sessionExercises = (
+    await db.training_session_exercises.filter((se) => se.deletedAt === null).toArray()
+  ).filter((se) => sessionIds.has(se.sessionId))
+  const seIds = new Set(sessionExercises.map((se) => se.id))
+  const executedSets = (
+    await db.training_executed_sets.filter((es) => es.deletedAt === null).toArray()
+  ).filter((es) => seIds.has(es.sessionExerciseId))
+
+  return {
+    weeks,
+    days,
+    plannedExercises,
+    plannedSets,
+    sessions,
+    sessionExercises,
+    executedSets,
+  }
 }
 
 /** La prescripción uniforme que se edita desde una celda de la planilla. */
@@ -711,35 +738,37 @@ export interface UniformPrescription {
   restSecondsTarget: number | null
 }
 
+/** Una serie del plan, tal como se edita en la planilla. */
+export interface PlannedSetInput {
+  targetWeightKg: number | null
+  targetReps: number
+  targetRpe: number | null
+  restSecondsTarget: number | null
+}
+
 /**
- * Reescribe las series de un ejercicio planificado como N series iguales, que
- * es la forma en la que se prescribe el 90% del powerlifting. El detalle serie
- * a serie se sigue editando en la pantalla del día; acá se busca velocidad.
+ * Deja las series de un ejercicio planificado exactamente como se piden,
+ * renumeradas desde 1.
  *
  * Se reutilizan las filas que ya existen en vez de borrarlas y recrearlas: así
  * la sincronización ve una edición y no un borrado más un alta.
  */
-export async function setUniformPrescription(
+export async function setPlannedSets(
   plannedExerciseId: string,
-  input: UniformPrescription,
+  rows: PlannedSetInput[],
 ): Promise<void> {
-  if (input.sets < 1) throw new Error('Tiene que haber al menos una serie.')
-  if (input.reps < 1) throw new Error('Tiene que haber al menos una repetición.')
+  if (rows.length === 0) throw new Error('Tiene que haber al menos una serie.')
+  if (rows.some((r) => !Number.isInteger(r.targetReps) || r.targetReps < 1)) {
+    throw new Error('Cada serie necesita al menos una repetición.')
+  }
 
   const timestamp = nowIso()
   const existing = await listPlannedSets(plannedExerciseId)
 
   await db.transaction('rw', db.training_planned_sets, async () => {
-    for (let i = 0; i < input.sets; i++) {
+    for (let i = 0; i < rows.length; i++) {
+      const fields = { ...rows[i], setNumber: i + 1, updatedAt: timestamp }
       const current = existing[i]
-      const fields = {
-        targetWeightKg: input.weightKg,
-        targetReps: input.reps,
-        targetRpe: input.rpe,
-        restSecondsTarget: input.restSecondsTarget,
-        setNumber: i + 1,
-        updatedAt: timestamp,
-      }
       if (current) await db.training_planned_sets.update(current.id, fields)
       else {
         await db.training_planned_sets.add({
@@ -752,13 +781,34 @@ export async function setUniformPrescription(
       }
     }
     // Las que sobran se borran: bajar de 5 a 3 series tiene que dejar 3.
-    for (const extra of existing.slice(input.sets)) {
+    for (const extra of existing.slice(rows.length)) {
       await db.training_planned_sets.update(extra.id, {
         deletedAt: timestamp,
         updatedAt: timestamp,
       })
     }
   })
+}
+
+/**
+ * El atajo de la planilla: N series iguales, que es como se prescribe el 90%
+ * del powerlifting.
+ */
+export async function setUniformPrescription(
+  plannedExerciseId: string,
+  input: UniformPrescription,
+): Promise<void> {
+  if (input.sets < 1) throw new Error('Tiene que haber al menos una serie.')
+  if (input.reps < 1) throw new Error('Tiene que haber al menos una repetición.')
+  await setPlannedSets(
+    plannedExerciseId,
+    Array.from({ length: input.sets }, () => ({
+      targetWeightKg: input.weightKg,
+      targetReps: input.reps,
+      targetRpe: input.rpe,
+      restSecondsTarget: input.restSecondsTarget,
+    })),
+  )
 }
 
 export interface PinExerciseResult {
@@ -820,43 +870,21 @@ export async function pinExerciseAcrossBlock(
   return { applied, skipped }
 }
 
-/** Deja las series de `plannedExerciseId` idénticas a `sourceSets`, reutilizando filas. */
+/** Deja las series de `plannedExerciseId` idénticas a `sourceSets`. */
 async function replaceSetsFrom(
   plannedExerciseId: string,
   sourceSets: PlannedSet[],
 ): Promise<void> {
-  const timestamp = nowIso()
-  const existing = await listPlannedSets(plannedExerciseId)
-
-  await db.transaction('rw', db.training_planned_sets, async () => {
-    for (let i = 0; i < sourceSets.length; i++) {
-      const fields = {
-        targetWeightKg: sourceSets[i].targetWeightKg,
-        targetReps: sourceSets[i].targetReps,
-        targetRpe: sourceSets[i].targetRpe,
-        restSecondsTarget: sourceSets[i].restSecondsTarget,
-        setNumber: i + 1,
-        updatedAt: timestamp,
-      }
-      const current = existing[i]
-      if (current) await db.training_planned_sets.update(current.id, fields)
-      else {
-        await db.training_planned_sets.add({
-          id: generateId(),
-          plannedExerciseId,
-          ...fields,
-          createdAt: timestamp,
-          deletedAt: null,
-        })
-      }
-    }
-    for (const extra of existing.slice(sourceSets.length)) {
-      await db.training_planned_sets.update(extra.id, {
-        deletedAt: timestamp,
-        updatedAt: timestamp,
-      })
-    }
-  })
+  if (sourceSets.length === 0) return
+  await setPlannedSets(
+    plannedExerciseId,
+    sourceSets.map((s) => ({
+      targetWeightKg: s.targetWeightKg,
+      targetReps: s.targetReps,
+      targetRpe: s.targetRpe,
+      restSecondsTarget: s.restSecondsTarget,
+    })),
+  )
 }
 
 /**
