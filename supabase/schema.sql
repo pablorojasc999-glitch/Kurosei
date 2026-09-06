@@ -444,6 +444,27 @@ create table if not exists "atlas_nodes" (
 );
 
 -- ---------------------------------------------------------------------
+-- Supermercado — qué se compra y cada cuánto se repone
+-- ---------------------------------------------------------------------
+
+create table if not exists "grocery_items" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  -- 'quincenal' | 'mensual' | 'esporadico'
+  "cadence" text not null,
+  "quantity" text not null,
+  "note" text not null,
+  "checked" boolean not null default false,
+  -- Fecha de la última compra cerrada con este artículo marcado; null si nunca
+  "lastBoughtAt" date,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+-- ---------------------------------------------------------------------
 -- Indexes — every sync pull filters by (userId, updatedAt)
 -- ---------------------------------------------------------------------
 
@@ -473,6 +494,7 @@ create index if not exists "nutrition_meal_templates_sync_idx" on "nutrition_mea
 create index if not exists "nutrition_meal_template_entries_sync_idx" on "nutrition_meal_template_entries" ("userId", "updatedAt");
 create index if not exists "atlas_profiles_sync_idx" on "atlas_profiles" ("userId", "updatedAt");
 create index if not exists "atlas_nodes_sync_idx" on "atlas_nodes" ("userId", "updatedAt");
+create index if not exists "grocery_items_sync_idx" on "grocery_items" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
 -- Row Level Security — every user only ever sees/writes their own rows
@@ -508,7 +530,8 @@ begin
     'nutrition_meal_templates',
     'nutrition_meal_template_entries',
     'atlas_profiles',
-    'atlas_nodes'
+    'atlas_nodes',
+    'grocery_items'
   ]
   loop
     execute format('alter table %I enable row level security', tbl);

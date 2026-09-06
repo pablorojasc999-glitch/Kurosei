@@ -11,6 +11,8 @@ import {
   IconTransactions,
 } from './modules/finance/components/icons'
 import { TransaccionesPage } from './modules/finance/components/TransaccionesPage'
+import { IconGrocery } from './modules/grocery/components/icons'
+import { SupermercadoPage } from './modules/grocery/components/SupermercadoPage'
 import { AguaPage } from './modules/nutrition/components/AguaPage'
 import { BibliotecaPage as NutritionBibliotecaPage } from './modules/nutrition/components/BibliotecaPage'
 import {
@@ -50,7 +52,7 @@ type FinanceTab = 'cuentas' | 'categorias' | 'estadisticas'
 
 type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
 
-type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas' | 'atlas'
+type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas' | 'atlas' | 'supermercado'
 
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('registro')
@@ -107,6 +109,9 @@ function App() {
             </div>
             <div hidden={registroTab !== 'atlas'}>
               <AtlasPage />
+            </div>
+            <div hidden={registroTab !== 'supermercado'}>
+              <SupermercadoPage />
             </div>
           </>
         ) : appModule === 'finanzas' ? (
@@ -192,6 +197,14 @@ function App() {
           >
             <IconAtlas />
             Atlas
+          </button>
+          <button
+            type="button"
+            className={registroTab === 'supermercado' ? 'active' : ''}
+            onClick={() => setRegistroTab('supermercado')}
+          >
+            <IconGrocery />
+            Súper
           </button>
         </nav>
       ) : appModule === 'finanzas' ? (
