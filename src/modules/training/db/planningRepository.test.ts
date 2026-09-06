@@ -9,7 +9,11 @@ import {
   createPlannedExercise,
   createPlannedSet,
   createWeek,
+  addExerciseToSlot,
   dayHasLoggedData,
+  getBlockGridData,
+  pinExerciseAcrossBlock,
+  setUniformPrescription,
   deleteDay,
   deleteMacrocycle,
   deleteMesocycle,
@@ -827,5 +831,248 @@ describe('reorderPlannedExercise', () => {
     await reorderPlannedExercise(pe2.id, 'up')
     const ordered = await listPlannedExercises(day.id)
     expect(ordered.map((pe) => pe.id)).toEqual([pe2.id, pe1.id])
+  })
+})
+
+describe('planilla del bloque', () => {
+  async function seedBlock() {
+    const meso = await seedMesocycle()
+    const piernas = await createMuscleGroup('Cuádriceps')
+    const squat = await createExercise({
+      name: 'Box squat',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: piernas.id, factor: 1 }],
+    })
+    const remo = await createExercise({
+      name: 'Remo',
+      type: 'strength',
+      category: null,
+      muscleContributions: [{ muscleGroupId: piernas.id, factor: 1 }],
+    })
+
+    // Tres semanas de dos días cada una, corridas siete días entre sí.
+    const marzo = (day: number) => `2026-03-${String(day).padStart(2, '0')}T00:00:00.000Z`
+    const weeks = []
+    for (let w = 0; w < 3; w++) {
+      const week = await createWeek(meso.id)
+      const d1 = await createDay({ weekId: week.id, date: marzo(2 + w * 7), label: '' })
+      const d2 = await createDay({ weekId: week.id, date: marzo(4 + w * 7), label: '' })
+      weeks.push({ week, d1, d2 })
+    }
+    return { meso, squat, remo, weeks }
+  }
+
+  it('getBlockGridData trae sólo lo del bloque pedido', async () => {
+    const { meso, squat, weeks } = await seedBlock()
+    const pe = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    await createPlannedSet({
+      plannedExerciseId: pe.id,
+      targetWeightKg: 130,
+      targetReps: 3,
+      targetRpe: null,
+      restSecondsTarget: null,
+    })
+
+    // Otro bloque, que no debe colarse.
+    const otro = await seedMesocycle()
+    const otraSemana = await createWeek(otro.id)
+    await createDay({ weekId: otraSemana.id, date: '2026-05-01T00:00:00.000Z', label: '' })
+
+    const data = await getBlockGridData(meso.id)
+    expect(data.weeks).toHaveLength(3)
+    expect(data.days).toHaveLength(6)
+    expect(data.plannedExercises).toHaveLength(1)
+    expect(data.plannedSets).toHaveLength(1)
+  })
+
+  it('setUniformPrescription deja N series iguales', async () => {
+    const { squat, weeks } = await seedBlock()
+    const pe = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    await setUniformPrescription(pe.id, {
+      sets: 4,
+      reps: 3,
+      weightKg: 140,
+      rpe: 8,
+      restSecondsTarget: 180,
+    })
+    const sets = await listPlannedSets(pe.id)
+    expect(sets).toHaveLength(4)
+    expect(sets.map((s) => s.setNumber)).toEqual([1, 2, 3, 4])
+    expect(sets.every((s) => s.targetReps === 3 && s.targetWeightKg === 140)).toBe(true)
+  })
+
+  it('bajar de 5 a 3 series deja 3, no 5', async () => {
+    const { squat, weeks } = await seedBlock()
+    const pe = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    const prescripcion = {
+      reps: 3,
+      weightKg: 140,
+      rpe: null,
+      restSecondsTarget: null,
+    }
+    await setUniformPrescription(pe.id, { sets: 5, ...prescripcion })
+    expect(await listPlannedSets(pe.id)).toHaveLength(5)
+
+    await setUniformPrescription(pe.id, { sets: 3, ...prescripcion })
+    const sets = await listPlannedSets(pe.id)
+    expect(sets).toHaveLength(3)
+    expect(sets.map((s) => s.setNumber)).toEqual([1, 2, 3])
+  })
+
+  it('rechaza cero series o cero repeticiones', async () => {
+    const { squat, weeks } = await seedBlock()
+    const pe = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    await expect(
+      setUniformPrescription(pe.id, {
+        sets: 0,
+        reps: 3,
+        weightKg: null,
+        rpe: null,
+        restSecondsTarget: null,
+      }),
+    ).rejects.toThrow('al menos una serie')
+    await expect(
+      setUniformPrescription(pe.id, {
+        sets: 3,
+        reps: 0,
+        weightKg: null,
+        rpe: null,
+        restSecondsTarget: null,
+      }),
+    ).rejects.toThrow('al menos una repetición')
+  })
+
+  it('fijar en el bloque replica el ejercicio en ese día de todas las semanas', async () => {
+    const { meso, squat, weeks } = await seedBlock()
+    const pe = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: 'Con pausa',
+    })
+    await setUniformPrescription(pe.id, {
+      sets: 3,
+      reps: 3,
+      weightKg: 130,
+      rpe: null,
+      restSecondsTarget: null,
+    })
+
+    const result = await pinExerciseAcrossBlock(meso.id, 0, squat.id, pe.id)
+    expect(result).toEqual({ applied: 3, skipped: 0 })
+
+    for (const { d1, d2 } of weeks) {
+      const enDia1 = await listPlannedExercises(d1.id)
+      expect(enDia1.map((p) => p.exerciseId)).toEqual([squat.id])
+      expect(enDia1[0].notes).toBe('Con pausa')
+      const sets = await listPlannedSets(enDia1[0].id)
+      expect(sets).toHaveLength(3)
+      expect(sets.every((s) => s.targetWeightKg === 130 && s.targetReps === 3)).toBe(true)
+      // El día 2 no se toca: se fija una posición, no la semana entera.
+      expect(await listPlannedExercises(d2.id)).toEqual([])
+    }
+  })
+
+  it('fijar no duplica lo que ya estaba: lo sobrescribe', async () => {
+    const { meso, squat, weeks } = await seedBlock()
+    const origen = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    await setUniformPrescription(origen.id, {
+      sets: 3,
+      reps: 3,
+      weightKg: 130,
+      rpe: null,
+      restSecondsTarget: null,
+    })
+    const yaEstaba = await createPlannedExercise({
+      dayId: weeks[1].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    await setUniformPrescription(yaEstaba.id, {
+      sets: 8,
+      reps: 10,
+      weightKg: 60,
+      rpe: null,
+      restSecondsTarget: null,
+    })
+
+    await pinExerciseAcrossBlock(meso.id, 0, squat.id, origen.id)
+
+    const enSemana2 = await listPlannedExercises(weeks[1].d1.id)
+    expect(enSemana2).toHaveLength(1)
+    expect(enSemana2[0].id).toBe(yaEstaba.id)
+    const sets = await listPlannedSets(yaEstaba.id)
+    expect(sets).toHaveLength(3)
+    expect(sets.every((s) => s.targetReps === 3 && s.targetWeightKg === 130)).toBe(true)
+  })
+
+  it('fijar no toca la celda de origen', async () => {
+    const { meso, squat, weeks } = await seedBlock()
+    const origen = await createPlannedExercise({
+      dayId: weeks[0].d1.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    await setUniformPrescription(origen.id, {
+      sets: 3,
+      reps: 3,
+      weightKg: 130,
+      rpe: null,
+      restSecondsTarget: null,
+    })
+    await pinExerciseAcrossBlock(meso.id, 0, squat.id, origen.id)
+    expect(await listPlannedSets(origen.id)).toHaveLength(3)
+  })
+
+  it('una semana sin ese día se salta y se informa', async () => {
+    const { meso, squat, weeks } = await seedBlock()
+    await deleteDay(weeks[2].d2.id)
+    const pe = await createPlannedExercise({
+      dayId: weeks[0].d2.id,
+      exerciseId: squat.id,
+      notes: '',
+    })
+    const result = await pinExerciseAcrossBlock(meso.id, 1, squat.id, pe.id)
+    expect(result).toEqual({ applied: 2, skipped: 1 })
+  })
+
+  it('addExerciseToSlot cuelga el ejercicio del día de esa posición', async () => {
+    const { remo, weeks } = await seedBlock()
+    const created = await addExerciseToSlot(weeks[1].week.id, 1, remo.id)
+    expect(created?.dayId).toBe(weeks[1].d2.id)
+    expect(await listPlannedExercises(weeks[1].d2.id)).toHaveLength(1)
+  })
+
+  it('addExerciseToSlot no duplica si el ejercicio ya está', async () => {
+    const { remo, weeks } = await seedBlock()
+    const primero = await addExerciseToSlot(weeks[0].week.id, 0, remo.id)
+    const segundo = await addExerciseToSlot(weeks[0].week.id, 0, remo.id)
+    expect(segundo?.id).toBe(primero?.id)
+    expect(await listPlannedExercises(weeks[0].d1.id)).toHaveLength(1)
+  })
+
+  it('addExerciseToSlot devuelve null si la semana no tiene ese día', async () => {
+    const { remo, weeks } = await seedBlock()
+    expect(await addExerciseToSlot(weeks[0].week.id, 5, remo.id)).toBeNull()
   })
 })

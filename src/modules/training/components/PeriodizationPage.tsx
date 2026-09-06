@@ -29,6 +29,7 @@ import {
 } from '../db/planningRepository'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import { BlockGrid } from './BlockGrid'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
   Day,
@@ -61,6 +62,9 @@ export function PeriodizationPage({
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
   const [dayId, setDayId] = useState<string | null>(null)
+  // La planilla es la vista por defecto del bloque: entrar a comparar es lo
+  // que se hace al planificar. La lista de semanas sigue a un toque.
+  const [mesoView, setMesoView] = useState<'planilla' | 'semanas'>('planilla')
 
   useEffect(() => {
     if (!jumpToDayId) return
@@ -527,6 +531,39 @@ export function PeriodizationPage({
       )}
 
       {mesocycleId && !weekId && (
+        <div className="sub-tabs">
+          <button
+            type="button"
+            className={mesoView === 'planilla' ? 'active' : ''}
+            onClick={() => setMesoView('planilla')}
+          >
+            Planilla
+          </button>
+          <button
+            type="button"
+            className={mesoView === 'semanas' ? 'active' : ''}
+            onClick={() => setMesoView('semanas')}
+          >
+            Semanas
+          </button>
+        </div>
+      )}
+
+      {mesocycleId && !weekId && mesoView === 'planilla' && (
+        <section className="elevated-section">
+          <h2>{selectedMesocycle?.name}</h2>
+          <BlockGrid
+            mesocycleId={mesocycleId}
+            mesocycleName={selectedMesocycle?.name ?? 'el bloque'}
+            onOpenDay={(week, day) => {
+              setWeekId(week)
+              setDayId(day)
+            }}
+          />
+        </section>
+      )}
+
+      {mesocycleId && !weekId && mesoView === 'semanas' && (
         <section className="elevated-section">
           <h2>Semanas de {selectedMesocycle?.name}</h2>
           <ul className="entity-list">
