@@ -30,6 +30,8 @@ export const SYNC_TABLE_NAMES = [
   'nutrition_water_entries',
   'nutrition_meal_templates',
   'nutrition_meal_template_entries',
+  'atlas_profiles',
+  'atlas_nodes',
 ] as const
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]

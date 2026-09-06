@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { AtlasPage } from './modules/atlas/components/AtlasPage'
+import { IconAtlas } from './modules/atlas/components/icons'
 import { CategoriasPage } from './modules/finance/components/CategoriasPage'
 import { CuentasPage } from './modules/finance/components/CuentasPage'
 import { EstadisticasPage } from './modules/finance/components/EstadisticasPage'
@@ -40,6 +42,7 @@ import { ReloadPrompt } from './modules/training/components/ReloadPrompt'
 import { AccountPanel } from './modules/sync/components/AccountPanel'
 import { AppSidebar, type AppModule } from './shared/components/AppSidebar'
 import './App.css'
+import './modules/atlas/atlas.css'
 
 type Tab = 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca' | 'calculadora'
 
@@ -47,7 +50,7 @@ type FinanceTab = 'cuentas' | 'categorias' | 'estadisticas'
 
 type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
 
-type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas'
+type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas' | 'atlas'
 
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('registro')
@@ -71,8 +74,12 @@ function App() {
     setTab('periodizacion')
   }
 
+  // Atlas trae su propio alto: el mapa scrollea por dentro y su barra de
+  // acción queda apoyada sobre el nav, en vez de empujar el documento.
+  const atlasActive = appModule === 'registro' && registroTab === 'atlas'
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell${atlasActive ? ' app-shell--atlas' : ''}`}>
       <ReloadPrompt />
       <AppSidebar
         open={sidebarOpen}
@@ -86,7 +93,7 @@ function App() {
           <AccountPanel />
         </div>
       </header>
-      <main className="app-content">
+      <main className={`app-content${atlasActive ? ' app-content--atlas' : ''}`}>
         {appModule === 'registro' ? (
           <>
             <div hidden={registroTab !== 'entrenamiento'}>
@@ -97,6 +104,9 @@ function App() {
             </div>
             <div hidden={registroTab !== 'finanzas'}>
               <TransaccionesPage />
+            </div>
+            <div hidden={registroTab !== 'atlas'}>
+              <AtlasPage />
             </div>
           </>
         ) : appModule === 'finanzas' ? (
@@ -174,6 +184,14 @@ function App() {
           >
             <IconTransactions />
             Finanzas
+          </button>
+          <button
+            type="button"
+            className={registroTab === 'atlas' ? 'active' : ''}
+            onClick={() => setRegistroTab('atlas')}
+          >
+            <IconAtlas />
+            Atlas
           </button>
         </nav>
       ) : appModule === 'finanzas' ? (
