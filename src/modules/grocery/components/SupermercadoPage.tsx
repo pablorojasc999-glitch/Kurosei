@@ -11,7 +11,6 @@ import {
   completeShoppingRun,
   createItem,
   listItems,
-  moveItemToCadence,
   softDeleteItem,
   toggleItemChecked,
   updateItem,
@@ -21,8 +20,9 @@ import {
   CADENCE_LABEL,
   CADENCE_SHORT,
   groupByCadence,
-  isDue,
+  hasQuantity,
   lastBoughtLabel,
+  needsBuying,
   todayKey,
 } from '../lib/groceryCadence'
 
@@ -41,17 +41,19 @@ export function SupermercadoPage() {
   const { isSubmitting, guard } = useSubmitGuard()
 
   // La cadencia hace de sección, así que sirve el mismo arrastre que Nutrición.
+  // El índice se ignora a propósito: dentro de cada lista el orden lo fijan la
+  // cantidad y el nombre, así que arrastrar sólo cambia de lista.
   const drag = useEntryDragReorder(
     items?.map((i) => ({ ...i, sectionId: i.cadence })),
     PURCHASE_CADENCES.map((c) => ({ id: c })),
-    (id, targetCadence, targetIndex) => {
-      void moveItemToCadence(id, targetCadence as PurchaseCadence, targetIndex)
+    (id, targetCadence) => {
+      void updateItem(id, { cadence: targetCadence as PurchaseCadence })
     },
   )
 
   const groups = groupByCadence(items ?? [], today)
   const checkedItems = (items ?? []).filter((i) => i.checked)
-  const dueItems = (items ?? []).filter((i) => isDue(i, today) && !i.checked)
+  const dueItems = (items ?? []).filter((i) => needsBuying(i, today) && !i.checked)
 
   function resetForm() {
     setOpenCadence(null)
@@ -161,10 +163,15 @@ export function SupermercadoPage() {
               +
             </button>
           </div>
-          <p className="grocery-section-hint">{CADENCE_HINT[group.cadence]}</p>
+          <p className="grocery-section-hint">
+            {CADENCE_HINT[group.cadence]}
+            {group.stockedCount > 0 && ` · ${group.stockedCount} ya en casa`}
+          </p>
 
           <div
-            className="grocery-list"
+            className={`grocery-list${
+              drag.dropTarget?.sectionId === group.cadence ? ' grocery-list--drop' : ''
+            }`}
             ref={(el) => {
               if (el) drag.sectionListRefs.current.set(group.cadence, el)
               else drag.sectionListRefs.current.delete(group.cadence)
@@ -174,13 +181,11 @@ export function SupermercadoPage() {
               <p className="empty-hint">Nada en esta lista todavía.</p>
             )}
 
-            {group.items.map((item, index) => {
-              const due = isDue(item, today)
-              const dropHere =
-                drag.dropTarget?.sectionId === group.cadence && drag.dropTarget.index === index
+            {group.items.map((item) => {
+              const stocked = !hasQuantity(item)
+              const due = needsBuying(item, today)
               return (
                 <div key={item.id}>
-                  {dropHere && <div className="grocery-drop-line" />}
                   <div
                     ref={(el) => {
                       if (el) drag.rowRefs.current.set(item.id, el)
@@ -189,6 +194,7 @@ export function SupermercadoPage() {
                     className={[
                       'grocery-row',
                       item.checked && 'grocery-row--checked',
+                      stocked && !item.checked && 'grocery-row--stocked',
                       due && !item.checked && 'grocery-row--due',
                       drag.draggingId === item.id && 'grocery-row--dragging',
                     ]
@@ -227,7 +233,11 @@ export function SupermercadoPage() {
                     >
                       <span className="grocery-row-name">
                         {item.name}
-                        {item.quantity && <span className="grocery-row-qty">{item.quantity}</span>}
+                        {item.quantity ? (
+                          <span className="grocery-row-qty">{item.quantity}</span>
+                        ) : (
+                          <span className="grocery-row-tag">ya tengo</span>
+                        )}
                       </span>
                       <span className="grocery-row-meta">
                         {lastBoughtLabel(item, today)}
@@ -247,8 +257,6 @@ export function SupermercadoPage() {
               )
             })}
 
-            {drag.dropTarget?.sectionId === group.cadence &&
-              drag.dropTarget.index >= group.items.length && <div className="grocery-drop-line" />}
           </div>
 
           {openCadence === group.cadence && (
@@ -269,6 +277,10 @@ export function SupermercadoPage() {
                   onChange={(e) => setQuantity(e.target.value)}
                   placeholder="2 L, 1 kg, 3 paquetes…"
                 />
+                <span className="grocery-field-hint">
+                  Déjalo vacío si ya tienes en casa: se va al final de la lista y no entra en la
+                  compra.
+                </span>
               </label>
               <label>
                 Nota
