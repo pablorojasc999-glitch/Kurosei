@@ -8,6 +8,7 @@ import {
   softDeleteExercise,
   updateExercise,
 } from '../db/trainingRepository'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type { Exercise, ExerciseCategory, ExerciseType, MuscleGroup } from '../domain/types'
 
@@ -51,6 +52,7 @@ export function ExerciseLibraryPage() {
   const [factors, setFactors] = useState<Record<string, string>>({})
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [showForm, setShowForm] = useState(false)
   const { isSubmitting, guard } = useSubmitGuard()
 
   useEffect(() => {
@@ -61,7 +63,13 @@ export function ExerciseLibraryPage() {
     setFactors((prev) => ({ ...prev, [muscleGroupId]: value }))
   }
 
+  function openCreateForm() {
+    resetForm()
+    setShowForm(true)
+  }
+
   function resetForm() {
+    setShowForm(false)
     setEditingExerciseId(null)
     setExerciseName('')
     setExerciseType('strength')
@@ -71,6 +79,7 @@ export function ExerciseLibraryPage() {
   }
 
   function startEdit(ex: Exercise) {
+    setShowForm(true)
     setEditingExerciseId(ex.id)
     setExerciseName(ex.name)
     setExerciseType(ex.type)
@@ -124,9 +133,16 @@ export function ExerciseLibraryPage() {
     <div className="page">
       <h1>Biblioteca de ejercicios</h1>
 
-      <section className="elevated-section">
-        <h2>{editingExerciseId ? 'Editar ejercicio' : 'Nuevo ejercicio'}</h2>
-        <form onSubmit={handleSubmit} className="exercise-form">
+      <button type="button" className="finance-add-button" onClick={openCreateForm}>
+        + Nuevo ejercicio
+      </button>
+
+      {showForm && (
+        <BottomSheet
+          title={editingExerciseId ? 'Editar ejercicio' : 'Nuevo ejercicio'}
+          onClose={resetForm}
+        >
+          <form onSubmit={handleSubmit} className="exercise-form">
           <label>
             Nombre
             <input
@@ -200,8 +216,9 @@ export function ExerciseLibraryPage() {
               Cancelar
             </button>
           )}
-        </form>
-      </section>
+          </form>
+        </BottomSheet>
+      )}
 
       <section className="elevated-section">
         <h2>Ejercicios</h2>

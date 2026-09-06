@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { createFood, listFoods, softDeleteFood, updateFood } from '../db/nutritionRepository'
@@ -159,8 +160,10 @@ export function BibliotecaPage() {
       </button>
 
       {showForm && (
-        <section>
-          <h2>{editingId ? 'Editar alimento' : 'Nuevo alimento'}</h2>
+        <BottomSheet
+          title={editingId ? 'Editar alimento' : 'Nuevo alimento'}
+          onClose={resetForm}
+        >
           <form onSubmit={handleSubmit} className="entity-form">
             <label>
               Nombre
@@ -289,7 +292,7 @@ export function BibliotecaPage() {
               Cancelar
             </button>
           </form>
-        </section>
+        </BottomSheet>
       )}
 
       <section>

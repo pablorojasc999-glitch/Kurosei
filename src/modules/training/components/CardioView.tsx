@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { createCardioSession, deleteCardioSession } from '../db/cardioRepository'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
@@ -106,8 +107,11 @@ export function CardioView({ dayId }: CardioViewProps) {
         ))}
       </ul>
 
-      {showForm ? (
-        <form onSubmit={handleAddCardioSession} className="entity-form">
+      <button type="button" onClick={() => setShowForm(true)}>+ Agregar cardio</button>
+
+      {showForm && (
+        <BottomSheet title="Nuevo cardio" onClose={() => setShowForm(false)}>
+          <form onSubmit={handleAddCardioSession} className="entity-form">
           <select
             value={exerciseId}
             onChange={(e) => setExerciseId(e.target.value)}
@@ -165,9 +169,8 @@ export function CardioView({ dayId }: CardioViewProps) {
           />
           <button type="submit" disabled={isSubmitting}>Agregar cardio</button>
           <button type="button" onClick={() => setShowForm(false)}>Cancelar</button>
-        </form>
-      ) : (
-        <button type="button" onClick={() => setShowForm(true)}>+ Agregar cardio</button>
+          </form>
+        </BottomSheet>
       )}
     </div>
   )

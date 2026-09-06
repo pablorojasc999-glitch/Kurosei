@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
@@ -134,8 +135,16 @@ export function MetasPage() {
         nutrición. Registro compara el día contra la meta vigente en esa fecha.
       </p>
 
-      {showForm ? (
-        <form onSubmit={handleSubmit} className="entity-form">
+      <button type="button" className="finance-add-button" onClick={openCreateForm}>
+        + Nueva meta
+      </button>
+
+      {showForm && (
+        <BottomSheet
+          title={editingId ? 'Editar meta' : 'Nueva meta'}
+          onClose={() => setShowForm(false)}
+        >
+          <form onSubmit={handleSubmit} className="entity-form">
           <label>
             Nombre
             <input
@@ -241,11 +250,8 @@ export function MetasPage() {
           <button type="button" onClick={() => setShowForm(false)}>
             Cancelar
           </button>
-        </form>
-      ) : (
-        <button type="button" className="finance-add-button" onClick={openCreateForm}>
-          + Nueva meta
-        </button>
+          </form>
+        </BottomSheet>
       )}
 
       <div className="nutrition-goal-list">

@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { addDays, startOfDay, toDateKey } from '../../training/lib/calendarGrid'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { DayHeaderLabel } from '../../training/components/DayHeaderLabel'
 import {
   addFoodEntry,
@@ -276,8 +277,13 @@ export function RegistroPage() {
         )
       })}
 
-      {showNewSection ? (
-        <form onSubmit={handleCreateSection} className="entity-form">
+      <button type="button" className="finance-add-button" onClick={() => setShowNewSection(true)}>
+        + Agregar sección
+      </button>
+
+      {showNewSection && (
+        <BottomSheet title="Nueva sección" onClose={() => setShowNewSection(false)}>
+          <form onSubmit={handleCreateSection} className="entity-form">
           <label>
             Nombre de la sección
             <input
@@ -292,11 +298,8 @@ export function RegistroPage() {
           <button type="button" onClick={() => setShowNewSection(false)}>
             Cancelar
           </button>
-        </form>
-      ) : (
-        <button type="button" className="finance-add-button" onClick={() => setShowNewSection(true)}>
-          + Agregar sección
-        </button>
+          </form>
+        </BottomSheet>
       )}
 
       {showTemplatePicker ? (

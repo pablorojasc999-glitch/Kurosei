@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { toDateKey } from '../../training/lib/calendarGrid'
 import {
@@ -227,8 +228,17 @@ export function PlantillasPage() {
           )
         })}
 
-        {showNewSection ? (
-          <form onSubmit={handleCreateSection} className="entity-form">
+        <button
+          type="button"
+          className="finance-add-button"
+          onClick={() => setShowNewSection(true)}
+        >
+          + Agregar sección
+        </button>
+
+        {showNewSection && (
+          <BottomSheet title="Nueva sección" onClose={() => setShowNewSection(false)}>
+            <form onSubmit={handleCreateSection} className="entity-form">
             <label>
               Nombre de la sección
               <input
@@ -243,15 +253,8 @@ export function PlantillasPage() {
             <button type="button" onClick={() => setShowNewSection(false)}>
               Cancelar
             </button>
-          </form>
-        ) : (
-          <button
-            type="button"
-            className="finance-add-button"
-            onClick={() => setShowNewSection(true)}
-          >
-            + Agregar sección
-          </button>
+            </form>
+          </BottomSheet>
         )}
 
         <section>
@@ -287,8 +290,17 @@ export function PlantillasPage() {
     <div className="page">
       <h1>Plantillas</h1>
 
-      {showNewTemplate ? (
-        <form onSubmit={handleCreateTemplate} className="entity-form">
+      <button
+        type="button"
+        className="finance-add-button"
+        onClick={() => setShowNewTemplate(true)}
+      >
+        + Nueva plantilla
+      </button>
+
+      {showNewTemplate && (
+        <BottomSheet title="Nueva plantilla" onClose={() => setShowNewTemplate(false)}>
+          <form onSubmit={handleCreateTemplate} className="entity-form">
           <label>
             Nombre
             <input
@@ -312,15 +324,8 @@ export function PlantillasPage() {
           <button type="button" onClick={() => setShowNewTemplate(false)}>
             Cancelar
           </button>
-        </form>
-      ) : (
-        <button
-          type="button"
-          className="finance-add-button"
-          onClick={() => setShowNewTemplate(true)}
-        >
-          + Nueva plantilla
-        </button>
+          </form>
+        </BottomSheet>
       )}
 
       <div className="nutrition-template-grid">

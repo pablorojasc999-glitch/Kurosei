@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
+import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
@@ -280,14 +281,16 @@ export function CuentasPage() {
       )}
 
       {formKind && (
-        <section>
-          <h2>
-            {editingId
+        <BottomSheet
+          title={
+            editingId
               ? `Editar ${formKind === 'debt' ? 'deuda' : 'cuenta'}`
               : formKind === 'debt'
                 ? 'Nueva deuda'
-                : 'Nueva cuenta'}
-          </h2>
+                : 'Nueva cuenta'
+          }
+          onClose={resetForm}
+        >
           <form onSubmit={handleSubmit} className="entity-form">
             <label>
               Nombre
@@ -350,7 +353,7 @@ export function CuentasPage() {
               Cancelar
             </button>
           </form>
-        </section>
+        </BottomSheet>
       )}
     </div>
   )

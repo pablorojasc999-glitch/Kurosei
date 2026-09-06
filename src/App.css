@@ -3368,42 +3368,107 @@ section {
    Hoja de edición de la planilla
    -------------------------------------------------------------------- */
 
-.grid-sheet-backdrop {
+/* --------------------------------------------------------------------
+   Panel inferior — crear y editar sin bajar hasta el final de la página
+   -------------------------------------------------------------------- */
+
+.sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 18;
   background: rgba(0, 0, 0, 0.6);
 }
 
-/* Anclada al borde inferior de la ventana, por encima del nav: al tocar una
-   celda el editor aparece donde está la vista, sin scrollear hasta el final. */
-.grid-sheet {
+.sheet {
   position: fixed;
   z-index: 20;
   left: 0;
   right: 0;
   bottom: 0;
   box-sizing: border-box;
-  max-height: 82svh;
-  max-height: 82dvh;
+  max-height: 86svh;
+  max-height: 86dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
-  border: none;
   border-top: 1px solid var(--accent-border);
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   background: var(--surface);
   box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.6);
 }
 
+.sheet:focus {
+  outline: none;
+}
+
 @media (min-width: 640px) {
-  .grid-sheet {
+  .sheet {
     left: 50%;
     right: auto;
     width: 560px;
     transform: translateX(-50%);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.sheet-titles {
+  min-width: 0;
+}
+
+.sheet-head h3 {
+  margin: 0;
+}
+
+.sheet-subtitle {
+  margin: 2px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.sheet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.sheet-actions button {
+  min-height: 40px;
+  padding: 6px 14px;
+  font-size: 13.5px;
+}
+
+.sheet-link {
+  min-height: auto;
+  margin-top: 12px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12.5px;
+}
+
+.sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  margin: 10px 0;
+}
+
+.sheet-list button {
+  justify-content: flex-start;
+  min-height: 40px;
+  text-align: left;
 }
 
 /* --------------------------------------------------------------------
@@ -3483,55 +3548,6 @@ section {
 .set-editor-done-row {
   color: var(--success-muted);
   font-size: 12.5px;
-}
-
-.grid-sheet h3 {
-  margin: 0 0 2px;
-}
-
-.grid-sheet-context {
-  margin: 0 0 14px;
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.grid-sheet-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-
-.grid-sheet-actions button {
-  min-height: 38px;
-  padding: 6px 12px;
-  font-size: 13px;
-}
-
-.grid-sheet-link {
-  min-height: auto;
-  margin-top: 12px;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-size: 12.5px;
-}
-
-.grid-sheet-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  max-height: 260px;
-  overflow-y: auto;
-  margin: 10px 0;
-}
-
-.grid-sheet-list button {
-  justify-content: flex-start;
-  min-height: 40px;
-  text-align: left;
 }
 
 .grid-notice {
