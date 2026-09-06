@@ -415,6 +415,35 @@ create table if not exists "nutrition_meal_template_entries" (
 );
 
 -- ---------------------------------------------------------------------
+-- Atlas Personal — perfiles y su árbol de nodos
+-- ---------------------------------------------------------------------
+
+create table if not exists "atlas_profiles" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "name" text not null,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+create table if not exists "atlas_nodes" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "profileId" uuid not null,
+  -- null marca la raíz del perfil; hay exactamente una por perfil
+  "parentId" uuid,
+  "name" text not null,
+  "level" text not null,
+  "note" text not null,
+  "order" integer not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+-- ---------------------------------------------------------------------
 -- Indexes — every sync pull filters by (userId, updatedAt)
 -- ---------------------------------------------------------------------
 
@@ -442,6 +471,8 @@ create index if not exists "nutrition_entries_sync_idx" on "nutrition_entries" (
 create index if not exists "nutrition_water_entries_sync_idx" on "nutrition_water_entries" ("userId", "updatedAt");
 create index if not exists "nutrition_meal_templates_sync_idx" on "nutrition_meal_templates" ("userId", "updatedAt");
 create index if not exists "nutrition_meal_template_entries_sync_idx" on "nutrition_meal_template_entries" ("userId", "updatedAt");
+create index if not exists "atlas_profiles_sync_idx" on "atlas_profiles" ("userId", "updatedAt");
+create index if not exists "atlas_nodes_sync_idx" on "atlas_nodes" ("userId", "updatedAt");
 
 -- ---------------------------------------------------------------------
 -- Row Level Security — every user only ever sees/writes their own rows
@@ -475,7 +506,9 @@ begin
     'nutrition_entries',
     'nutrition_water_entries',
     'nutrition_meal_templates',
-    'nutrition_meal_template_entries'
+    'nutrition_meal_template_entries',
+    'atlas_profiles',
+    'atlas_nodes'
   ]
   loop
     execute format('alter table %I enable row level security', tbl);

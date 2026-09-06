@@ -1,0 +1,1187 @@
+/*
+ * Atlas Personal — sistema de diseño propio, aislado bajo `.atlas` para que no
+ * se cruce con el morado de Kurosei. Reglas duras del diseño: una sola familia
+ * (Archivo), radio 0 en todo, sin sombras salvo el desenfoque de las líneas,
+ * y rojo/ámbar/verde solo para nivel de dominio.
+ */
+
+.atlas {
+  --atlas-canvas: #121110;
+  --atlas-chrome: #0c0b0b;
+  --atlas-panel: #0f0e0e;
+  --atlas-node: #161514;
+  --atlas-node-root: #1a1918;
+  --atlas-node-selected: #221513;
+  --atlas-rule-strong: #322f2d;
+  --atlas-rule: #2b2928;
+  --atlas-border: #35322f;
+  --atlas-border-soft: #2f2c2a;
+  --atlas-dot: #312e2c;
+  --atlas-ink: #f4f1ef;
+  --atlas-ink-2: #cdc8c5;
+  --atlas-ink-3: #d6d1ce;
+  --atlas-muted: #8b8683;
+  --atlas-muted-2: #7d7877;
+  --atlas-muted-3: #6d6867;
+  --atlas-faint: #4a4645;
+  --atlas-rojo: #ec3013;
+  --atlas-ambar: #e8a22a;
+  --atlas-verde: #3fbf7f;
+
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--atlas-canvas);
+  color: var(--atlas-ink);
+  font-family: Archivo, system-ui, sans-serif;
+  text-align: left;
+}
+
+/* El shell de Kurosei da la altura; el mapa scrollea por dentro y la barra de
+   acción de Atlas queda apoyada justo encima del nav de la app. Sin fijar el
+   alto del shell, `flex: 1` se resolvería al alto del contenido y la barra de
+   acción se iría por debajo del pliegue. */
+.app-shell--atlas {
+  height: 100svh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-content--atlas {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.app-content--atlas > div:not([hidden]) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Reset de los botones y títulos globales de Kurosei (44px de alto, radio,
+   superficie propia, la barra morada bajo cada h1). Va con `:where()` a
+   propósito: deja la especificidad en (0,0,1), igual que los selectores de
+   tipo globales — que pisa por orden de carga — y por debajo de cualquier
+   clase de Atlas. Con `.atlas button` (0,1,1) el rojo de
+   `.atlas-actionbar-add` (0,1,0) perdía y los botones salían transparentes. */
+:where(.atlas) button {
+  min-height: 0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: none;
+}
+
+:where(.atlas) button:hover {
+  border-color: inherit;
+}
+
+:where(.atlas) button:active {
+  background: none;
+  transform: none;
+}
+
+:where(.atlas) h1,
+:where(.atlas) h2,
+:where(.atlas) h3 {
+  font-family: inherit;
+  letter-spacing: inherit;
+  padding: 0;
+  color: inherit;
+  text-wrap: inherit;
+}
+
+/* `h1::after` global pesa (0,0,2), así que esta sí necesita su clase delante. */
+.atlas h1::after,
+.atlas h2::after,
+.atlas h3::after {
+  content: none;
+}
+
+.atlas button:focus-visible,
+.atlas [tabindex]:focus-visible,
+.atlas textarea:focus-visible,
+.atlas input:focus-visible {
+  outline: 2px solid var(--atlas-rojo);
+  outline-offset: 2px;
+}
+
+:where(.atlas) input,
+:where(.atlas) textarea {
+  min-height: 0;
+  border-radius: 0;
+  font-family: Archivo, system-ui, sans-serif;
+}
+
+/* --------------------------------------------------------------------
+   Barra de pestañas de perfiles
+   -------------------------------------------------------------------- */
+
+.atlas-tabs {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  height: 42px;
+  background: var(--atlas-panel);
+  border-bottom: 2px solid var(--atlas-rule-strong);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.atlas-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.atlas-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 0 14px;
+  border-right: 1px solid var(--atlas-rule);
+  font: 500 12px/1 Archivo, sans-serif;
+  color: var(--atlas-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.atlas-tab--active {
+  background: var(--atlas-canvas);
+  border-top: 2px solid var(--atlas-rojo);
+  margin-top: -2px;
+  font-weight: 700;
+  color: var(--atlas-ink);
+}
+
+.atlas-tab-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  display: block;
+}
+
+.atlas-tab-add {
+  display: flex;
+  align-items: center;
+  flex: none;
+  padding: 0 13px;
+  border-right: 1px solid var(--atlas-rule);
+  font: 400 15px/1 Archivo, sans-serif;
+  color: var(--atlas-muted-3);
+  cursor: pointer;
+}
+
+.atlas-tabs-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.atlas-tabs-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex: none;
+  padding: 0 16px;
+  font: 600 10px/1 Archivo, sans-serif;
+  letter-spacing: 0.14em;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-tabs-actions button {
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+/* --------------------------------------------------------------------
+   Lienzo del mapa
+   -------------------------------------------------------------------- */
+
+.atlas-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background-color: var(--atlas-canvas);
+  background-image: radial-gradient(var(--atlas-dot) 1px, transparent 1px);
+  background-size: 36px 36px;
+  background-position: 12px 12px;
+}
+
+.atlas-canvas--desktop {
+  background-size: 44px 44px;
+  background-position: 14px 14px;
+}
+
+.atlas-stage {
+  position: relative;
+}
+
+.atlas-edges {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+.atlas-edge-glow {
+  stroke: var(--atlas-ink);
+  fill: none;
+  filter: blur(2.5px);
+}
+
+.atlas-edge {
+  stroke: var(--atlas-muted-3);
+  fill: none;
+}
+
+.atlas-edge--branch {
+  stroke: var(--atlas-faint);
+}
+
+.atlas-edge-drag {
+  stroke: var(--atlas-rojo);
+  stroke-width: 1.2;
+  fill: none;
+  stroke-dasharray: 5 5;
+}
+
+.atlas-port {
+  fill: var(--atlas-faint);
+}
+
+/* Destello de 200 ms al confirmar un borrador: la línea pasa a sólida. */
+@keyframes atlas-edge-flash {
+  0% {
+    opacity: 0.32;
+  }
+  50% {
+    opacity: 0.7;
+  }
+  100% {
+    opacity: 0.32;
+  }
+}
+
+.atlas-edge-glow--flash {
+  animation: atlas-edge-flash 200ms ease-out;
+}
+
+/* --------------------------------------------------------------------
+   Nodos
+   -------------------------------------------------------------------- */
+
+.atlas-node {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 12px;
+  background: var(--atlas-node);
+  border: 1px solid var(--atlas-border);
+  border-left: 3px solid var(--atlas-faint);
+  cursor: pointer;
+  transition: border-color 120ms ease-out;
+}
+
+.atlas-node--child {
+  border-color: var(--atlas-border-soft);
+}
+
+.atlas-node:hover {
+  border-color: var(--atlas-muted-3);
+}
+
+.atlas-node--root {
+  background: var(--atlas-node-root);
+  border: 2px solid var(--atlas-faint);
+  padding: 0 13px;
+}
+
+.atlas-node--selected {
+  background: var(--atlas-node-selected);
+  border-color: var(--atlas-rojo);
+}
+
+.atlas-node--dragging {
+  opacity: 0.6;
+}
+
+.atlas-node--drop-target {
+  border-color: var(--atlas-rojo);
+}
+
+.atlas-node-name {
+  flex: 1;
+  min-width: 0;
+  font: 700 13px/1.1 Archivo, sans-serif;
+  color: var(--atlas-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-node--child .atlas-node-name {
+  font-weight: 500;
+  font-size: 12.5px;
+  color: var(--atlas-ink-2);
+}
+
+.atlas-node--selected .atlas-node-name {
+  color: #ffffff;
+}
+
+.atlas-node--root .atlas-node-name {
+  font: 700 10.5px/1 Archivo, sans-serif;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.atlas-node-meta {
+  flex: none;
+  font: 600 9px/1 Archivo, sans-serif;
+  letter-spacing: 0.1em;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-node--selected .atlas-node-meta {
+  color: #f0a094;
+}
+
+.atlas-node-port {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: var(--atlas-canvas);
+  border: 1px solid var(--atlas-rojo);
+  color: var(--atlas-rojo);
+  font: 400 12px/1 Archivo, sans-serif;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.atlas-node:hover .atlas-node-port,
+.atlas-node-port:focus-visible {
+  opacity: 1;
+}
+
+/* Marco de selección del diseño: 1px rojo, 8px por fuera del nodo. */
+.atlas-selection-ring {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--atlas-rojo);
+  pointer-events: none;
+}
+
+.atlas-drop-ring {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--atlas-rojo);
+  border-radius: 50%;
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------
+   Borrador de nodo nuevo
+   -------------------------------------------------------------------- */
+
+.atlas-draft {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  background: var(--atlas-node-root);
+  border: 1px solid var(--atlas-rojo);
+  border-left: 3px solid var(--atlas-faint);
+}
+
+.atlas-draft input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--atlas-ink);
+  font: 500 13px/1 Archivo, sans-serif;
+  caret-color: var(--atlas-rojo);
+}
+
+.atlas-draft input:focus {
+  outline: none;
+}
+
+.atlas-draft-hint {
+  position: absolute;
+  font: 600 10px/1.5 Archivo, sans-serif;
+  letter-spacing: 0.12em;
+  color: var(--atlas-muted);
+}
+
+/* --------------------------------------------------------------------
+   Selector de nivel
+   -------------------------------------------------------------------- */
+
+.atlas-levels {
+  display: flex;
+  border: 1px solid var(--atlas-rule-strong);
+}
+
+.atlas-level {
+  flex: 1;
+  padding: 9px 0 9px 10px;
+  border-left: 1px solid var(--atlas-rule-strong);
+  color: var(--atlas-muted-2);
+  font: 600 10.5px/1 Archivo, sans-serif;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.atlas-level:first-child {
+  border-left: none;
+}
+
+.atlas-level--active {
+  color: #0a0a0a;
+  font-weight: 700;
+}
+
+.atlas-level--active.atlas-level--principiante {
+  background: var(--atlas-rojo);
+}
+
+.atlas-level--active.atlas-level--desarrollo {
+  background: var(--atlas-ambar);
+}
+
+.atlas-level--active.atlas-level--dominado {
+  background: var(--atlas-verde);
+}
+
+/* Paleta de nivel flotante del borrador (cuadrados llenos, sin texto). */
+.atlas-level-swatches {
+  position: absolute;
+  display: flex;
+  border: 1px solid var(--atlas-rule-strong);
+}
+
+.atlas-swatch {
+  display: block;
+  width: 52px;
+  height: 34px;
+  border-left: 1px solid var(--atlas-rule-strong);
+  cursor: pointer;
+}
+
+.atlas-swatch:first-child {
+  border-left: none;
+}
+
+.atlas-swatch--active {
+  box-shadow: inset 0 0 0 3px var(--atlas-canvas);
+}
+
+/* --------------------------------------------------------------------
+   Barras inferiores
+   -------------------------------------------------------------------- */
+
+.atlas-actionbar {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  height: 66px;
+  background: var(--atlas-chrome);
+  border-top: 1px solid var(--atlas-rule);
+}
+
+.atlas-actionbar-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 18px;
+}
+
+.atlas-actionbar-label {
+  font: 600 9.5px/1 Archivo, sans-serif;
+  letter-spacing: 0.14em;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-actionbar-text {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0 18px;
+  font: 700 11px/1 Archivo, sans-serif;
+  letter-spacing: 0.12em;
+  color: var(--atlas-muted);
+  cursor: pointer;
+}
+
+.atlas-actionbar-add {
+  width: 66px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--atlas-rojo);
+  color: #0a0a0a;
+  font: 400 26px/1 Archivo, sans-serif;
+  cursor: pointer;
+}
+
+.atlas-statusbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex: none;
+  height: 36px;
+  padding: 0 18px;
+  background: var(--atlas-chrome);
+  border-top: 1px solid var(--atlas-rule);
+  font: 600 10px/1 Archivo, sans-serif;
+  letter-spacing: 0.14em;
+  color: var(--atlas-muted-2);
+}
+
+.atlas-balance {
+  display: flex;
+  height: 5px;
+  width: 150px;
+}
+
+.atlas-balance span {
+  display: block;
+}
+
+/* --------------------------------------------------------------------
+   Rail derecho / tarjeta de resumen del mapa (escritorio)
+   -------------------------------------------------------------------- */
+
+.atlas-map-card {
+  position: absolute;
+  right: 28px;
+  top: 28px;
+  width: 236px;
+  box-sizing: border-box;
+  padding: 16px 16px 14px;
+  background: var(--atlas-panel);
+  border: 1px solid var(--atlas-rule);
+}
+
+.atlas-eyebrow {
+  font: 700 9px/1 Archivo, sans-serif;
+  letter-spacing: 0.2em;
+  color: var(--atlas-muted-2);
+}
+
+.atlas-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.atlas-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.atlas-legend-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  display: block;
+}
+
+.atlas-legend-name {
+  flex: 1;
+  font: 500 11.5px/1 Archivo, sans-serif;
+  color: var(--atlas-ink-3);
+}
+
+.atlas-legend-count {
+  font: 700 11.5px/1 Archivo, sans-serif;
+  color: var(--atlas-ink);
+}
+
+.atlas-hairline {
+  height: 1px;
+  background: var(--atlas-rule);
+}
+
+.atlas-rule-strong {
+  height: 2px;
+  background: var(--atlas-rule-strong);
+}
+
+.atlas-note-hint {
+  font: 400 10.5px/1.5 Archivo, sans-serif;
+  color: var(--atlas-muted-2);
+}
+
+/* --------------------------------------------------------------------
+   Página de nodo
+   -------------------------------------------------------------------- */
+
+.atlas-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  height: 42px;
+  padding: 0 16px;
+  background: var(--atlas-panel);
+  border-bottom: 2px solid var(--atlas-rule-strong);
+}
+
+.atlas-back {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font: 700 11px/1 Archivo, sans-serif;
+  letter-spacing: 0.12em;
+  color: var(--atlas-ink);
+  cursor: pointer;
+}
+
+.atlas-crumb {
+  font: 500 10.5px/1 Archivo, sans-serif;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-crumb-sep {
+  font: 400 11.5px/1 Archivo, sans-serif;
+  color: var(--atlas-faint);
+}
+
+.atlas-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--atlas-rule);
+  display: block;
+}
+
+.atlas-node-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  align-items: stretch;
+}
+
+.atlas-node-main {
+  flex: 1;
+  min-width: 0;
+  padding: 30px 22px 24px;
+}
+
+.atlas-level-flag {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+}
+
+.atlas-level-flag-dot {
+  width: 8px;
+  height: 8px;
+  display: block;
+}
+
+.atlas-level-flag-text {
+  font: 700 9px/1 Archivo, sans-serif;
+  letter-spacing: 0.2em;
+}
+
+.atlas-level-flag-meta {
+  font: 600 9.5px/1 Archivo, sans-serif;
+  letter-spacing: 0.2em;
+  color: var(--atlas-faint);
+}
+
+.atlas-title {
+  margin: 0 0 20px;
+  font: 800 34px/1.06 Archivo, sans-serif;
+  letter-spacing: -0.02em;
+  color: var(--atlas-ink);
+}
+
+.atlas-title-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0 0 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--atlas-rule-strong);
+  color: var(--atlas-ink);
+  font: 800 34px/1.06 Archivo, sans-serif;
+  letter-spacing: -0.02em;
+}
+
+.atlas-parent-line {
+  font: 600 9px/1 Archivo, sans-serif;
+  letter-spacing: 0.16em;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-note {
+  font: 400 14.5px/1.75 Archivo, sans-serif;
+  color: var(--atlas-ink-2);
+  text-wrap: pretty;
+  white-space: pre-wrap;
+}
+
+.atlas-note-empty {
+  font: 400 14.5px/1.75 Archivo, sans-serif;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-note-editor {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 260px;
+  padding: 14px;
+  background: var(--atlas-node);
+  border: 1px solid var(--atlas-border);
+  color: var(--atlas-ink-2);
+  font: 400 14.5px/1.75 Archivo, sans-serif;
+  resize: vertical;
+}
+
+.atlas-children-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.atlas-relation {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  background: var(--atlas-node);
+  border-left: 3px solid var(--atlas-faint);
+  cursor: pointer;
+}
+
+.atlas-relation-kind {
+  width: 44px;
+  flex: none;
+  font: 600 8.5px/1 Archivo, sans-serif;
+  letter-spacing: 0.16em;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-relation-name {
+  flex: 1;
+  min-width: 0;
+  font: 600 11.5px/1 Archivo, sans-serif;
+  color: var(--atlas-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-add-child {
+  font: 600 10px/1 Archivo, sans-serif;
+  letter-spacing: 0.14em;
+  color: var(--atlas-rojo);
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.atlas-danger {
+  font: 600 10px/1 Archivo, sans-serif;
+  letter-spacing: 0.14em;
+  color: var(--atlas-muted-3);
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.atlas-danger--armed {
+  color: var(--atlas-rojo);
+}
+
+/* --------------------------------------------------------------------
+   Estado vacío
+   -------------------------------------------------------------------- */
+
+.atlas-empty {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 56px 22px 24px;
+  background-color: var(--atlas-canvas);
+  background-image: radial-gradient(#262322 1px, transparent 1px);
+  background-size: 36px 36px;
+  background-position: 12px 12px;
+}
+
+.atlas-empty-inner {
+  position: relative;
+  max-width: 620px;
+}
+
+.atlas-empty-eyebrow {
+  font: 700 9px/1 Archivo, sans-serif;
+  letter-spacing: 0.22em;
+  color: var(--atlas-rojo);
+  margin-bottom: 20px;
+}
+
+.atlas-empty-title {
+  margin: 0 0 16px;
+  font: 800 40px/1.05 Archivo, sans-serif;
+  letter-spacing: -0.025em;
+  color: var(--atlas-ink);
+}
+
+.atlas-empty-text {
+  margin: 0 0 28px;
+  font: 400 14.5px/1.7 Archivo, sans-serif;
+  color: var(--atlas-muted);
+  text-wrap: pretty;
+}
+
+.atlas-cta {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 15px 18px;
+  background: var(--atlas-rojo);
+  color: #0a0a0a;
+  font: 700 12.5px/1 Archivo, sans-serif;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.atlas-template {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 6px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px;
+  background: var(--atlas-node);
+  border-left: 3px solid var(--atlas-faint);
+  cursor: pointer;
+}
+
+.atlas-template--blank {
+  background: #131211;
+  border-left-color: var(--atlas-rule);
+}
+
+.atlas-template-name {
+  min-width: 0;
+  font: 700 12.5px/1 Archivo, sans-serif;
+  color: var(--atlas-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.atlas-template--blank .atlas-template-name {
+  color: var(--atlas-muted);
+}
+
+.atlas-template-desc {
+  grid-column: 1 / -1;
+  min-width: 0;
+  font: 400 11.5px/1.35 Archivo, sans-serif;
+  color: var(--atlas-muted-2);
+}
+
+.atlas-template-count {
+  grid-column: 2;
+  grid-row: 1;
+  font: 600 9.5px/1 Archivo, sans-serif;
+  white-space: nowrap;
+  letter-spacing: 0.14em;
+  color: var(--atlas-muted-3);
+}
+
+.atlas-name-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-bottom: 34px;
+}
+
+.atlas-name-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 15px 18px;
+  background: var(--atlas-node);
+  border: 1px solid var(--atlas-border);
+  color: var(--atlas-ink);
+  font: 500 14px/1 Archivo, sans-serif;
+}
+
+/* --------------------------------------------------------------------
+   Panorámica
+   -------------------------------------------------------------------- */
+
+.atlas-overview {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 30px 22px 32px;
+}
+
+.atlas-overview-title {
+  margin: 0 0 10px;
+  font: 800 32px/1.06 Archivo, sans-serif;
+  letter-spacing: -0.02em;
+  color: var(--atlas-ink);
+}
+
+.atlas-overview-lead {
+  margin: 0 0 26px;
+  font: 400 13.5px/1.65 Archivo, sans-serif;
+  color: var(--atlas-muted);
+}
+
+.atlas-overview-row {
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--atlas-rule);
+  margin-bottom: 24px;
+  cursor: pointer;
+}
+
+.atlas-overview-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.atlas-overview-name strong {
+  font: 800 20px/1.1 Archivo, sans-serif;
+  color: var(--atlas-ink);
+}
+
+.atlas-overview-meta {
+  font: 600 9px/1 Archivo, sans-serif;
+  letter-spacing: 0.16em;
+  color: var(--atlas-muted-3);
+  margin-bottom: 14px;
+}
+
+.atlas-overview-bar {
+  display: flex;
+  height: 9px;
+  margin-bottom: 10px;
+}
+
+.atlas-overview-bar span {
+  display: block;
+}
+
+.atlas-overview-counts {
+  display: flex;
+  gap: 18px;
+  font: 500 11px/1 Archivo, sans-serif;
+  color: var(--atlas-muted);
+}
+
+.atlas-overview-counts b {
+  font-weight: 700;
+}
+
+/* --------------------------------------------------------------------
+   Escritorio — a partir de acá el mapa pasa a columnas y la página de nodo
+   gana su rail de 300px, tal cual las pantallas 1a/1b del diseño.
+   -------------------------------------------------------------------- */
+
+@media (min-width: 900px) {
+  .atlas-tabs {
+    height: 44px;
+  }
+
+  .atlas-tab {
+    padding: 0 18px;
+    font-size: 12.5px;
+  }
+
+  .atlas-tab-dot {
+    width: 7px;
+    height: 7px;
+  }
+
+  .atlas-tab-add {
+    padding: 0 15px;
+  }
+
+  .atlas-tabs-actions {
+    gap: 22px;
+    padding: 0 18px;
+  }
+
+  .atlas-node {
+    gap: 11px;
+  }
+
+  .atlas-node-name {
+    font-size: 12.5px;
+  }
+
+  .atlas-node--root .atlas-node-name {
+    font-size: 11px;
+  }
+
+  .atlas-node-main {
+    padding: 56px 64px 64px;
+  }
+
+  .atlas-title {
+    margin-bottom: 6px;
+    font-size: 52px;
+    line-height: 1.05;
+  }
+
+  .atlas-title-input {
+    font-size: 52px;
+    line-height: 1.05;
+  }
+
+  .atlas-note,
+  .atlas-note-empty,
+  .atlas-note-editor {
+    max-width: 720px;
+    font-size: 15.5px;
+  }
+
+  .atlas-rail {
+    width: 300px;
+    flex: none;
+    box-sizing: border-box;
+    border-left: 1px solid var(--atlas-rule);
+    background: var(--atlas-panel);
+    padding: 34px 24px;
+  }
+
+  .atlas-empty {
+    padding: 96px 64px 64px;
+  }
+
+  .atlas-empty-inner {
+    max-width: 620px;
+  }
+
+  .atlas-empty-title {
+    font-size: 58px;
+    line-height: 1.04;
+  }
+
+  .atlas-empty-text {
+    max-width: 520px;
+    font-size: 15.5px;
+    margin-bottom: 34px;
+  }
+
+  .atlas-cta-row {
+    display: flex;
+    align-items: center;
+  }
+
+  .atlas-cta {
+    width: auto;
+    padding: 14px 22px;
+  }
+
+  .atlas-cta--ghost {
+    background: none;
+    border: 1px solid var(--atlas-border);
+    border-left: 0;
+    color: var(--atlas-muted);
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .atlas-template {
+    display: flex;
+    gap: 12px;
+    padding: 15px 16px;
+  }
+
+  .atlas-template-name {
+    flex: none;
+    width: 180px;
+  }
+
+  .atlas-template-desc {
+    flex: 1;
+    line-height: 1;
+  }
+
+  .atlas-overview {
+    padding: 52px 64px 60px;
+  }
+
+  .atlas-overview-title {
+    font-size: 40px;
+  }
+
+  .atlas-overview-lead {
+    max-width: 600px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .atlas-overview-row {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    align-items: center;
+    gap: 36px;
+    padding: 30px 0;
+    margin-bottom: 0;
+  }
+
+  .atlas-overview-name strong {
+    font-size: 22px;
+  }
+
+  .atlas-overview-meta {
+    font-size: 9.5px;
+    margin-bottom: 0;
+  }
+
+  .atlas-overview-bar {
+    height: 10px;
+    margin-bottom: 12px;
+  }
+
+  .atlas-overview-counts {
+    gap: 26px;
+    font-size: 11.5px;
+  }
+}
