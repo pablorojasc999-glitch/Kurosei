@@ -1,4 +1,13 @@
-import type { Day, Exercise, PlannedExercise, PlannedSet, Week } from '../domain/types'
+import type {
+  Day,
+  ExecutedSet,
+  Exercise,
+  PlannedExercise,
+  PlannedSet,
+  SessionExercise,
+  StrengthSession,
+  Week,
+} from '../domain/types'
 
 /**
  * La planilla del bloque: una fila por ejercicio, una columna por semana, y
@@ -10,16 +19,32 @@ import type { Day, Exercise, PlannedExercise, PlannedSet, Week } from '../domain
  * coincidan en día de la semana.
  */
 
+/** Una serie ya normalizada: planificada y realizada se leen igual. */
+export interface GridSet {
+  weightKg: number | null
+  reps: number
+  rpe: number | null
+}
+
+export interface CellSummary {
+  /** `5×3`, o `5/5/3` cuando las series no son iguales. Vacío si no hay series. */
+  volume: string
+  /** `140 kg`, `@8`, `140 kg @8`. Vacío si no hay ni peso ni RPE. */
+  intensity: string
+}
+
 export interface GridCell {
   weekId: string
   /** El día de esa semana en esta posición; `null` si la semana no llega a tener ese día. */
   dayId: string | null
   /** El ejercicio planificado en esa celda; `null` si esa semana no lo tiene. */
   plannedExerciseId: string | null
-  /** `5×3`, o `5/5/3` cuando las series no son iguales. Vacío si no hay series. */
-  volume: string
-  /** `140 kg`, `@8`, `140 kg @8`. Vacío si no hay ni peso ni RPE. */
-  intensity: string
+  planned: CellSummary
+  /** El plan serie a serie, en orden. */
+  plannedSets: GridSet[]
+  /** Lo que se hizo de verdad, serie a serie. Vacío si ese día no se registró. */
+  executedSets: GridSet[]
+  executed: CellSummary
   setCount: number
 }
 
@@ -51,19 +76,18 @@ function formatKg(value: number): string {
 }
 
 /**
- * Resume las series de un ejercicio en las dos líneas que se leen de un
- * vistazo: cuánto volumen y a qué intensidad.
+ * Resume las series en las dos líneas que se leen de un vistazo: cuánto
+ * volumen y a qué intensidad. Sirve igual para el plan y para lo realizado.
  */
-export function summarizeSets(sets: PlannedSet[]): { volume: string; intensity: string } {
-  if (sets.length === 0) return { volume: '', intensity: '' }
-  const ordered = [...sets].sort((a, b) => a.setNumber - b.setNumber)
+export function summarizeSets(ordered: GridSet[]): CellSummary {
+  if (ordered.length === 0) return { volume: '', intensity: '' }
 
-  const reps = ordered.map((s) => s.targetReps)
+  const reps = ordered.map((s) => s.reps)
   const sameReps = reps.every((r) => r === reps[0])
   const volume = sameReps ? `${ordered.length}×${reps[0]}` : reps.join('/')
 
-  const weights = ordered.map((s) => s.targetWeightKg)
-  const rpes = ordered.map((s) => s.targetRpe)
+  const weights = ordered.map((s) => s.weightKg)
+  const rpes = ordered.map((s) => s.rpe)
   const parts: string[] = []
 
   const definedWeights = weights.filter((w): w is number => w !== null)
@@ -89,6 +113,12 @@ export function summarizeSets(sets: PlannedSet[]): { volume: string; intensity: 
   return { volume, intensity: parts.join(' ') }
 }
 
+/** Una serie suelta, como se lee en la fila desplegada: `130×2 @8`. */
+export function formatSet(set: GridSet): string {
+  const load = set.weightKg !== null ? `${formatKg(set.weightKg)}×${set.reps}` : `${set.reps} reps`
+  return set.rpe !== null ? `${load} @${set.rpe}` : load
+}
+
 /** El label que se repite en esa posición; `Día N` si no hay ninguno o no coinciden. */
 function slotLabel(labels: string[], slotIndex: number): string {
   const named = labels.filter((l) => l.trim() !== '')
@@ -96,13 +126,27 @@ function slotLabel(labels: string[], slotIndex: number): string {
   return `Día ${slotIndex + 1}`
 }
 
-export function buildBlockGrid(
-  weeks: Week[],
-  days: Day[],
-  plannedExercises: PlannedExercise[],
-  plannedSets: PlannedSet[],
-  exercises: Exercise[],
-): BlockGrid {
+export interface BlockGridInput {
+  weeks: Week[]
+  days: Day[]
+  plannedExercises: PlannedExercise[]
+  plannedSets: PlannedSet[]
+  sessions: StrengthSession[]
+  sessionExercises: SessionExercise[]
+  executedSets: ExecutedSet[]
+  exercises: Exercise[]
+}
+
+export function buildBlockGrid({
+  weeks,
+  days,
+  plannedExercises,
+  plannedSets,
+  sessions,
+  sessionExercises,
+  executedSets,
+  exercises,
+}: BlockGridInput): BlockGrid {
   const orderedWeeks = [...weeks].sort((a, b) => a.order - b.order)
 
   // Los días de cada semana, ordenados por fecha: su posición es el "día N".
@@ -130,6 +174,19 @@ export function buildBlockGrid(
     else setsByPe.set(set.plannedExerciseId, [set])
   }
   const nameById = new Map(exercises.map((e) => [e.id, e.name]))
+
+  // Lo realizado se alcanza por día: día → sesión → ejercicio de sesión → series.
+  const sessionByDay = new Map(sessions.map((s) => [s.dayId, s.id]))
+  const sessionExerciseKey = new Map<string, string>()
+  for (const se of sessionExercises) {
+    sessionExerciseKey.set(`${se.sessionId}:${se.exerciseId}`, se.id)
+  }
+  const executedBySessionExercise = new Map<string, ExecutedSet[]>()
+  for (const set of executedSets) {
+    const list = executedBySessionExercise.get(set.sessionExerciseId)
+    if (list) list.push(set)
+    else executedBySessionExercise.set(set.sessionExerciseId, [set])
+  }
 
   const slotCount = Math.max(
     0,
@@ -166,15 +223,30 @@ export function buildBlockGrid(
         const pe = day
           ? (peByDay.get(day.id) ?? []).find((p) => p.exerciseId === exerciseId)
           : undefined
-        const sets = pe ? (setsByPe.get(pe.id) ?? []) : []
-        const { volume, intensity } = summarizeSets(sets)
+        const plannedRows = pe ? (setsByPe.get(pe.id) ?? []) : []
+        const plannedSetList: GridSet[] = [...plannedRows]
+          .sort((a, b) => a.setNumber - b.setNumber)
+          .map((s) => ({ weightKg: s.targetWeightKg, reps: s.targetReps, rpe: s.targetRpe }))
+
+        const sessionId = day ? sessionByDay.get(day.id) : undefined
+        const seId = sessionId
+          ? sessionExerciseKey.get(`${sessionId}:${exerciseId}`)
+          : undefined
+        const executedList: GridSet[] = seId
+          ? [...(executedBySessionExercise.get(seId) ?? [])]
+              .sort((a, b) => a.setNumber - b.setNumber)
+              .map((s) => ({ weightKg: s.weightKg, reps: s.reps, rpe: s.rpe }))
+          : []
+
         return {
           weekId: week.id,
           dayId: day?.id ?? null,
           plannedExerciseId: pe?.id ?? null,
-          volume,
-          intensity,
-          setCount: sets.length,
+          planned: summarizeSets(plannedSetList),
+          plannedSets: plannedSetList,
+          executedSets: executedList,
+          executed: summarizeSets(executedList),
+          setCount: plannedSetList.length,
         }
       }),
     }))

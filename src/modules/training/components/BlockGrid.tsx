@@ -4,13 +4,19 @@ import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addExerciseToSlot,
   getBlockGridData,
-  listPlannedSets,
   pinExerciseAcrossBlock,
-  setUniformPrescription,
+  setPlannedSets,
 } from '../db/planningRepository'
 import { listExercises } from '../db/trainingRepository'
 import type { Exercise } from '../domain/types'
-import { buildBlockGrid, type GridCell, type GridDaySlot, type GridRow } from '../lib/blockGrid'
+import {
+  buildBlockGrid,
+  formatSet,
+  type GridCell,
+  type GridDaySlot,
+  type GridRow,
+  type GridSet,
+} from '../lib/blockGrid'
 
 /** `lun 3` — la fecha corta que cabe en la cabecera de una columna. */
 function shortDate(iso: string): string {
@@ -19,7 +25,7 @@ function shortDate(iso: string): string {
   return `${weekday} ${d.getDate()}`
 }
 
-interface EditorTarget {
+interface CellRef {
   slot: GridDaySlot
   row: GridRow
   cell: GridCell
@@ -29,26 +35,21 @@ interface EditorTarget {
 interface BlockGridProps {
   mesocycleId: string
   mesocycleName: string
-  /** Para saltar del detalle de una celda a la planificación serie a serie. */
+  /** Para saltar del detalle de una celda al día completo. */
   onOpenDay: (weekId: string, dayId: string) => void
 }
 
 export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridProps) {
   const data = useLiveQuery(() => getBlockGridData(mesocycleId), [mesocycleId])
   const exercises = useLiveQuery(() => listExercises(), [])
-  const [editing, setEditing] = useState<EditorTarget | null>(null)
+  const [editing, setEditing] = useState<CellRef | null>(null)
   const [adding, setAdding] = useState<{ slot: GridDaySlot; weekIndex: number } | null>(null)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<string | null>(null)
 
   if (!data || !exercises) return <p className="empty-hint">Cargando la planilla…</p>
 
-  const grid = buildBlockGrid(
-    data.weeks,
-    data.days,
-    data.plannedExercises,
-    data.plannedSets,
-    exercises,
-  )
+  const grid = buildBlockGrid({ ...data, exercises })
 
   if (grid.weeks.length === 0) {
     return (
@@ -56,6 +57,17 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
         Este bloque todavía no tiene semanas. Crea la primera y sus días para ver la planilla.
       </p>
     )
+  }
+
+  const rowKey = (slot: GridDaySlot, row: GridRow) => `${slot.slotIndex}:${row.exerciseId}`
+
+  function toggleRow(key: string) {
+    setExpanded((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
   }
 
   async function handleAddExercise(exerciseId: string) {
@@ -69,8 +81,8 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
   return (
     <>
       <p className="empty-hint">
-        Todo {mesocycleName} de un vistazo: cada fila es un ejercicio y cada columna una semana,
-        así la progresión se lee de corrido. Toca una celda para editarla.
+        Todo {mesocycleName} de un vistazo: cada fila es un ejercicio y cada columna una semana.
+        Toca el nombre para desplegar sus series, o una celda para editarla.
       </p>
 
       {notice && (
@@ -83,7 +95,7 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
       )}
 
       <div className="block-grid-scroll">
-        <table className="block-grid">
+        <table className={`block-grid${expanded.size > 0 ? ' block-grid--detail' : ''}`}>
           <thead>
             <tr>
               <th className="block-grid-corner" scope="col">
@@ -144,49 +156,78 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
                 </tr>
               )}
 
-              {slot.rows.map((row) => (
-                <tr key={row.exerciseId}>
-                  <th className="block-grid-corner block-grid-name" scope="row">
-                    {row.exerciseName}
-                  </th>
-                  {row.cells.map((cell, index) => (
-                    <td key={cell.weekId}>
-                      {cell.plannedExerciseId ? (
-                        <button
-                          type="button"
-                          className="block-grid-cell"
-                          aria-label={`${row.exerciseName}, semana ${index + 1}: ${
-                            cell.volume || 'sin series'
-                          } ${cell.intensity}`}
-                          onClick={() => setEditing({ slot, row, cell, weekIndex: index })}
-                        >
-                          <span className="block-grid-volume">{cell.volume || '—'}</span>
-                          {cell.intensity && (
-                            <span className="block-grid-intensity">{cell.intensity}</span>
-                          )}
-                        </button>
-                      ) : slot.dayIds[index] ? (
-                        <button
-                          type="button"
-                          className="block-grid-cell block-grid-cell--empty"
-                          aria-label={`Añadir ${row.exerciseName} a la semana ${index + 1}`}
-                          onClick={() =>
-                            void addExerciseToSlot(
-                              grid.weeks[index].id,
-                              slot.slotIndex,
-                              row.exerciseId,
-                            )
-                          }
-                        >
-                          +
-                        </button>
-                      ) : (
-                        <span className="block-grid-missing">—</span>
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {slot.rows.map((row) => {
+                const key = rowKey(slot, row)
+                const open = expanded.has(key)
+                return (
+                  <tr key={row.exerciseId} className={open ? 'block-grid-row--open' : undefined}>
+                    <th className="block-grid-corner block-grid-name" scope="row">
+                      <button
+                        type="button"
+                        className="block-grid-name-toggle"
+                        aria-expanded={open}
+                        onClick={() => toggleRow(key)}
+                      >
+                        <span className="block-grid-caret" aria-hidden="true">
+                          {open ? '▾' : '▸'}
+                        </span>
+                        {row.exerciseName}
+                      </button>
+                    </th>
+                    {row.cells.map((cell, index) => (
+                      <td key={cell.weekId}>
+                        {cell.plannedExerciseId ? (
+                          <button
+                            type="button"
+                            className={`block-grid-cell${open ? ' block-grid-cell--open' : ''}`}
+                            aria-label={`${row.exerciseName}, semana ${index + 1}: ${
+                              cell.planned.volume || 'sin series'
+                            } ${cell.planned.intensity}`}
+                            onClick={() => setEditing({ slot, row, cell, weekIndex: index })}
+                          >
+                            {open ? (
+                              <CellDetail cell={cell} />
+                            ) : (
+                              <>
+                                <span className="block-grid-volume">
+                                  {cell.planned.volume || '—'}
+                                </span>
+                                {cell.planned.intensity && (
+                                  <span className="block-grid-intensity">
+                                    {cell.planned.intensity}
+                                  </span>
+                                )}
+                                {cell.executedSets.length > 0 && (
+                                  <span className="block-grid-done">
+                                    ✓ {cell.executed.volume}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </button>
+                        ) : slot.dayIds[index] ? (
+                          <button
+                            type="button"
+                            className="block-grid-cell block-grid-cell--empty"
+                            aria-label={`Añadir ${row.exerciseName} a la semana ${index + 1}`}
+                            onClick={() =>
+                              void addExerciseToSlot(
+                                grid.weeks[index].id,
+                                slot.slotIndex,
+                                row.exerciseId,
+                              )
+                            }
+                          >
+                            +
+                          </button>
+                        ) : (
+                          <span className="block-grid-missing">—</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
 
               <tr className="block-grid-add-row">
                 <th className="block-grid-corner" scope="row">
@@ -231,6 +272,30 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
   )
 }
 
+/** El contenido de una celda desplegada: el plan serie a serie y, debajo, lo que se hizo. */
+function CellDetail({ cell }: { cell: GridCell }) {
+  return (
+    <>
+      {cell.plannedSets.length === 0 && <span className="block-grid-volume">—</span>}
+      {cell.plannedSets.map((set, index) => (
+        <span key={index} className="block-grid-set">
+          {formatSet(set)}
+        </span>
+      ))}
+      {cell.executedSets.length > 0 && (
+        <>
+          <span className="block-grid-set-rule" aria-hidden="true" />
+          {cell.executedSets.map((set, index) => (
+            <span key={index} className="block-grid-set block-grid-set--done">
+              {formatSet(set)}
+            </span>
+          ))}
+        </>
+      )}
+    </>
+  )
+}
+
 interface ExercisePickerProps {
   exercises: Exercise[]
   slotLabel: string
@@ -253,34 +318,59 @@ function ExercisePicker({
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
 
   return (
-    <section className="grid-sheet">
-      <h3>
-        Añadir a {slotLabel} · Semana {weekNumber}
-      </h3>
-      <input
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar ejercicio…"
-        aria-label="Buscar ejercicio"
-        autoFocus
-      />
-      <div className="grid-sheet-list">
-        {matches.length === 0 && <p className="empty-hint">Nada coincide con esa búsqueda.</p>}
-        {matches.map((exercise) => (
-          <button key={exercise.id} type="button" onClick={() => onPick(exercise.id)}>
-            {exercise.name}
-          </button>
-        ))}
-      </div>
-      <button type="button" onClick={onCancel}>
-        Cancelar
-      </button>
-    </section>
+    <>
+      <div className="grid-sheet-backdrop" onClick={onCancel} aria-hidden="true" />
+      <section className="grid-sheet">
+        <h3>
+          Añadir a {slotLabel} · Semana {weekNumber}
+        </h3>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar ejercicio…"
+          aria-label="Buscar ejercicio"
+          autoFocus
+        />
+        <div className="grid-sheet-list">
+          {matches.length === 0 && <p className="empty-hint">Nada coincide con esa búsqueda.</p>}
+          {matches.map((exercise) => (
+            <button key={exercise.id} type="button" onClick={() => onPick(exercise.id)}>
+              {exercise.name}
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={onCancel}>
+          Cancelar
+        </button>
+      </section>
+    </>
   )
 }
 
+/** Una serie del formulario: se guarda como texto para poder dejar campos a medio escribir. */
+interface SetDraft {
+  weight: string
+  reps: string
+  rpe: string
+}
+
+function toDraft(set: GridSet): SetDraft {
+  return {
+    weight: set.weightKg !== null ? String(set.weightKg) : '',
+    reps: String(set.reps),
+    rpe: set.rpe !== null ? String(set.rpe) : '',
+  }
+}
+
+function parseOptional(value: string): number | null {
+  const trimmed = value.trim()
+  if (trimmed === '') return null
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 interface CellEditorProps {
-  target: EditorTarget
+  target: CellRef
   mesocycleId: string
   onClose: () => void
   onNotice: (message: string) => void
@@ -290,55 +380,48 @@ interface CellEditorProps {
 function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellEditorProps) {
   const { slot, row, cell, weekIndex } = target
   const plannedExerciseId = cell.plannedExerciseId as string
-  const sets = useLiveQuery(() => listPlannedSets(plannedExerciseId), [plannedExerciseId])
   const { isSubmitting, guard } = useSubmitGuard()
   const [error, setError] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<SetDraft[]>(() =>
+    cell.plannedSets.length > 0
+      ? cell.plannedSets.map(toDraft)
+      : [{ weight: '', reps: '5', rpe: '' }],
+  )
 
-  // El formulario arranca desde lo que ya hay: la primera serie representa a
-  // todas, que es justamente la prescripción uniforme que se edita acá.
-  const first = sets?.[0]
-  const [form, setForm] = useState<{
-    sets: string
-    reps: string
-    weight: string
-    rpe: string
-  } | null>(null)
-  const current = form ?? {
-    sets: sets ? String(sets.length || 3) : '3',
-    reps: first ? String(first.targetReps) : '5',
-    weight: first?.targetWeightKg !== null && first?.targetWeightKg !== undefined
-      ? String(first.targetWeightKg)
-      : '',
-    rpe: first?.targetRpe !== null && first?.targetRpe !== undefined ? String(first.targetRpe) : '',
+  function updateSet(index: number, patch: Partial<SetDraft>) {
+    setDrafts((current) => current.map((d, i) => (i === index ? { ...d, ...patch } : d)))
   }
-  const update = (patch: Partial<typeof current>) => setForm({ ...current, ...patch })
 
-  function parseOptional(value: string): number | null {
-    const trimmed = value.trim()
-    if (trimmed === '') return null
-    const parsed = Number(trimmed)
-    return Number.isFinite(parsed) ? parsed : null
+  function addSet() {
+    setDrafts((current) => [...current, { ...(current[current.length - 1] ?? { weight: '', reps: '5', rpe: '' }) }])
+  }
+
+  function removeSet(index: number) {
+    setDrafts((current) => (current.length > 1 ? current.filter((_, i) => i !== index) : current))
+  }
+
+  /** Iguala todas las series a la primera — el atajo para la prescripción uniforme. */
+  function levelAll() {
+    setDrafts((current) => current.map(() => ({ ...current[0] })))
   }
 
   async function handleSave(pin: boolean) {
     setError(null)
     await guard(async () => {
       try {
-        const setCount = Number(current.sets)
-        const reps = Number(current.reps)
-        if (!Number.isInteger(setCount) || setCount < 1) {
-          throw new Error('Las series tienen que ser un entero de 1 o más.')
-        }
-        if (!Number.isInteger(reps) || reps < 1) {
-          throw new Error('Las repeticiones tienen que ser un entero de 1 o más.')
-        }
-        await setUniformPrescription(plannedExerciseId, {
-          sets: setCount,
-          reps,
-          weightKg: parseOptional(current.weight),
-          rpe: parseOptional(current.rpe),
-          restSecondsTarget: first?.restSecondsTarget ?? null,
+        const rows = drafts.map((d) => {
+          const reps = Number(d.reps)
+          if (!Number.isInteger(reps) || reps < 1) {
+            throw new Error('Cada serie necesita un número entero de repeticiones, 1 o más.')
+          }
+          return {
+            targetWeightKg: parseOptional(d.weight),
+            targetReps: reps,
+            targetRpe: parseOptional(d.rpe),
+            restSecondsTarget: null,
+          }
         })
+        await setPlannedSets(plannedExerciseId, rows)
         if (pin) {
           const result = await pinExerciseAcrossBlock(
             mesocycleId,
@@ -362,83 +445,107 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
   const date = slot.dates[weekIndex]
 
   return (
-    <section className="grid-sheet">
-      <h3>{row.exerciseName}</h3>
-      <p className="grid-sheet-context">
-        {slot.label} · Semana {weekIndex + 1}
-        {date && ` · ${shortDate(date)}`}
-      </p>
+    <>
+      <div className="grid-sheet-backdrop" onClick={onClose} aria-hidden="true" />
+      <section className="grid-sheet" aria-label={`Editar ${row.exerciseName}`}>
+        <h3>{row.exerciseName}</h3>
+        <p className="grid-sheet-context">
+          {slot.label} · Semana {weekIndex + 1}
+          {date && ` · ${shortDate(date)}`}
+        </p>
 
-      <div className="grid-sheet-fields">
-        <label>
-          Series
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            value={current.sets}
-            onChange={(e) => update({ sets: e.target.value })}
-          />
-        </label>
-        <label>
-          Reps
-          <input
-            type="number"
-            inputMode="numeric"
-            min={1}
-            value={current.reps}
-            onChange={(e) => update({ reps: e.target.value })}
-          />
-        </label>
-        <label>
-          Peso (kg)
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.5"
-            value={current.weight}
-            onChange={(e) => update({ weight: e.target.value })}
-          />
-        </label>
-        <label>
-          RPE
-          <input
-            type="number"
-            inputMode="decimal"
-            step="0.5"
-            value={current.rpe}
-            onChange={(e) => update({ rpe: e.target.value })}
-          />
-        </label>
-      </div>
+        <div className="set-editor">
+          <div className="set-editor-head" aria-hidden="true">
+            <span>#</span>
+            <span>Peso</span>
+            <span>Reps</span>
+            <span>RPE</span>
+            <span />
+          </div>
+          {drafts.map((draft, index) => (
+            <div key={index} className="set-editor-row">
+              <span className="set-editor-number">{index + 1}</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                value={draft.weight}
+                aria-label={`Peso de la serie ${index + 1}`}
+                onChange={(e) => updateSet(index, { weight: e.target.value })}
+              />
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                value={draft.reps}
+                aria-label={`Repeticiones de la serie ${index + 1}`}
+                onChange={(e) => updateSet(index, { reps: e.target.value })}
+              />
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                value={draft.rpe}
+                aria-label={`RPE de la serie ${index + 1}`}
+                onChange={(e) => updateSet(index, { rpe: e.target.value })}
+              />
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Quitar la serie ${index + 1}`}
+                disabled={drafts.length === 1}
+                onClick={() => removeSet(index)}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
 
-      <p className="grid-sheet-note">
-        Guarda las series iguales entre sí. Para que varíen una a una, edítalas en el día.
-      </p>
+        <div className="set-editor-tools">
+          <button type="button" onClick={addSet}>
+            + Serie
+          </button>
+          <button type="button" onClick={levelAll} disabled={drafts.length < 2}>
+            Igualar a la 1ª
+          </button>
+        </div>
 
-      {error && <p className="error">{error}</p>}
+        {cell.executedSets.length > 0 && (
+          <div className="set-editor-done">
+            <span className="set-editor-done-title">Lo que hiciste</span>
+            {cell.executedSets.map((set, index) => (
+              <span key={index} className="set-editor-done-row">
+                {index + 1}. {formatSet(set)}
+              </span>
+            ))}
+          </div>
+        )}
 
-      <div className="grid-sheet-actions">
-        <button type="button" onClick={onClose}>
-          Cancelar
-        </button>
-        <button type="button" disabled={isSubmitting} onClick={() => void handleSave(true)}>
-          Guardar y fijar en el bloque
-        </button>
-        <button type="button" disabled={isSubmitting} onClick={() => void handleSave(false)}>
-          Guardar
-        </button>
-      </div>
+        {error && <p className="error">{error}</p>}
 
-      {cell.dayId && (
-        <button
-          type="button"
-          className="grid-sheet-link"
-          onClick={() => onOpenDay(cell.weekId, cell.dayId as string)}
-        >
-          Editar serie por serie en el día →
-        </button>
-      )}
-    </section>
+        <div className="grid-sheet-actions">
+          <button type="button" onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" disabled={isSubmitting} onClick={() => void handleSave(true)}>
+            Guardar y fijar
+          </button>
+          <button type="button" disabled={isSubmitting} onClick={() => void handleSave(false)}>
+            Guardar
+          </button>
+        </div>
+
+        {cell.dayId && (
+          <button
+            type="button"
+            className="grid-sheet-link"
+            onClick={() => onOpenDay(cell.weekId, cell.dayId as string)}
+          >
+            Abrir el día completo →
+          </button>
+        )}
+      </section>
+    </>
   )
 }
