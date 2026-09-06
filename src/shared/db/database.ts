@@ -2,6 +2,8 @@ import Dexie, { type EntityTable } from 'dexie'
 import { ATLAS_STORES_V7 } from '../../modules/atlas/db/schema'
 import type { AtlasNode, AtlasProfile } from '../../modules/atlas/domain/types'
 import { FINANCE_STORES_V4 } from '../../modules/finance/db/schema'
+import { GROCERY_STORES_V8 } from '../../modules/grocery/db/schema'
+import type { GroceryItem } from '../../modules/grocery/domain/types'
 import type {
   FinanceAccount,
   FinanceCategory,
@@ -67,6 +69,7 @@ export class KuroseiDatabase extends Dexie {
   nutrition_goal_plans!: EntityTable<NutritionGoalPlan, 'id'>
   atlas_profiles!: EntityTable<AtlasProfile, 'id'>
   atlas_nodes!: EntityTable<AtlasNode, 'id'>
+  grocery_items!: EntityTable<GroceryItem, 'id'>
 
   constructor() {
     super('kurosei')
@@ -95,6 +98,9 @@ export class KuroseiDatabase extends Dexie {
     })
     this.version(7).stores({
       ...ATLAS_STORES_V7,
+    })
+    this.version(8).stores({
+      ...GROCERY_STORES_V8,
     })
   }
 }

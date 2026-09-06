@@ -32,6 +32,7 @@ export const SYNC_TABLE_NAMES = [
   'nutrition_meal_template_entries',
   'atlas_profiles',
   'atlas_nodes',
+  'grocery_items',
 ] as const
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]

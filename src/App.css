@@ -2867,3 +2867,240 @@ section {
   border-bottom: 1px solid var(--border);
   padding-bottom: 4px;
 }
+
+/* --------------------------------------------------------------------
+   Supermercado — tres listas por cada cuánto se repone cada artículo
+   -------------------------------------------------------------------- */
+
+.grocery-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.grocery-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow-sm);
+}
+
+.grocery-summary-card span {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.grocery-summary-card strong {
+  font-size: 20px;
+  line-height: 1.1;
+}
+
+/* Sólo lo vencido lleva color de aviso; el resto se queda en morado. */
+.grocery-summary-card em {
+  color: var(--warning);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.grocery-summary-card--mensual {
+  border-left-color: var(--accent-2);
+}
+
+.grocery-summary-card--esporadico {
+  border-left-color: var(--border);
+}
+
+.grocery-run-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.grocery-run-count {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.grocery-run-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.grocery-run-actions button {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.grocery-run-close {
+  background: var(--accent-dark);
+  border-color: var(--accent-border);
+}
+
+.grocery-run-message {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: var(--radius-sm);
+  background: var(--success-bg);
+  color: var(--success);
+  font-size: 13px;
+}
+
+.grocery-run-dismiss {
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--success);
+  font-size: 13px;
+  text-decoration: underline;
+}
+
+.grocery-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.grocery-section-header h2 {
+  margin: 0;
+}
+
+.grocery-section-hint {
+  margin: 2px 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.grocery-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.grocery-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: linear-gradient(160deg, var(--surface-2), var(--surface));
+  box-shadow: var(--shadow-sm);
+  touch-action: pan-y;
+}
+
+/* Lo que ya toca reponer se marca en el borde, no con el color del texto:
+   el nombre tiene que seguir leyéndose igual de bien. */
+.grocery-row--due {
+  border-left: 3px solid var(--warning);
+}
+
+.grocery-row--checked {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.grocery-row--dragging {
+  position: relative;
+  z-index: 2;
+  opacity: 0.9;
+  box-shadow: var(--shadow-md);
+}
+
+.grocery-drop-line {
+  height: 2px;
+  margin: 2px 0;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.grocery-check {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  min-height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  font-size: 13px;
+  line-height: 1;
+}
+
+.grocery-check--checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.grocery-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+}
+
+.grocery-row-name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.grocery-row--checked .grocery-row-name {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.grocery-row-qty {
+  color: var(--accent-2);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.grocery-row-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.grocery-row--due .grocery-row-meta {
+  color: var(--warning);
+}
+
+.grocery-form {
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
