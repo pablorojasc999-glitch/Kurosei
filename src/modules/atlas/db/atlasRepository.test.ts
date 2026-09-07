@@ -1,191 +1,143 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../../shared/db/database'
+import { buildIndex, parseLinks } from '../lib/atlasLinks'
 import {
-  createNode,
-  createProfile,
-  listAllNodes,
-  listNodes,
-  listProfiles,
-  renameProfile,
-  reparentNode,
-  softDeleteNode,
-  softDeleteProfile,
-  updateNodeLevel,
-  updateNodeName,
-  updateNodeNote,
+  createNote,
+  findByTitle,
+  getNote,
+  listNotes,
+  openOrCreateByTitle,
+  setLevel,
+  softDeleteNote,
+  updateNote,
 } from './atlasRepository'
-import { ATLAS_TEMPLATES, countTemplateNodes } from '../lib/atlasTemplates'
-import { countByLevel } from '../lib/atlasTree'
-
-const powerlifting = ATLAS_TEMPLATES[0]
-const enBlanco = ATLAS_TEMPLATES[2]
 
 beforeEach(async () => {
-  await db.atlas_profiles.clear()
-  await db.atlas_nodes.clear()
+  await db.atlas_notes.clear()
 })
 
-describe('perfiles', () => {
-  it('crea el perfil con su nodo raíz, sin plantilla', async () => {
-    const profile = await createProfile('Escalada')
-    expect((await listProfiles()).map((p) => p.name)).toEqual(['Escalada'])
-    const nodes = await listNodes(profile.id)
-    expect(nodes).toHaveLength(1)
-    expect(nodes[0]).toMatchObject({ parentId: null, name: 'Escalada', level: 'desarrollo' })
+describe('crear notas', () => {
+  it('crea con nivel «desarrollo» y cuerpo vacío por defecto', async () => {
+    const note = await createNote({ title: 'Sentadilla' })
+    expect(note).toMatchObject({ title: 'Sentadilla', body: '', level: 'desarrollo' })
+    expect(await getNote(note.id)).toMatchObject({ title: 'Sentadilla' })
   })
 
-  it('cuelga el árbol completo al arrancar desde una plantilla', async () => {
-    const profile = await createProfile('Powerlifting', powerlifting)
-    const nodes = await listNodes(profile.id)
-    expect(nodes).toHaveLength(countTemplateNodes(powerlifting.root))
-    // el balance de la plantilla es el del diseño: 4 / 3 / 3
-    expect(countByLevel(nodes)).toEqual({ principiante: 4, desarrollo: 3, dominado: 3 })
-    const root = nodes.find((n) => n.parentId === null)
-    expect(root?.name).toBe('Powerlifting')
-    const ramas = nodes.filter((n) => n.parentId === root?.id).sort((a, b) => a.order - b.order)
-    expect(ramas.map((n) => n.name)).toEqual([
-      'Sentadilla',
-      'Press de banca',
-      'Peso muerto',
-      'Recuperación',
-    ])
+  it('recorta el título y rechaza el vacío', async () => {
+    const note = await createNote({ title: '  Peso muerto  ' })
+    expect(note.title).toBe('Peso muerto')
+    await expect(createNote({ title: '   ' })).rejects.toThrow(/título/)
   })
 
-  it('la plantilla en blanco deja solo la raíz, con el nombre que le pongas', async () => {
-    const profile = await createProfile('Ajedrez', enBlanco)
-    const nodes = await listNodes(profile.id)
-    expect(nodes).toHaveLength(1)
-    expect(nodes[0].name).toBe('Ajedrez')
+  it('rechaza un título repetido, aunque cambie de mayúsculas o acentos', async () => {
+    await createNote({ title: 'Técnica' })
+    await expect(createNote({ title: 'tecnica' })).rejects.toThrow(/Ya existe/)
+    expect(await listNotes()).toHaveLength(1)
   })
 
-  it('renombrar el perfil renombra también su raíz', async () => {
-    const profile = await createProfile('Escalada')
-    await renameProfile(profile.id, 'Boulder')
-    expect((await listProfiles())[0].name).toBe('Boulder')
-    expect((await listNodes(profile.id))[0].name).toBe('Boulder')
-  })
-
-  it('borrar el perfil se lleva sus nodos en cascada', async () => {
-    const profile = await createProfile('Powerlifting', powerlifting)
-    const otro = await createProfile('Escalada')
-    await softDeleteProfile(profile.id)
-    expect((await listProfiles()).map((p) => p.id)).toEqual([otro.id])
-    expect(await listNodes(profile.id)).toEqual([])
-    // el otro perfil queda intacto
-    expect(await listNodes(otro.id)).toHaveLength(1)
+  it('ordena la lista alfabéticamente y deja fuera las borradas', async () => {
+    await createNote({ title: 'Zancada' })
+    const banco = await createNote({ title: 'Banco' })
+    await createNote({ title: 'Press' })
+    await softDeleteNote(banco.id)
+    expect((await listNotes()).map((n) => n.title)).toEqual(['Press', 'Zancada'])
   })
 })
 
-describe('nodos', () => {
-  it('crea un nodo colgado del padre, en ámbar por defecto', async () => {
-    const profile = await createProfile('Escalada')
-    const root = (await listNodes(profile.id))[0]
-    const node = await createNode({ profileId: profile.id, parentId: root.id, name: 'Bloque' })
-    expect(node).toMatchObject({ parentId: root.id, level: 'desarrollo', note: '' })
-  })
-
-  it('numera los hermanos en orden de creación', async () => {
-    const profile = await createProfile('Escalada')
-    const root = (await listNodes(profile.id))[0]
-    const a = await createNode({ profileId: profile.id, parentId: root.id, name: 'A' })
-    const b = await createNode({ profileId: profile.id, parentId: root.id, name: 'B' })
-    expect(a.order).toBe(0)
-    expect(b.order).toBe(1)
-  })
-
-  it('guarda nivel y nota, que son lo único editable del nodo además del nombre', async () => {
-    const profile = await createProfile('Escalada')
-    const root = (await listNodes(profile.id))[0]
-    const node = await createNode({ profileId: profile.id, parentId: root.id, name: 'Bloque' })
-    await updateNodeLevel(node.id, 'dominado')
-    await updateNodeNote(node.id, 'Se me da mejor en placa que en desplome.')
-    await updateNodeName(node.id, 'Bloque en placa')
-    const [updated] = (await listNodes(profile.id)).filter((n) => n.id === node.id)
-    expect(updated).toMatchObject({
-      level: 'dominado',
-      note: 'Se me da mejor en placa que en desplome.',
-      name: 'Bloque en placa',
-    })
-  })
-
-  it('renombrar la raíz renombra el perfil', async () => {
-    const profile = await createProfile('Escalada')
-    const root = (await listNodes(profile.id))[0]
-    await updateNodeName(root.id, 'Boulder')
-    expect((await listProfiles())[0].name).toBe('Boulder')
+describe('abrir por título', () => {
+  it('crea la nota la primera vez y devuelve la misma después', async () => {
+    const first = await openOrCreateByTitle('Bloque 1')
+    const second = await openOrCreateByTitle('bloque 1')
+    expect(second.id).toBe(first.id)
+    expect(await listNotes()).toHaveLength(1)
   })
 })
 
-describe('reasignar padre', () => {
-  it('mueve la rama entera bajo el nuevo padre', async () => {
-    const profile = await createProfile('Powerlifting', powerlifting)
-    const nodes = await listNodes(profile.id)
-    const tobillo = nodes.find((n) => n.name === 'Movilidad de tobillo')!
-    const pesoMuerto = nodes.find((n) => n.name === 'Peso muerto')!
+describe('renombrar', () => {
+  it('reescribe los [[enlaces]] de las demás notas', async () => {
+    const tecnica = await createNote({ title: 'Técnica' })
+    await createNote({ title: 'Sentadilla', body: 'Ver [[Técnica]] y [[Cadera]].' })
+    await createNote({ title: 'Press', body: 'Nada que ver aquí.' })
 
-    expect(await reparentNode(tobillo.id, pesoMuerto.id)).toBe(true)
-    const after = await listNodes(profile.id)
-    expect(after.find((n) => n.id === tobillo.id)?.parentId).toBe(pesoMuerto.id)
-    // sigue habiendo el mismo número de nodos: se movió, no se duplicó
-    expect(after).toHaveLength(nodes.length)
+    await updateNote(tecnica.id, { title: 'Técnica de barra' })
+
+    const sentadilla = await findByTitle('Sentadilla')
+    expect(sentadilla?.body).toBe('Ver [[Técnica de barra]] y [[Cadera]].')
+    expect((await findByTitle('Press'))?.body).toBe('Nada que ver aquí.')
   })
 
-  it('rechaza el movimiento que crearía un ciclo', async () => {
-    const profile = await createProfile('Powerlifting', powerlifting)
-    const nodes = await listNodes(profile.id)
-    const sentadilla = nodes.find((n) => n.name === 'Sentadilla')!
-    const tobillo = nodes.find((n) => n.name === 'Movilidad de tobillo')!
-
-    expect(await reparentNode(sentadilla.id, tobillo.id)).toBe(false)
-    expect((await listNodes(profile.id)).find((n) => n.id === sentadilla.id)?.parentId).toBe(
-      nodes.find((n) => n.parentId === null)?.id,
+  it('conserva el alias al reescribir', async () => {
+    const nota = await createNote({ title: 'Cadera' })
+    await createNote({ title: 'Bisagra', body: 'La [[Cadera|bisagra de cadera]] manda.' })
+    await updateNote(nota.id, { title: 'Cadera y glúteo' })
+    expect((await findByTitle('Bisagra'))?.body).toBe(
+      'La [[Cadera y glúteo|bisagra de cadera]] manda.',
     )
   })
 
-  it('no mueve la raíz', async () => {
-    const profile = await createProfile('Powerlifting', powerlifting)
-    const nodes = await listNodes(profile.id)
-    const root = nodes.find((n) => n.parentId === null)!
-    const sentadilla = nodes.find((n) => n.name === 'Sentadilla')!
-    expect(await reparentNode(root.id, sentadilla.id)).toBe(false)
+  it('no deja enlaces rotos tras el renombrado', async () => {
+    const hijo = await createNote({ title: 'Hijo' })
+    await createNote({ title: 'Padre', body: '- [[Hijo]]' })
+    await updateNote(hijo.id, { title: 'Hija' })
+    const index = buildIndex(await listNotes())
+    expect([...index.broken.values()].flat()).toEqual([])
   })
 
-  it('no cruza nodos entre perfiles', async () => {
-    const uno = await createProfile('Powerlifting', powerlifting)
-    const otro = await createProfile('Escalada')
-    const sentadilla = (await listNodes(uno.id)).find((n) => n.name === 'Sentadilla')!
-    const raizOtro = (await listNodes(otro.id))[0]
-    expect(await reparentNode(sentadilla.id, raizOtro.id)).toBe(false)
-  })
-})
-
-describe('borrar nodos', () => {
-  it('se lleva la descendencia entera', async () => {
-    const profile = await createProfile('Powerlifting', powerlifting)
-    const nodes = await listNodes(profile.id)
-    const sentadilla = nodes.find((n) => n.name === 'Sentadilla')!
-
-    await softDeleteNode(sentadilla.id)
-    const after = await listNodes(profile.id)
-    const names = after.map((n) => n.name)
-    expect(names).not.toContain('Sentadilla')
-    expect(names).not.toContain('Movilidad de tobillo')
-    expect(names).not.toContain('Bracing / Valsalva')
-    expect(after).toHaveLength(nodes.length - 3)
+  it('cambiar sólo mayúsculas no toca el cuerpo de las demás', async () => {
+    const nota = await createNote({ title: 'Rpe' })
+    await createNote({ title: 'Escala', body: 'Mide con [[Rpe]].' })
+    await updateNote(nota.id, { title: 'RPE' })
+    // El enlace ya resolvía sin distinguir mayúsculas: reescribirlo sería ruido.
+    expect((await findByTitle('Escala'))?.body).toBe('Mide con [[Rpe]].')
+    expect((await findByTitle('rpe'))?.title).toBe('RPE')
   })
 
-  it('no borra la raíz — para eso se borra el perfil', async () => {
-    const profile = await createProfile('Escalada')
-    const root = (await listNodes(profile.id))[0]
-    await softDeleteNode(root.id)
-    expect(await listNodes(profile.id)).toHaveLength(1)
+  it('rechaza renombrar a un título que ya existe', async () => {
+    await createNote({ title: 'Banco' })
+    const press = await createNote({ title: 'Press' })
+    await expect(updateNote(press.id, { title: 'banco' })).rejects.toThrow(/Ya existe/)
+    expect((await getNote(press.id))?.title).toBe('Press')
+  })
+
+  it('deja renombrar la nota a su mismo título', async () => {
+    const nota = await createNote({ title: 'Sentadilla' })
+    await expect(updateNote(nota.id, { title: 'Sentadilla ' })).resolves.toBeUndefined()
+    expect((await getNote(nota.id))?.title).toBe('Sentadilla')
   })
 })
 
-describe('listAllNodes', () => {
-  it('junta los nodos vivos de todos los perfiles, que es lo que lee la panorámica', async () => {
-    await createProfile('Powerlifting', powerlifting)
-    await createProfile('Escalada')
-    expect(await listAllNodes()).toHaveLength(countTemplateNodes(powerlifting.root) + 1)
+describe('cuerpo y nivel', () => {
+  it('guarda el cuerpo y avanza updatedAt', async () => {
+    const nota = await createNote({ title: 'Diario' })
+    await updateNote(nota.id, { body: 'Hoy toca [[Sentadilla]] #fuerza' })
+    const saved = await getNote(nota.id)
+    expect(parseLinks(saved?.body ?? '').map((l) => l.target)).toEqual(['Sentadilla'])
+    expect(saved?.updatedAt).not.toBe('')
+  })
+
+  it('cambia el nivel de dominio', async () => {
+    const nota = await createNote({ title: 'Arranque' })
+    await setLevel(nota.id, 'principiante')
+    expect((await getNote(nota.id))?.level).toBe('principiante')
+  })
+})
+
+describe('borrar', () => {
+  it('deja los enlaces entrantes escritos, ahora rotos', async () => {
+    const hijo = await createNote({ title: 'Hijo' })
+    await createNote({ title: 'Padre', body: '- [[Hijo]]' })
+    await softDeleteNote(hijo.id)
+
+    const padre = await findByTitle('Padre')
+    expect(padre?.body).toBe('- [[Hijo]]')
+    const index = buildIndex(await listNotes())
+    expect([...index.broken.values()].flat().map((l) => l.target)).toEqual(['Hijo'])
+  })
+
+  it('libera el título para una nota nueva', async () => {
+    const nota = await createNote({ title: 'Sentadilla' })
+    await softDeleteNote(nota.id)
+    const nueva = await createNote({ title: 'Sentadilla' })
+    expect(nueva.id).not.toBe(nota.id)
   })
 })

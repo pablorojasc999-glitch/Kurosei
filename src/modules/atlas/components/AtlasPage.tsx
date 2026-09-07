@@ -1,305 +1,403 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
-import { useMediaQuery } from '../../../shared/hooks/useMediaQuery'
-import type { AtlasNode, MasteryLevel } from '../domain/types'
-import { MASTERY_LEVELS } from '../domain/types'
+import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
-  createNode,
-  createProfile,
-  listAllNodes,
-  listProfiles,
-  reparentNode,
-  softDeleteNode,
-  softDeleteProfile,
-  updateNodeLevel,
-  updateNodeName,
-  updateNodeNote,
+  createNote,
+  listNotes,
+  openOrCreateByTitle,
+  setLevel,
+  softDeleteNote,
+  updateNote,
 } from '../db/atlasRepository'
-import type { AtlasTemplate } from '../lib/atlasTemplates'
-import { LEVEL_COLOR, LEVEL_LABEL, countByLevel } from '../lib/atlasTree'
-import { AtlasEmptyState } from './AtlasEmptyState'
-import { AtlasMap } from './AtlasMap'
-import { AtlasNodePage } from './AtlasNodePage'
-import { AtlasOverview } from './AtlasOverview'
+import type { AtlasNote } from '../domain/types'
+import {
+  allBrokenLinks,
+  buildIndex,
+  LEVEL_COLOR,
+  LEVEL_LABEL,
+  searchNotes,
+} from '../lib/atlasLinks'
+import { excerpt, renderMarkdown } from '../lib/markdown'
+import { NoteEditor } from './NoteEditor'
+import { NoteGraph } from './NoteGraph'
 
-type AtlasView = 'map' | 'node' | 'overview' | 'new-profile'
+type View = 'notas' | 'grafo'
 
 export function AtlasPage() {
-  const desktop = useMediaQuery('(min-width: 900px)')
-  const profiles = useLiveQuery(() => listProfiles(), [])
-  const allNodes = useLiveQuery(() => listAllNodes(), [])
+  const notes = useLiveQuery(() => listNotes(), [])
+  const [view, setView] = useState<View>('notas')
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [editing, setEditing] = useState(false)
+  const [query, setQuery] = useState('')
+  const [tag, setTag] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  const [activeProfileId, setActiveProfileId] = useState<string | null>(null)
-  const [view, setView] = useState<AtlasView>('map')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [openNodeId, setOpenNodeId] = useState<string | null>(null)
-  const [draftParentId, setDraftParentId] = useState<string | null>(null)
-  const [draftLevel, setDraftLevel] = useState<MasteryLevel>('desarrollo')
-  const [armedProfileDelete, setArmedProfileDelete] = useState(false)
+  const index = useMemo(() => buildIndex(notes ?? []), [notes])
 
-  const nodesByProfile = useMemo(() => {
-    const map = new Map<string, AtlasNode[]>()
-    for (const node of allNodes ?? []) {
-      const bucket = map.get(node.profileId)
-      if (bucket) bucket.push(node)
-      else map.set(node.profileId, [node])
+  if (!notes) return <p className="empty-hint">Cargando las notas…</p>
+
+  const open = openId ? notes.find((n) => n.id === openId) : undefined
+  const titles = notes.map((n) => n.title)
+
+  async function handleCreate(title: string) {
+    setError(null)
+    try {
+      const note = await createNote({ title })
+      setOpenId(note.id)
+      setEditing(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
     }
-    return map
-  }, [allNodes])
-
-  // Todavía cargando de Dexie: no se pinta el estado vacío para no hacer
-  // parpadear "Tu mapa está en blanco" en cada entrada a la pestaña.
-  if (!profiles || !allNodes) return <div className="atlas" />
-
-  const activeProfile =
-    profiles.find((p) => p.id === activeProfileId) ?? profiles[0] ?? null
-  const nodes = activeProfile ? (nodesByProfile.get(activeProfile.id) ?? []) : []
-  const openNode = nodes.find((n) => n.id === openNodeId) ?? null
-  const counts = countByLevel(nodes)
-
-  async function handleCreateProfile(name: string, template?: AtlasTemplate) {
-    const profile = await createProfile(name, template)
-    setActiveProfileId(profile.id)
-    setSelectedId(null)
-    setOpenNodeId(null)
-    setDraftParentId(null)
-    setView('map')
   }
 
-  async function handleDraftSave(name: string) {
-    if (!activeProfile || !draftParentId) return
-    const node = await createNode({
-      profileId: activeProfile.id,
-      parentId: draftParentId,
-      name,
-      level: draftLevel,
-    })
-    setDraftParentId(null)
-    setDraftLevel('desarrollo')
-    setSelectedId(node.id)
+  async function handleOpenTitle(title: string) {
+    setError(null)
+    const note = await openOrCreateByTitle(title)
+    setOpenId(note.id)
+    setEditing(false)
+    setView('notas')
   }
 
-  function requestDraft(parentId: string) {
-    setDraftParentId(parentId)
-    setDraftLevel('desarrollo')
-    setView('map')
+  async function patch(id: string, input: Parameters<typeof updateNote>[1]) {
+    setError(null)
+    try {
+      await updateNote(id, input)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
+    }
   }
 
-  async function handleDeleteNode() {
-    if (!openNode) return
-    const parentId = openNode.parentId
-    await softDeleteNode(openNode.id)
-    setOpenNodeId(null)
-    setSelectedId(parentId)
-    setView('map')
-  }
+  // ------------------------------------------------------------------
+  // Nota abierta
+  // ------------------------------------------------------------------
+  if (open) {
+    const backlinkIds = index.backlinks.get(open.id) ?? []
+    const outgoingIds = index.outgoing.get(open.id) ?? []
+    const broken = index.broken.get(open.id) ?? []
+    const byId = new Map(notes.map((n) => [n.id, n]))
 
-  async function handleDeleteProfile() {
-    if (!activeProfile) return
-    await softDeleteProfile(activeProfile.id)
-    setActiveProfileId(null)
-    setSelectedId(null)
-    setOpenNodeId(null)
-    setDraftParentId(null)
-    setArmedProfileDelete(false)
-    setView('map')
-  }
-
-  // Sin ningún perfil no hay nada que enmarcar: el estado vacío ocupa todo.
-  if (profiles.length === 0) {
     return (
-      <div className="atlas">
-        <AtlasEmptyState additional={false} desktop={desktop} onCreate={handleCreateProfile} />
+      <div className="page">
+        <div className="note-crumbs">
+          <button type="button" className="note-back" onClick={() => setOpenId(null)}>
+            ← Notas
+          </button>
+          <button type="button" onClick={() => setEditing((e) => !e)}>
+            {editing ? 'Vista previa' : 'Editar'}
+          </button>
+        </div>
+
+        {editing ? (
+          <NoteEditor
+            // Cambiar de nota remonta el editor: así el autocompletado a medias
+            // no se arrastra de una a otra.
+            key={open.id}
+            note={open}
+            titles={titles}
+            error={error}
+            onChangeTitle={(title) => void patch(open.id, { title })}
+            onChangeBody={(body) => void patch(open.id, { body })}
+            onChangeLevel={(level) => void setLevel(open.id, level)}
+          />
+        ) : (
+          <>
+            <div className="note-level-flag">
+              <span
+                className="note-level-dot"
+                style={{ background: LEVEL_COLOR[open.level] }}
+              />
+              <span style={{ color: LEVEL_COLOR[open.level] }}>
+                {LEVEL_LABEL[open.level].toUpperCase()}
+              </span>
+            </div>
+            <h1 className="note-title">{open.title}</h1>
+            {error && <p className="error">{error}</p>}
+            <NoteBody
+              body={open.body}
+              index={index}
+              onOpenTitle={(t) => void handleOpenTitle(t)}
+              onPickTag={(t) => {
+                setTag(t)
+                setOpenId(null)
+              }}
+            />
+          </>
+        )}
+
+        <section>
+          <h2>Enlaza a</h2>
+          {outgoingIds.length === 0 && broken.length === 0 && (
+            <p className="empty-hint">
+              Esta nota todavía no enlaza a ninguna. Escribe <code>[[</code> mientras editas.
+            </p>
+          )}
+          <div className="note-link-list">
+            {outgoingIds.map((id) => (
+              <NoteChip key={id} note={byId.get(id) as AtlasNote} onOpen={setOpenId} />
+            ))}
+            {broken.map((link) => (
+              <button
+                key={link.target}
+                type="button"
+                className="note-chip note-chip--broken"
+                onClick={() => void handleOpenTitle(link.target)}
+              >
+                {link.target} · crear
+              </button>
+            ))}
+          </div>
+        </section>
+
+        <section>
+          <h2>Enlazan aquí</h2>
+          {backlinkIds.length === 0 ? (
+            <p className="empty-hint">Ninguna nota enlaza a esta todavía.</p>
+          ) : (
+            <div className="note-link-list">
+              {backlinkIds.map((id) => (
+                <NoteChip key={id} note={byId.get(id) as AtlasNote} onOpen={setOpenId} />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <ConfirmDeleteButton
+          confirmMessage={`¿Eliminar "${open.title}"? Los enlaces desde otras notas quedarán marcados como rotos.`}
+          onConfirm={async () => {
+            await softDeleteNote(open.id)
+            setOpenId(null)
+          }}
+        />
       </div>
     )
   }
 
-  const selectedNode = nodes.find((n) => n.id === selectedId) ?? null
-  const rootNode = nodes.find((n) => n.parentId === null) ?? null
-  const addParentId = selectedNode?.id ?? rootNode?.id ?? null
+  // ------------------------------------------------------------------
+  // Grafo
+  // ------------------------------------------------------------------
+  if (view === 'grafo') {
+    return (
+      <div className="page">
+        <ViewTabs view={view} onChange={setView} />
+        <NoteGraph
+          notes={notes}
+          index={index}
+          width={340}
+          height={460}
+          selectedId={null}
+          onSelect={setOpenId}
+        />
+        <p className="empty-hint">
+          Cada punto es una nota, del color de su nivel; el tamaño crece con cuántos enlaces
+          tiene. Toca uno para abrirlo.
+        </p>
+      </div>
+    )
+  }
+
+  // ------------------------------------------------------------------
+  // Lista de notas
+  // ------------------------------------------------------------------
+  const tagged = tag ? new Set(index.tags.get(tag.toLocaleLowerCase('es')) ?? []) : null
+  const visible = searchNotes(
+    tagged ? notes.filter((n) => tagged.has(n.id)) : notes,
+    query,
+  )
+  const tags = [...index.tags.keys()].sort((a, b) => a.localeCompare(b, 'es'))
+  const pending = allBrokenLinks(index)
 
   return (
-    <div className="atlas">
-      <div className="atlas-tabs">
-        {profiles.map((profile) => {
-          const root = (nodesByProfile.get(profile.id) ?? []).find((n) => n.parentId === null)
-          const active = profile.id === activeProfile?.id && view !== 'overview'
-          return (
-            <button
-              key={profile.id}
-              type="button"
-              className={`atlas-tab${active ? ' atlas-tab--active' : ''}`}
-              aria-pressed={active}
-              onClick={() => {
-                setActiveProfileId(profile.id)
-                setSelectedId(null)
-                setOpenNodeId(null)
-                setDraftParentId(null)
-                setArmedProfileDelete(false)
-                setView('map')
-              }}
-            >
-              <span
-                className="atlas-tab-dot"
-                style={{ background: LEVEL_COLOR[root?.level ?? 'desarrollo'] }}
-              />
-              {profile.name}
-            </button>
-          )
-        })}
-        <button
-          type="button"
-          className="atlas-tab-add"
-          aria-label="Añadir perfil"
-          onClick={() => setView('new-profile')}
-        >
-          +
-        </button>
-        <span className="atlas-tabs-spacer" />
-        <div className="atlas-tabs-actions">
-          <button type="button" onClick={() => setView('overview')}>
-            PANORÁMICA
+    <div className="page">
+      <ViewTabs view={view} onChange={setView} />
+
+      <input
+        type="search"
+        className="note-search"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Buscar en títulos y contenido…"
+        aria-label="Buscar notas"
+      />
+
+      {tags.length > 0 && (
+        <div className="note-tag-row">
+          <button
+            type="button"
+            className={`note-tag${tag === null ? ' note-tag--active' : ''}`}
+            onClick={() => setTag(null)}
+          >
+            Todas
           </button>
-          {desktop && view !== 'overview' && view !== 'new-profile' && (
+          {tags.map((t) => (
             <button
+              key={t}
               type="button"
-              style={armedProfileDelete ? { color: 'var(--atlas-rojo)' } : undefined}
-              onClick={() => {
-                if (armedProfileDelete) void handleDeleteProfile()
-                else setArmedProfileDelete(true)
-              }}
-              onBlur={() => setArmedProfileDelete(false)}
+              className={`note-tag${tag === t ? ' note-tag--active' : ''}`}
+              onClick={() => setTag(tag === t ? null : t)}
             >
-              {armedProfileDelete ? 'PULSA OTRA VEZ' : 'BORRAR PERFIL'}
+              #{t}
             </button>
-          )}
+          ))}
         </div>
-      </div>
-
-      {view === 'new-profile' && (
-        <AtlasEmptyState
-          additional
-          desktop={desktop}
-          onCreate={handleCreateProfile}
-          onCancel={() => setView('map')}
-        />
       )}
 
-      {view === 'overview' && (
-        <AtlasOverview
-          profiles={profiles}
-          nodesByProfile={nodesByProfile}
-          onOpenProfile={(id) => {
-            setActiveProfileId(id)
-            setSelectedId(null)
-            setOpenNodeId(null)
-            setView('map')
-          }}
-          onAddProfile={() => setView('new-profile')}
-        />
-      )}
+      {error && <p className="error">{error}</p>}
 
-      {view === 'node' && openNode && activeProfile && (
-        <AtlasNodePage
-          key={openNode.id}
-          profileName={activeProfile.name}
-          node={openNode}
-          parent={nodes.find((n) => n.id === openNode.parentId) ?? null}
-          childNodes={nodes
-            .filter((n) => n.parentId === openNode.id)
-            .sort((a, b) => a.order - b.order)}
-          desktop={desktop}
-          onBack={() => setView('map')}
-          onOpen={(id) => setOpenNodeId(id)}
-          onRename={(name) => void updateNodeName(openNode.id, name)}
-          onLevel={(level) => void updateNodeLevel(openNode.id, level)}
-          onNote={(note) => void updateNodeNote(openNode.id, note)}
-          onAddChild={() => requestDraft(openNode.id)}
-          onDelete={() => void handleDeleteNode()}
-        />
-      )}
+      <NewNoteForm onCreate={(title) => void handleCreate(title)} />
 
-      {(view === 'map' || (view === 'node' && !openNode)) && activeProfile && (
-        <>
-          <AtlasMap
-            profileName={activeProfile.name}
-            nodes={nodes}
-            desktop={desktop}
-            selectedId={selectedId}
-            draftParentId={draftParentId}
-            draftLevel={draftLevel}
-            onSelect={setSelectedId}
-            onOpen={(id) => {
-              setOpenNodeId(id)
-              setView('node')
-            }}
-            onRequestDraft={requestDraft}
-            onDraftLevel={setDraftLevel}
-            onDraftSave={(name) => void handleDraftSave(name)}
-            onDraftCancel={() => setDraftParentId(null)}
-            onReparent={(nodeId, newParentId) => void reparentNode(nodeId, newParentId)}
-          />
-
-          {desktop ? (
-            <div className="atlas-statusbar">
-              <span>
-                {nodes.length} NODO{nodes.length === 1 ? '' : 'S'}
-              </span>
-              <div className="atlas-balance">
-                {MASTERY_LEVELS.map((level) =>
-                  counts[level] > 0 ? (
-                    <span
-                      key={level}
-                      style={{ flex: counts[level], background: LEVEL_COLOR[level] }}
-                    />
-                  ) : null,
-                )}
-              </div>
-              <span className="atlas-tabs-spacer" />
-              <span>CLIC PARA SELECCIONAR · ↵ PARA ABRIR · MANTÉN PARA MOVER</span>
-            </div>
-          ) : (
-            <div className="atlas-actionbar">
-              {selectedNode ? (
-                <button
-                  type="button"
-                  className="atlas-actionbar-main"
-                  onClick={() => {
-                    setOpenNodeId(selectedNode.id)
-                    setView('node')
-                  }}
-                >
-                  <span className="atlas-actionbar-label">
-                    SELECCIONADO · {LEVEL_LABEL[selectedNode.level].toUpperCase()}
-                  </span>
-                  <span className="atlas-relation-name">{selectedNode.name} ›</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="atlas-actionbar-text"
-                  onClick={() => setView('overview')}
-                >
-                  TOCA UN NODO
-                </button>
-              )}
+      {visible.length === 0 ? (
+        <p className="empty-hint">
+          {notes.length === 0
+            ? 'Todavía no hay notas. Crea la primera y enlázala con [[ ]].'
+            : 'Nada coincide con esa búsqueda.'}
+        </p>
+      ) : (
+        <div className="note-list">
+          {visible.map((note) => {
+            const links = (index.outgoing.get(note.id) ?? []).length
+            const backs = (index.backlinks.get(note.id) ?? []).length
+            return (
               <button
+                key={note.id}
                 type="button"
-                className="atlas-actionbar-add"
-                aria-label={
-                  selectedNode
-                    ? `Añadir un nodo bajo ${selectedNode.name}`
-                    : 'Añadir un nodo bajo la raíz'
-                }
-                disabled={!addParentId}
-                onClick={() => addParentId && requestDraft(addParentId)}
+                className="note-card"
+                style={{ borderLeftColor: LEVEL_COLOR[note.level] }}
+                onClick={() => setOpenId(note.id)}
               >
-                +
+                <span className="note-card-title">{note.title}</span>
+                {note.body.trim() !== '' && (
+                  <span className="note-card-excerpt">{excerpt(note.body)}</span>
+                )}
+                <span className="note-card-meta">
+                  {links} enlace{links === 1 ? '' : 's'} · {backs} entrante
+                  {backs === 1 ? '' : 's'}
+                </span>
               </button>
-            </div>
-          )}
-        </>
+            )
+          })}
+        </div>
+      )}
+
+      {pending.length > 0 && (
+        <section>
+          <h2>Mencionadas sin crear</h2>
+          <p className="empty-hint">
+            Las enlazaste desde otra nota pero todavía no existen. Tócalas para crearlas.
+          </p>
+          <div className="note-link-list">
+            {pending.map((link) => (
+              <button
+                key={link.target}
+                type="button"
+                className="note-chip note-chip--broken"
+                onClick={() => void handleOpenTitle(link.target)}
+              >
+                {link.target}
+              </button>
+            ))}
+          </div>
+        </section>
       )}
     </div>
+  )
+}
+
+function ViewTabs({ view, onChange }: { view: View; onChange: (v: View) => void }) {
+  return (
+    <div className="sub-tabs">
+      <button
+        type="button"
+        className={view === 'notas' ? 'active' : ''}
+        onClick={() => onChange('notas')}
+      >
+        Notas
+      </button>
+      <button
+        type="button"
+        className={view === 'grafo' ? 'active' : ''}
+        onClick={() => onChange('grafo')}
+      >
+        Grafo
+      </button>
+    </div>
+  )
+}
+
+function NoteChip({ note, onOpen }: { note?: AtlasNote; onOpen: (id: string) => void }) {
+  if (!note) return null
+  return (
+    <button
+      type="button"
+      className="note-chip"
+      style={{ borderLeftColor: LEVEL_COLOR[note.level] }}
+      onClick={() => onOpen(note.id)}
+    >
+      {note.title}
+    </button>
+  )
+}
+
+function NewNoteForm({ onCreate }: { onCreate: (title: string) => void }) {
+  const [title, setTitle] = useState('')
+  return (
+    <form
+      className="note-new"
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (title.trim() === '') return
+        onCreate(title.trim())
+        setTitle('')
+      }}
+    >
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Nueva nota…"
+        aria-label="Título de la nota nueva"
+      />
+      <button type="submit" disabled={title.trim() === ''}>
+        Crear
+      </button>
+    </form>
+  )
+}
+
+interface NoteBodyProps {
+  body: string
+  index: ReturnType<typeof buildIndex>
+  onOpenTitle: (title: string) => void
+  onPickTag: (tag: string) => void
+}
+
+/**
+ * El Markdown ya viene saneado, así que se inyecta y se escuchan los clics en
+ * el contenedor: así los `[[enlaces]]` y las `#etiquetas` navegan sin montar un
+ * componente por cada uno.
+ */
+function NoteBody({ body, index, onOpenTitle, onPickTag }: NoteBodyProps) {
+  const existingTitles = useMemo(() => new Set(index.byTitle.keys()), [index])
+  const html = useMemo(
+    () => renderMarkdown(body, { existingTitles }),
+    [body, existingTitles],
+  )
+
+  if (body.trim() === '') {
+    return <p className="empty-hint">Esta nota está vacía. Toca «Editar» para escribirla.</p>
+  }
+
+  return (
+    <div
+      className="note-rendered"
+      onClick={(e) => {
+        const el = (e.target as HTMLElement).closest('[data-wikilink],[data-tag]')
+        if (!(el instanceof HTMLElement)) return
+        e.preventDefault()
+        const link = el.dataset.wikilink
+        const tag = el.dataset.tag
+        if (link !== undefined) onOpenTitle(link)
+        else if (tag !== undefined) onPickTag(tag)
+      }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   )
 }

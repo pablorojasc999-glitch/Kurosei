@@ -1,6 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie'
-import { ATLAS_STORES_V7 } from '../../modules/atlas/db/schema'
-import type { AtlasNode, AtlasProfile } from '../../modules/atlas/domain/types'
+import { ATLAS_STORES_V7, ATLAS_STORES_V9 } from '../../modules/atlas/db/schema'
+import { migrateTreeToNotes } from '../../modules/atlas/db/migrateTreeToNotes'
+import type {
+  LegacyNode,
+  LegacyProfile,
+} from '../../modules/atlas/db/migrateTreeToNotes'
+import type { AtlasNote } from '../../modules/atlas/domain/types'
 import { FINANCE_STORES_V4 } from '../../modules/finance/db/schema'
 import { GROCERY_STORES_V8 } from '../../modules/grocery/db/schema'
 import type { GroceryItem } from '../../modules/grocery/domain/types'
@@ -67,8 +72,12 @@ export class KuroseiDatabase extends Dexie {
   nutrition_meal_templates!: EntityTable<MealTemplate, 'id'>
   nutrition_meal_template_entries!: EntityTable<MealTemplateEntry, 'id'>
   nutrition_goal_plans!: EntityTable<NutritionGoalPlan, 'id'>
-  atlas_profiles!: EntityTable<AtlasProfile, 'id'>
-  atlas_nodes!: EntityTable<AtlasNode, 'id'>
+  // El Atlas viejo era un árbol de perfiles y nodos. Desde la v9 son notas
+  // enlazadas; estas dos tablas se quedan declaradas para no romper el
+  // upgrade de quien venga de una versión anterior, pero ya no se usan.
+  atlas_profiles!: EntityTable<LegacyProfile, 'id'>
+  atlas_nodes!: EntityTable<LegacyNode, 'id'>
+  atlas_notes!: EntityTable<AtlasNote, 'id'>
   grocery_items!: EntityTable<GroceryItem, 'id'>
 
   constructor() {
@@ -102,6 +111,17 @@ export class KuroseiDatabase extends Dexie {
     this.version(8).stores({
       ...GROCERY_STORES_V8,
     })
+    // Atlas pasa de árbol a notas enlazadas. La jerarquía no se tira: cada
+    // relación padre→hijo se reescribe como un `[[enlace]]` en el cuerpo del
+    // padre, dentro de la misma transacción de upgrade.
+    this.version(9)
+      .stores({ ...ATLAS_STORES_V9 })
+      .upgrade(async (tx) => {
+        const profiles = await tx.table('atlas_profiles').toArray()
+        const nodes = await tx.table('atlas_nodes').toArray()
+        const notes = migrateTreeToNotes(profiles, nodes)
+        if (notes.length > 0) await tx.table('atlas_notes').bulkAdd(notes)
+      })
   }
 }
 
