@@ -18,6 +18,22 @@ interface BottomSheetProps {
 export function BottomSheet({ title, subtitle, onClose, children }: BottomSheetProps) {
   const panelRef = useRef<HTMLDivElement | null>(null)
 
+  // `onClose` llega casi siempre como una función nueva en cada render, así que
+  // no puede ser dependencia de un efecto: bastaría con teclear una letra para
+  // que el efecto se limpiara y se volviera a montar. Se guarda en una caja y
+  // el listener lee siempre la última.
+  const closeRef = useRef(onClose)
+  useEffect(() => {
+    closeRef.current = onClose
+  })
+
+  /*
+   * Este efecto corre UNA vez, al abrir y al cerrar el panel, y nunca entre
+   * medias. Si dependiera de algo que cambia al escribir, cada tecla haría lo
+   * mismo que cerrar y reabrir: devolver el foco a donde estaba y luego
+   * plantarlo en el panel. En el teléfono eso saca el foco del campo y cierra
+   * el teclado en cuanto escribes el primer carácter.
+   */
   useEffect(() => {
     // Se devuelve el foco a donde estaba: cerrar no puede dejarlo en el body,
     // porque el lector de pantalla se quedaría sin punto de partida.
@@ -30,7 +46,7 @@ export function BottomSheet({ title, subtitle, onClose, children }: BottomSheetP
     document.body.style.overflow = 'hidden'
 
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') closeRef.current()
     }
     document.addEventListener('keydown', onKeyDown)
 
@@ -39,7 +55,7 @@ export function BottomSheet({ title, subtitle, onClose, children }: BottomSheetP
       document.body.style.overflow = previousOverflow
       previouslyFocused?.focus?.()
     }
-  }, [onClose])
+  }, [])
 
   return (
     <>
