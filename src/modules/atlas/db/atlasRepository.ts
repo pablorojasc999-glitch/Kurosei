@@ -1,185 +1,124 @@
 import { db } from '../../../shared/db/database'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
-import type { AtlasNode, AtlasProfile, MasteryLevel } from '../domain/types'
-import { canReparent, collectDescendantIds } from '../lib/atlasTree'
-import type { AtlasTemplate, TemplateNodeSpec } from '../lib/atlasTemplates'
+import type { AtlasNote, MasteryLevel } from '../domain/types'
+import { normalizeTitle, parseLinks } from '../lib/atlasLinks'
 
-// ---------------------------------------------------------------------
-// Perfiles
-// ---------------------------------------------------------------------
-
-export async function listProfiles(): Promise<AtlasProfile[]> {
-  return db.atlas_profiles.filter((p) => p.deletedAt === null).sortBy('order')
+export async function listNotes(): Promise<AtlasNote[]> {
+  const notes = await db.atlas_notes.filter((n) => n.deletedAt === null).toArray()
+  return notes.sort((a, b) => a.title.localeCompare(b.title, 'es'))
 }
 
-export async function listNodes(profileId: string): Promise<AtlasNode[]> {
-  return db.atlas_nodes
-    .where('profileId')
-    .equals(profileId)
-    .filter((n) => n.deletedAt === null)
-    .toArray()
+export async function getNote(id: string): Promise<AtlasNote | undefined> {
+  const note = await db.atlas_notes.get(id)
+  return note && note.deletedAt === null ? note : undefined
 }
 
-/** Todos los nodos vivos de todos los perfiles — lo que necesita la panorámica. */
-export async function listAllNodes(): Promise<AtlasNode[]> {
-  return db.atlas_nodes.filter((n) => n.deletedAt === null).toArray()
+export async function findByTitle(title: string): Promise<AtlasNote | undefined> {
+  const key = normalizeTitle(title)
+  return (await listNotes()).find((n) => normalizeTitle(n.title) === key)
 }
 
-async function nextProfileOrder(): Promise<number> {
-  const profiles = await listProfiles()
-  return profiles.length ? Math.max(...profiles.map((p) => p.order)) + 1 : 0
-}
-
-/**
- * Crea el perfil junto con su nodo raíz — nunca existe un perfil sin raíz, ni
- * un nodo huérfano. `template` opcional cuelga el árbol de base.
- */
-export async function createProfile(
-  name: string,
-  template?: AtlasTemplate,
-): Promise<AtlasProfile> {
-  const timestamp = nowIso()
-  const profile: AtlasProfile = {
-    id: generateId(),
-    name,
-    order: await nextProfileOrder(),
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    deletedAt: null,
-  }
-
-  const nodes: AtlasNode[] = []
-  const spec: TemplateNodeSpec = template
-    ? { ...template.root, name }
-    : { name, level: 'desarrollo' }
-
-  const walk = (item: TemplateNodeSpec, parentId: string | null, order: number): string => {
-    const id = generateId()
-    nodes.push({
-      id,
-      profileId: profile.id,
-      parentId,
-      name: item.name,
-      level: item.level,
-      note: '',
-      order,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      deletedAt: null,
-    })
-    ;(item.children ?? []).forEach((child, index) => walk(child, id, index))
-    return id
-  }
-  walk(spec, null, 0)
-
-  await db.transaction('rw', db.atlas_profiles, db.atlas_nodes, async () => {
-    await db.atlas_profiles.add(profile)
-    await db.atlas_nodes.bulkAdd(nodes)
-  })
-  return profile
-}
-
-export async function renameProfile(id: string, name: string): Promise<void> {
-  const timestamp = nowIso()
-  await db.atlas_profiles.update(id, { name, updatedAt: timestamp })
-  // La raíz lleva el nombre del perfil: se renombran juntos.
-  const nodes = await listNodes(id)
-  const root = nodes.find((n) => n.parentId === null)
-  if (root) await db.atlas_nodes.update(root.id, { name, updatedAt: timestamp })
-}
-
-/** Borra el perfil y, en cascada, todos sus nodos. */
-export async function softDeleteProfile(id: string): Promise<void> {
-  const timestamp = nowIso()
-  const nodes = await listNodes(id)
-  await db.transaction('rw', db.atlas_profiles, db.atlas_nodes, async () => {
-    await db.atlas_profiles.update(id, { deletedAt: timestamp, updatedAt: timestamp })
-    await Promise.all(
-      nodes.map((n) => db.atlas_nodes.update(n.id, { deletedAt: timestamp, updatedAt: timestamp })),
-    )
-  })
-}
-
-// ---------------------------------------------------------------------
-// Nodos
-// ---------------------------------------------------------------------
-
-export interface CreateNodeInput {
-  profileId: string
-  parentId: string
-  name: string
+export interface CreateNoteInput {
+  title: string
+  body?: string
   level?: MasteryLevel
 }
 
-/** Un nodo nuevo nace siempre colgado de un padre y, sin elegir nivel, en ámbar. */
-export async function createNode(input: CreateNodeInput): Promise<AtlasNode> {
-  const siblings = (await listNodes(input.profileId)).filter(
-    (n) => n.parentId === input.parentId,
-  )
+/**
+ * El título es la clave de los enlaces, así que dos notas con el mismo nombre
+ * harían ambiguo a qué apunta `[[Título]]`. Se rechaza.
+ */
+export async function createNote(input: CreateNoteInput): Promise<AtlasNote> {
+  const title = input.title.trim()
+  if (title === '') throw new Error('La nota necesita un título.')
+  if (await findByTitle(title)) throw new Error(`Ya existe una nota titulada "${title}".`)
+
   const timestamp = nowIso()
-  const node: AtlasNode = {
+  const note: AtlasNote = {
     id: generateId(),
-    profileId: input.profileId,
-    parentId: input.parentId,
-    name: input.name,
+    title,
+    body: input.body ?? '',
     level: input.level ?? 'desarrollo',
-    note: '',
-    order: siblings.length ? Math.max(...siblings.map((n) => n.order)) + 1 : 0,
     createdAt: timestamp,
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.atlas_nodes.add(node)
-  return node
+  await db.atlas_notes.add(note)
+  return note
 }
 
-export async function updateNodeName(id: string, name: string): Promise<void> {
-  const node = await db.atlas_nodes.get(id)
-  if (!node) return
-  await db.atlas_nodes.update(id, { name, updatedAt: nowIso() })
-  if (node.parentId === null) {
-    await db.atlas_profiles.update(node.profileId, { name, updatedAt: nowIso() })
-  }
-}
-
-export async function updateNodeLevel(id: string, level: MasteryLevel): Promise<void> {
-  await db.atlas_nodes.update(id, { level, updatedAt: nowIso() })
-}
-
-export async function updateNodeNote(id: string, note: string): Promise<void> {
-  await db.atlas_nodes.update(id, { note, updatedAt: nowIso() })
+export interface UpdateNoteInput {
+  title?: string
+  body?: string
+  level?: MasteryLevel
 }
 
 /**
- * Reasigna el padre de un nodo. Como el árbol es estricto, esto mueve la rama
- * entera; se rechaza si crearía un ciclo o si se intenta mover la raíz.
+ * Renombrar reescribe los `[[enlaces]]` que apuntaban al título viejo en todas
+ * las demás notas: si no, renombrar rompería en silencio todo lo que enlaza
+ * aquí, que es justo lo que un sistema de notas enlazadas no puede permitirse.
  */
-export async function reparentNode(nodeId: string, newParentId: string): Promise<boolean> {
-  const node = await db.atlas_nodes.get(nodeId)
-  if (!node) return false
-  const nodes = await listNodes(node.profileId)
-  if (!canReparent(nodes, nodeId, newParentId)) return false
+export async function updateNote(id: string, input: UpdateNoteInput): Promise<void> {
+  const note = await db.atlas_notes.get(id)
+  if (!note) return
+  const timestamp = nowIso()
+  const patch: Partial<AtlasNote> = { updatedAt: timestamp }
 
-  const siblings = nodes.filter((n) => n.parentId === newParentId && n.id !== nodeId)
-  await db.atlas_nodes.update(nodeId, {
-    parentId: newParentId,
-    order: siblings.length ? Math.max(...siblings.map((n) => n.order)) + 1 : 0,
-    updatedAt: nowIso(),
-  })
-  return true
+  if (input.body !== undefined) patch.body = input.body
+  if (input.level !== undefined) patch.level = input.level
+
+  let renamedFrom: string | null = null
+  if (input.title !== undefined) {
+    const title = input.title.trim()
+    if (title === '') throw new Error('La nota necesita un título.')
+    const clash = await findByTitle(title)
+    if (clash && clash.id !== id) throw new Error(`Ya existe una nota titulada "${title}".`)
+    if (normalizeTitle(title) !== normalizeTitle(note.title)) renamedFrom = note.title
+    patch.title = title
+  }
+
+  await db.atlas_notes.update(id, patch)
+  if (renamedFrom !== null && patch.title) {
+    await rewriteLinksTo(renamedFrom, patch.title, id)
+  }
 }
 
-/** Borra el nodo con toda su descendencia. La raíz no se borra por acá: se borra el perfil. */
-export async function softDeleteNode(id: string): Promise<void> {
-  const node = await db.atlas_nodes.get(id)
-  if (!node || node.parentId === null) return
-  const nodes = await listNodes(node.profileId)
+/** Reescribe `[[viejo]]` como `[[nuevo]]` en todas las notas menos la renombrada. */
+async function rewriteLinksTo(from: string, to: string, exceptId: string): Promise<void> {
+  const key = normalizeTitle(from)
   const timestamp = nowIso()
-  const ids = [id, ...collectDescendantIds(nodes, id)]
-  await Promise.all(
-    ids.map((nodeId) =>
-      db.atlas_nodes.update(nodeId, { deletedAt: timestamp, updatedAt: timestamp }),
-    ),
-  )
+  const notes = (await listNotes()).filter((n) => n.id !== exceptId)
+
+  for (const other of notes) {
+    if (!parseLinks(other.body).some((l) => normalizeTitle(l.target) === key)) continue
+    const body = other.body.replace(
+      /\[\[([^\]|]+?)(\|[^\]]+?)?\]\]/g,
+      (match, target: string, alias?: string) =>
+        normalizeTitle(target) === key ? `[[${to}${alias ?? ''}]]` : match,
+    )
+    await db.atlas_notes.update(other.id, { body, updatedAt: timestamp })
+  }
+}
+
+/**
+ * Abre el destino de un `[[enlace]]`, creándolo si no existe. Es lo que hace
+ * que enlazar sea barato: escribes el nombre y la nota nace al tocarla.
+ */
+export async function openOrCreateByTitle(title: string): Promise<AtlasNote> {
+  return (await findByTitle(title)) ?? (await createNote({ title }))
+}
+
+export async function setLevel(id: string, level: MasteryLevel): Promise<void> {
+  await db.atlas_notes.update(id, { level, updatedAt: nowIso() })
+}
+
+/**
+ * Borra la nota. Los `[[enlaces]]` que apuntaban a ella se quedan escritos, y
+ * pasan a mostrarse como rotos — igual que en Obsidian, y a propósito: perder
+ * la nota no debería borrar en silencio la mención en otras cinco.
+ */
+export async function softDeleteNote(id: string): Promise<void> {
+  const timestamp = nowIso()
+  await db.atlas_notes.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }

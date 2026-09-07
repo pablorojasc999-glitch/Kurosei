@@ -433,9 +433,26 @@ create table if not exists "nutrition_goal_plans" (
 );
 
 -- ---------------------------------------------------------------------
--- Atlas Personal — perfiles y su árbol de nodos
+-- Atlas Personal — notas enlazadas
 -- ---------------------------------------------------------------------
 
+create table if not exists "atlas_notes" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  -- Único a efectos de enlace: `[[Título]]` resuelve por aquí
+  "title" text not null,
+  -- Markdown, con los `[[enlaces]]` y las `#etiquetas` embebidos en el texto
+  "body" text not null,
+  "level" text not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
+
+-- Tablas del Atlas anterior (perfiles + árbol de nodos). Ya no se sincronizan:
+-- la app las migra a "atlas_notes" al abrirse. Se dejan declaradas para no
+-- borrar datos de un dispositivo que todavía no haya hecho esa migración; una
+-- vez migrados todos, se pueden eliminar a mano.
 create table if not exists "atlas_profiles" (
   "id" uuid primary key,
   "userId" uuid not null references auth.users(id) on delete cascade,
@@ -511,6 +528,7 @@ create index if not exists "nutrition_water_entries_sync_idx" on "nutrition_wate
 create index if not exists "nutrition_meal_templates_sync_idx" on "nutrition_meal_templates" ("userId", "updatedAt");
 create index if not exists "nutrition_meal_template_entries_sync_idx" on "nutrition_meal_template_entries" ("userId", "updatedAt");
 create index if not exists "nutrition_goal_plans_sync_idx" on "nutrition_goal_plans" ("userId", "updatedAt");
+create index if not exists "atlas_notes_sync_idx" on "atlas_notes" ("userId", "updatedAt");
 create index if not exists "atlas_profiles_sync_idx" on "atlas_profiles" ("userId", "updatedAt");
 create index if not exists "atlas_nodes_sync_idx" on "atlas_nodes" ("userId", "updatedAt");
 create index if not exists "grocery_items_sync_idx" on "grocery_items" ("userId", "updatedAt");
@@ -523,6 +541,11 @@ create index if not exists "grocery_items_sync_idx" on "grocery_items" ("userId"
 -- parta el script por `;` lo corta por dentro y falla con "unterminated
 -- dollar-quoted string". Así el archivo se puede pegar entero o por partes.
 -- ---------------------------------------------------------------------
+
+alter table "atlas_notes" enable row level security;
+drop policy if exists "owner_all" on "atlas_notes";
+create policy "owner_all" on "atlas_notes" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
 
 alter table "atlas_nodes" enable row level security;
 drop policy if exists "owner_all" on "atlas_nodes";
