@@ -31,7 +31,6 @@ export const SYNC_TABLE_NAMES = [
   'nutrition_meal_templates',
   'nutrition_meal_template_entries',
   'nutrition_goal_plans',
-  'atlas_notes',
   'grocery_items',
 ] as const
 
