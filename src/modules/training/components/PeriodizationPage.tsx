@@ -557,7 +557,6 @@ export function PeriodizationPage({
           <h2>{selectedMesocycle?.name}</h2>
           <BlockGrid
             mesocycleId={mesocycleId}
-            mesocycleName={selectedMesocycle?.name ?? 'el bloque'}
             onOpenDay={(week, day) => {
               setWeekId(week)
               setDayId(day)

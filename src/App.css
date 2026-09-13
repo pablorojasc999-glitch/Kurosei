@@ -3648,18 +3648,46 @@ section {
   padding: 6px 8px 6px 0;
 }
 
+/* Una línea y puntos suspensivos: con nombres de dos líneas las filas quedaban
+   de alturas distintas y la cuadrícula dejaba de leerse como cuadrícula. El
+   nombre entero está en el panel de la celda. */
+.block-grid-name-text {
+  display: block;
+  /* El tope va aquí y no en la celda: en una tabla el `min-width` de una celda
+     no frena el contenido, así que un nombre largo ensanchaba la columna a 156
+     px y se llevaba por delante la última semana. */
+  max-width: 76px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.block-grid-name-toggle {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+/* El día como cabecera de grupo, con una regla debajo: antes competía con los
+   nombres de ejercicio en la misma columna y no se veía dónde empezaba cada uno. */
 .block-grid-slot th {
-  padding-top: 14px;
+  padding-top: 16px;
+  padding-bottom: 5px;
   color: var(--accent-2);
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
 }
 
 .block-grid-slot td {
-  padding-top: 14px;
+  padding-top: 16px;
+  padding-bottom: 5px;
   text-align: center;
+  border-bottom: 1px solid var(--border);
 }
 
 .block-grid-date {
@@ -3708,6 +3736,44 @@ section {
   background: none;
   color: var(--text-muted);
   font-size: 15px;
+}
+
+/* Lo hecho va en el color de la celda y no en una tercera línea: en 54 px tres
+   codificaciones distintas competían y ninguna mandaba. */
+.block-grid-cell--done {
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.38);
+}
+
+.block-grid-cell--done .block-grid-volume {
+  color: var(--success);
+}
+
+.block-grid-cell--differs {
+  background: rgba(251, 191, 36, 0.1);
+  border-color: rgba(251, 191, 36, 0.4);
+}
+
+.block-grid-cell--differs .block-grid-volume {
+  color: var(--warning);
+}
+
+.block-grid-cell--current {
+  box-shadow: 0 0 0 1px var(--accent-border);
+}
+
+.block-grid-week--current {
+  color: var(--accent-2);
+}
+
+/* Que esa semana no tenga ese día se dice con un hueco. El guion se confundía
+   con el "+" de "el día está, falta el ejercicio", que sí se puede tocar. */
+.block-grid-gap {
+  display: block;
+  width: 14px;
+  height: 1px;
+  margin: 0 auto;
+  background: var(--border);
 }
 
 .block-grid-volume {
@@ -3947,11 +4013,104 @@ section {
   min-height: 40px;
   padding: 0 8px;
   text-align: center;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+/* Fuera las flechitas nativas: en una rejilla de tres campos por serie sólo
+   roban ancho y son imposibles de acertar con el dedo. */
+.set-editor-row input::-webkit-outer-spin-button,
+.set-editor-row input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
 }
 
 .set-editor-row .icon-button {
   width: 34px;
   min-width: 34px;
+}
+
+/* --- el panel de una celda: plan contra lo hecho --- */
+
+.cell-verdict {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.cell-verdict--done {
+  background: var(--success-bg);
+  border: 1px solid var(--success-muted);
+  color: var(--success);
+}
+
+.cell-verdict--differs {
+  background: var(--warning-bg);
+  border: 1px solid rgba(251, 191, 36, 0.34);
+  color: var(--warning);
+}
+
+.cell-compare {
+  margin-top: 14px;
+}
+
+.cell-compare-head,
+.cell-compare-row {
+  display: grid;
+  grid-template-columns: 20px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.cell-compare-head {
+  padding-bottom: 5px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cell-compare-row {
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+}
+
+.cell-compare-number {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cell-compare-planned {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.cell-compare-done {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.cell-compare-done small {
+  font-size: 10px;
+  opacity: 0.85;
+}
+
+.cell-compare-done--equal {
+  color: var(--success);
+}
+
+.cell-compare-done--differs {
+  color: var(--warning);
+}
+
+.cell-compare-done--missing {
+  color: var(--text-muted);
 }
 
 .set-editor-tools {
