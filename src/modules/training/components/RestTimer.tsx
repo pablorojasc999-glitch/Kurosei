@@ -1,4 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
+import {
+  extendRest,
+  formatRestClock,
+  pauseRest,
+  remainingSeconds,
+  resumeRest,
+  startRest,
+  type RestTimerState,
+} from '../lib/restTimer'
 
 function playBeep(): void {
   try {
@@ -31,62 +40,82 @@ function vibrate(): void {
   }
 }
 
-function formatClock(totalSeconds: number): string {
-  const sign = totalSeconds < 0 ? '+' : ''
-  const abs = Math.abs(totalSeconds)
-  const minutes = Math.floor(abs / 60)
-  const seconds = abs % 60
-  return `${sign}${minutes}:${seconds.toString().padStart(2, '0')}`
-}
+/** Cada cuánto se repinta. Más fino que un segundo para que al volver de la pantalla bloqueada el número ya esté puesto. */
+const TICK_MS = 250
 
 interface RestTimerProps {
   targetSeconds: number
-  onTargetSecondsChange: (seconds: number) => void
+  /** Quitar el cronómetro de en medio cuando ya no hace falta. */
+  onDismiss: () => void
 }
 
 /**
- * Mount a fresh instance (e.g. `key={lastSet.id}`) to reset the countdown —
- * simpler and more idiomatic than syncing local state to a prop via effect.
+ * El descanso entre series.
+ *
+ * Monta una instancia nueva (`key`) para volver a empezar: el estado vive en el
+ * componente y reiniciarlo desde fuera sería sincronizar prop y estado a mano.
  */
-export function RestTimer({
-  targetSeconds,
-  onTargetSecondsChange,
-}: RestTimerProps) {
+export function RestTimer({ targetSeconds, onDismiss }: RestTimerProps) {
+  const [state, setState] = useState<RestTimerState>(() =>
+    startRest(targetSeconds, Date.now()),
+  )
   const [remaining, setRemaining] = useState(targetSeconds)
-  const [running, setRunning] = useState(true)
   const alertedRef = useRef(false)
 
   useEffect(() => {
-    if (!running) return
-    const interval = window.setInterval(() => {
-      setRemaining((prev) => {
-        const next = prev - 1
-        if (next <= 0 && !alertedRef.current) {
-          alertedRef.current = true
-          playBeep()
-          vibrate()
-        }
-        return next
-      })
-    }, 1000)
-    return () => window.clearInterval(interval)
-  }, [running])
+    const sync = () => {
+      const left = remainingSeconds(state, Date.now())
+      setRemaining(left)
+
+      if (left > 0 || alertedRef.current) return
+      alertedRef.current = true
+      // Si el descanso se cumplió con la pantalla apagada, el aviso ya no sirve
+      // de nada y pegaría un susto al desbloquear: se marca como avisado en
+      // silencio y basta con el "+0:45" en rojo.
+      if (document.visibilityState === 'visible') {
+        playBeep()
+        vibrate()
+      }
+    }
+
+    sync()
+    if (state.status === 'paused') return
+
+    const interval = window.setInterval(sync, TICK_MS)
+    // Al volver de segundo plano el intervalo puede llevar minutos sin correr.
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      window.clearInterval(interval)
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [state])
 
   const isDone = remaining <= 0
+  const isPaused = state.status === 'paused'
 
   return (
     <div className={`rest-timer${isDone ? ' rest-timer--done' : ''}`}>
-      <span className="rest-timer-clock numeric">{formatClock(remaining)}</span>
+      <span className="rest-timer-clock numeric" role="timer" aria-live="off">
+        {formatRestClock(remaining)}
+      </span>
       <div className="rest-timer-controls">
-        <button type="button" onClick={() => setRunning((r) => !r)}>
-          {running ? 'Pausar' : 'Reanudar'}
+        <button
+          type="button"
+          onClick={() =>
+            setState((prev) =>
+              prev.status === 'running'
+                ? pauseRest(prev, Date.now())
+                : resumeRest(prev, Date.now()),
+            )
+          }
+        >
+          {isPaused ? 'Reanudar' : 'Pausar'}
         </button>
         <button
           type="button"
           onClick={() => {
-            setRemaining(targetSeconds)
             alertedRef.current = false
-            setRunning(true)
+            setState(startRest(targetSeconds, Date.now()))
           }}
         >
           Reiniciar
@@ -94,11 +123,14 @@ export function RestTimer({
         <button
           type="button"
           onClick={() => {
-            setRemaining((prev) => prev + 15)
-            onTargetSecondsChange(targetSeconds + 15)
+            alertedRef.current = false
+            setState((prev) => extendRest(prev, 15, Date.now()))
           }}
         >
           +15s
+        </button>
+        <button type="button" aria-label="Ocultar el descanso" onClick={onDismiss}>
+          ✕
         </button>
       </div>
     </div>
