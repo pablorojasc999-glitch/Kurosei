@@ -1337,6 +1337,64 @@ section {
   border: 1px solid var(--text-muted);
 }
 
+/* Los días entrenados del mes y del año que se están mirando. Van bajo la
+   cuadrícula, que es lo principal: el resumen se lee después de ella. Cada
+   tarjeta lleva el mismo punto de color que marca ese día en el calendario. */
+.calendar-counts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.calendar-counts-period {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.calendar-counts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.calendar-count-card {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.calendar-count-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.calendar-count-card strong {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.calendar-count-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 /* --- progress --- */
 
 .body-map {
