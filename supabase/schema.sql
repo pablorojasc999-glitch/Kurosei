@@ -279,8 +279,29 @@ create table if not exists "finance_categories" (
 -- database, so re-running this file needs these too.
 alter table "finance_accounts" add column if not exists "categoryId" uuid;
 alter table "finance_accounts" add column if not exists "revolving" boolean not null default false;
+-- Legado: el presupuesto vive ahora en "finance_category_budgets", con fecha de
+-- vigencia. La columna se deja porque tiene datos de antes y no estorba.
 alter table "finance_categories" add column if not exists "monthlyBudget" double precision;
+alter table "finance_transactions" add column if not exists "financialMonth" text;
+-- Antes el mes lo decidía la fecha; ese es el valor que deja las cuentas igual.
+update "finance_transactions"
+  set "financialMonth" = substring("date" from 1 for 7)
+  where "financialMonth" is null;
 alter table "nutrition_entries" add column if not exists "checked" boolean not null default true;
+
+create table if not exists "finance_category_budgets" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "categoryId" uuid not null,
+  -- `YYYY-MM` desde el que rige este monto. El presupuesto de un mes es el de
+  -- la vigencia más reciente que no sea posterior a ese mes, así que cambiarlo
+  -- hacia adelante no reescribe lo que regía antes.
+  "effectiveFrom" text not null,
+  "amount" double precision not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz
+);
 
 create table if not exists "finance_transactions" (
   "id" uuid primary key,
@@ -290,6 +311,9 @@ create table if not exists "finance_transactions" (
   "type" text not null,
   "amount" double precision not null,
   "date" text not null,
+  -- `YYYY-MM` al que se imputa, que no tiene por qué ser el mes de `date`.
+  -- Los totales y los presupuestos se cuentan por acá.
+  "financialMonth" text,
   "notes" text not null,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
@@ -474,6 +498,7 @@ create index if not exists "training_user_profile_sync_idx" on "training_user_pr
 create index if not exists "training_daily_logs_sync_idx" on "training_daily_logs" ("userId", "updatedAt");
 create index if not exists "finance_accounts_sync_idx" on "finance_accounts" ("userId", "updatedAt");
 create index if not exists "finance_categories_sync_idx" on "finance_categories" ("userId", "updatedAt");
+create index if not exists "finance_category_budgets_sync_idx" on "finance_category_budgets" ("userId", "updatedAt");
 create index if not exists "finance_transactions_sync_idx" on "finance_transactions" ("userId", "updatedAt");
 create index if not exists "nutrition_foods_sync_idx" on "nutrition_foods" ("userId", "updatedAt");
 create index if not exists "nutrition_meal_sections_sync_idx" on "nutrition_meal_sections" ("userId", "updatedAt");
@@ -496,6 +521,11 @@ create index if not exists "grocery_items_sync_idx" on "grocery_items" ("userId"
 alter table "finance_accounts" enable row level security;
 drop policy if exists "owner_all" on "finance_accounts";
 create policy "owner_all" on "finance_accounts" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+alter table "finance_category_budgets" enable row level security;
+drop policy if exists "owner_all" on "finance_category_budgets";
+create policy "owner_all" on "finance_category_budgets" for all
   using ("userId" = auth.uid()) with check ("userId" = auth.uid());
 
 alter table "finance_categories" enable row level security;

@@ -27,8 +27,22 @@ export interface FinanceCategory extends SyncedEntity {
   emoji: string
   type: FinanceCategoryType
   order: number
-  /** Only meaningful for an `expense` category; null means no budget set. */
-  monthlyBudget: number | null
+}
+
+/**
+ * Un presupuesto con fecha de entrada en vigor. No se guarda "el presupuesto de
+ * la categoría" sino cada vez que cambió: el de un mes es el de la vigencia más
+ * reciente que no sea posterior a ese mes.
+ *
+ * Es lo que permite subir el presupuesto en septiembre sin reescribir lo que
+ * había presupuestado en agosto — si fuera un solo número en la categoría,
+ * cambiarlo falsearía todos los meses anteriores.
+ */
+export interface FinanceCategoryBudget extends SyncedEntity {
+  categoryId: string
+  /** `YYYY-MM` a partir del cual rige este monto. */
+  effectiveFrom: string
+  amount: number
 }
 
 export interface FinanceTransaction extends SyncedEntity {
@@ -39,5 +53,12 @@ export interface FinanceTransaction extends SyncedEntity {
   amount: number
   /** `YYYY-MM-DD` calendar date of the transaction. */
   date: string
+  /**
+   * `YYYY-MM` del mes financiero al que se imputa, que no tiene por qué ser el
+   * de `date`: una compra del 30 puede pertenecer al mes siguiente. Los totales
+   * y los presupuestos se calculan por acá; la lista de movimientos sigue el
+   * orden de `date`, que es cuando se movió la plata de verdad.
+   */
+  financialMonth: string
   notes: string
 }

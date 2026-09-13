@@ -23,6 +23,7 @@ export const SYNC_TABLE_NAMES = [
   'training_daily_logs',
   'finance_accounts',
   'finance_categories',
+  'finance_category_budgets',
   'finance_transactions',
   'nutrition_foods',
   'nutrition_meal_sections',

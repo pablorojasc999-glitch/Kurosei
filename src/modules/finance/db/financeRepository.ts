@@ -6,9 +6,11 @@ import type {
   FinanceAccount,
   FinanceAccountKind,
   FinanceCategory,
+  FinanceCategoryBudget,
   FinanceCategoryType,
   FinanceTransaction,
 } from '../domain/types'
+import { budgetForMonth } from '../lib/budgets'
 
 // ---------------------------------------------------------------------
 // Accounts (incl. debts)
@@ -46,7 +48,6 @@ export async function createAccount(input: CreateAccountInput): Promise<FinanceA
       name: input.name,
       emoji: input.emoji,
       type: debtCategoryType(input.debtDirection),
-      monthlyBudget: null,
     })
     categoryId = category.id
   }
@@ -90,7 +91,6 @@ export async function ensureDebtCategoryId(debt: FinanceAccount): Promise<string
     name: debt.name,
     emoji: debt.emoji,
     type: debtCategoryType(debt.debtDirection ?? 'i_owe'),
-    monthlyBudget: null,
   })
   await db.finance_accounts.update(debt.id, { categoryId: category.id, updatedAt: nowIso() })
   return category.id
@@ -164,7 +164,6 @@ export interface CreateCategoryInput {
   name: string
   emoji: string
   type: FinanceCategoryType
-  monthlyBudget: number | null
 }
 
 export async function createCategory(input: CreateCategoryInput): Promise<FinanceCategory> {
@@ -183,9 +182,7 @@ export async function createCategory(input: CreateCategoryInput): Promise<Financ
   return category
 }
 
-export type UpdateCategoryInput = Partial<
-  Pick<CreateCategoryInput, 'name' | 'emoji' | 'monthlyBudget'>
->
+export type UpdateCategoryInput = Partial<Pick<CreateCategoryInput, 'name' | 'emoji'>>
 
 export async function updateCategory(id: string, input: UpdateCategoryInput): Promise<void> {
   await db.finance_categories.update(id, { ...input, updatedAt: nowIso() })
@@ -193,7 +190,74 @@ export async function updateCategory(id: string, input: UpdateCategoryInput): Pr
 
 export async function softDeleteCategory(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.finance_categories.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  await db.transaction('rw', db.finance_categories, db.finance_category_budgets, async () => {
+    await db.finance_categories.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+    // Sus vigencias se van con ella: si no, volver a crear una categoría con el
+    // mismo id heredaría presupuestos de otra vida.
+    await db.finance_category_budgets
+      .filter((b) => b.categoryId === id && b.deletedAt === null)
+      .modify({ deletedAt: timestamp, updatedAt: timestamp })
+  })
+}
+
+// ---------------------------------------------------------------------
+// Presupuestos con vigencia
+// ---------------------------------------------------------------------
+
+export async function listCategoryBudgets(): Promise<FinanceCategoryBudget[]> {
+  return db.finance_category_budgets.filter((b) => b.deletedAt === null).toArray()
+}
+
+/**
+ * Deja `amount` como presupuesto de la categoría a partir de `effectiveFrom`.
+ * Los meses anteriores no se tocan: siguen leyendo la vigencia que tenían.
+ *
+ * Con `amount` en `null` se borra la vigencia de ese mes exacto, y vuelve a
+ * regir la anterior. Para decir "desde acá no presupuesto nada" se pone 0, que
+ * es un presupuesto de verdad y no la ausencia de uno.
+ */
+export async function setCategoryBudget(
+  categoryId: string,
+  effectiveFrom: string,
+  amount: number | null,
+): Promise<void> {
+  const timestamp = nowIso()
+  const existing = (await listCategoryBudgets()).find(
+    (b) => b.categoryId === categoryId && b.effectiveFrom === effectiveFrom,
+  )
+
+  if (amount === null) {
+    if (existing) {
+      await db.finance_category_budgets.update(existing.id, {
+        deletedAt: timestamp,
+        updatedAt: timestamp,
+      })
+    }
+    return
+  }
+
+  if (existing) {
+    await db.finance_category_budgets.update(existing.id, { amount, updatedAt: timestamp })
+    return
+  }
+
+  await db.finance_category_budgets.add({
+    id: generateId(),
+    categoryId,
+    effectiveFrom,
+    amount,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+  })
+}
+
+/** El presupuesto que rige para una categoría en un mes. */
+export async function getCategoryBudgetForMonth(
+  categoryId: string,
+  monthKey: string,
+): Promise<number | null> {
+  return budgetForMonth(await listCategoryBudgets(), categoryId, monthKey)
 }
 
 // ---------------------------------------------------------------------
@@ -216,6 +280,8 @@ export interface CreateTransactionInput {
   type: FinanceCategoryType
   amount: number
   date: string
+  /** `YYYY-MM` al que se imputa. Por defecto el mes de `date`. */
+  financialMonth: string
   notes: string
 }
 
@@ -248,11 +314,31 @@ export async function softDeleteTransaction(id: string): Promise<void> {
   await db.finance_transactions.update(id, { deletedAt: timestamp, updatedAt: timestamp })
 }
 
-/** Sum of expense and income transactions for a calendar year. */
-export async function getYearTotals(
+/**
+ * Las transacciones imputadas a un mes financiero. Ojo con la diferencia: la
+ * lista de movimientos filtra por `date`, que es cuando se movió la plata; todo
+ * lo que se suma filtra por acá, que es a qué mes decidiste que pertenece.
+ */
+export async function listTransactionsForMonth(
+  monthKey: string,
+): Promise<FinanceTransaction[]> {
+  const transactions = await db.finance_transactions
+    .filter((t) => t.deletedAt === null && t.financialMonth === monthKey)
+    .toArray()
+  return transactions.sort((a, b) => b.date.localeCompare(a.date))
+}
+
+/** Las transacciones cuyo mes financiero cae en un año. */
+export async function listTransactionsForFinancialYear(
   year: number,
-): Promise<{ expense: number; income: number }> {
-  const transactions = await listTransactions(year)
+): Promise<FinanceTransaction[]> {
+  const transactions = await db.finance_transactions
+    .filter((t) => t.deletedAt === null && t.financialMonth.startsWith(`${year}-`))
+    .toArray()
+  return transactions.sort((a, b) => b.date.localeCompare(a.date))
+}
+
+function sumByType(transactions: FinanceTransaction[]): { expense: number; income: number } {
   return transactions.reduce(
     (totals, t) => {
       if (t.type === 'expense') totals.expense += t.amount
@@ -263,14 +349,36 @@ export async function getYearTotals(
   )
 }
 
-/** Sum of transactions per category, for a calendar year. */
-export async function getCategoryTotals(year: number): Promise<Map<string, number>> {
-  const transactions = await listTransactions(year)
+function sumByCategory(transactions: FinanceTransaction[]): Map<string, number> {
   const totals = new Map<string, number>()
   for (const t of transactions) {
     totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
   }
   return totals
+}
+
+/** Gastos e ingresos de un mes financiero. */
+export async function getMonthTotals(
+  monthKey: string,
+): Promise<{ expense: number; income: number }> {
+  return sumByType(await listTransactionsForMonth(monthKey))
+}
+
+/** Gastos e ingresos de un año, contando por mes financiero. */
+export async function getYearTotals(
+  year: number,
+): Promise<{ expense: number; income: number }> {
+  return sumByType(await listTransactionsForFinancialYear(year))
+}
+
+/** Total por categoría de un mes financiero — es lo que mide el presupuesto. */
+export async function getCategoryTotalsForMonth(monthKey: string): Promise<Map<string, number>> {
+  return sumByCategory(await listTransactionsForMonth(monthKey))
+}
+
+/** Total por categoría de un año, contando por mes financiero. */
+export async function getCategoryTotals(year: number): Promise<Map<string, number>> {
+  return sumByCategory(await listTransactionsForFinancialYear(year))
 }
 
 /** Distinct non-empty notes used within a category — the free-text sub-labels (e.g. "Luz", "Gas") a user has typed for it. */
@@ -283,18 +391,17 @@ export async function listNotesForCategory(categoryId: string): Promise<string[]
   )
 }
 
-/** Monthly totals for one category + note combination in a calendar year — e.g. compare "Luz" spend month to month. */
+/** Totales mes a mes de una categoría + nota en un año — p. ej. comparar "Luz". */
 export async function getCategoryNoteMonthlyTotals(
   categoryId: string,
   note: string,
   year: number,
 ): Promise<Array<{ month: number; total: number }>> {
-  const transactions = await listTransactions(year)
+  const transactions = await listTransactionsForFinancialYear(year)
   const totalsByMonth = Array.from({ length: 12 }, () => 0)
   for (const t of transactions) {
     if (t.categoryId === categoryId && t.notes.trim() === note) {
-      const month = Number(t.date.slice(5, 7)) - 1
-      totalsByMonth[month] += t.amount
+      totalsByMonth[Number(t.financialMonth.slice(5, 7)) - 1] += t.amount
     }
   }
   return totalsByMonth
@@ -303,26 +410,14 @@ export async function getCategoryNoteMonthlyTotals(
     .reverse()
 }
 
-/** Sum of transactions per category, for a `YYYY-MM` calendar month — drives budget progress. */
-export async function getCategoryTotalsForMonth(monthKey: string): Promise<Map<string, number>> {
-  const transactions = await db.finance_transactions
-    .filter((t) => t.deletedAt === null && t.date.startsWith(`${monthKey}-`))
-    .toArray()
-  const totals = new Map<string, number>()
-  for (const t of transactions) {
-    totals.set(t.categoryId, (totals.get(t.categoryId) ?? 0) + t.amount)
-  }
-  return totals
-}
-
-/** Sum of expense and income transactions per calendar month, for a calendar year — drives simple charts. */
+/** Gastos e ingresos por mes financiero de un año — alimenta los gráficos. */
 export async function getMonthlyTotalsForYear(
   year: number,
 ): Promise<Array<{ month: number; expense: number; income: number }>> {
-  const transactions = await listTransactions(year)
+  const transactions = await listTransactionsForFinancialYear(year)
   const totals = Array.from({ length: 12 }, (_, i) => ({ month: i, expense: 0, income: 0 }))
   for (const t of transactions) {
-    const month = Number(t.date.slice(5, 7)) - 1
+    const month = Number(t.financialMonth.slice(5, 7)) - 1
     if (t.type === 'expense') totals[month].expense += t.amount
     else totals[month].income += t.amount
   }

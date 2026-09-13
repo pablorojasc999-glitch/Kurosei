@@ -5,6 +5,9 @@ import {
   createAccount,
   createCategory,
   createTransaction,
+  getCategoryBudgetForMonth,
+  listCategoryBudgets,
+  setCategoryBudget,
   ensureDebtCategoryId,
   getAccountBalance,
   getAccountsTotalBalance,
@@ -22,7 +25,6 @@ import {
   softDeleteCategory,
   softDeleteTransaction,
   updateAccount,
-  updateCategory,
 } from './financeRepository'
 
 beforeEach(async () => {
@@ -108,12 +110,11 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       debtAmount: null,
       revolving: false,
     })
-    const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     const groceries = await createCategory({
       name: 'Supermercado',
       emoji: '🛒',
       type: 'expense',
-      monthlyBudget: null,
     })
 
     await createTransaction({
@@ -122,6 +123,7 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       type: 'income',
       amount: 500000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
     await createTransaction({
@@ -130,6 +132,7 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       type: 'expense',
       amount: 38140,
       date: '2026-08-21',
+      financialMonth: '2026-08',
       notes: '',
     })
 
@@ -153,13 +156,14 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       debtAmount: 500000,
       revolving: false,
     })
-    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     await createTransaction({
       accountId: account.id,
       categoryId: category.id,
       type: 'income',
       amount: 100000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
 
@@ -175,13 +179,14 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
       debtAmount: null,
       revolving: false,
     })
-    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     const tx = await createTransaction({
       accountId: account.id,
       categoryId: category.id,
       type: 'income',
       amount: 100000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
     await softDeleteTransaction(tx.id)
@@ -192,8 +197,8 @@ describe('getAccountBalance / getAccountsTotalBalance', () => {
 
 describe('categories', () => {
   it('lists categories filtered by type, ordered', async () => {
-    await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
-    await createCategory({ name: 'Supermercado', emoji: '🛒', type: 'expense', monthlyBudget: null })
+    await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
+    await createCategory({ name: 'Supermercado', emoji: '🛒', type: 'expense' })
     const income = await listCategories('income')
     const expense = await listCategories('expense')
     expect(income.map((c) => c.name)).toEqual(['Sueldo'])
@@ -201,22 +206,63 @@ describe('categories', () => {
   })
 
   it('excludes soft-deleted categories', async () => {
-    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     await softDeleteCategory(category.id)
     expect(await listCategories()).toEqual([])
   })
 
-  it('sets and updates a monthly budget', async () => {
-    const category = await createCategory({
-      name: 'Supermercado',
-      emoji: '🛒',
-      type: 'expense',
-      monthlyBudget: 100000,
-    })
-    expect(category.monthlyBudget).toBe(100000)
-    await updateCategory(category.id, { monthlyBudget: 120000 })
-    const [updated] = await listCategories('expense')
-    expect(updated.monthlyBudget).toBe(120000)
+})
+
+describe('presupuestos con vigencia', () => {
+  async function categoria() {
+    return createCategory({ name: 'Supermercado', emoji: '🛒', type: 'expense' })
+  }
+
+  it('un presupuesto rige desde su mes en adelante', async () => {
+    const c = await categoria()
+    await setCategoryBudget(c.id, '2026-03', 100000)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-02')).toBeNull()
+    expect(await getCategoryBudgetForMonth(c.id, '2026-03')).toBe(100000)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-12')).toBe(100000)
+  })
+
+  it('cambiarlo hacia adelante no reescribe los meses anteriores', async () => {
+    const c = await categoria()
+    await setCategoryBudget(c.id, '2026-03', 100000)
+    await setCategoryBudget(c.id, '2026-09', 150000)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-08')).toBe(100000)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-09')).toBe(150000)
+    expect(await getCategoryBudgetForMonth(c.id, '2027-01')).toBe(150000)
+  })
+
+  it('volver a guardar en el mismo mes pisa esa vigencia, no crea otra', async () => {
+    const c = await categoria()
+    await setCategoryBudget(c.id, '2026-03', 100000)
+    await setCategoryBudget(c.id, '2026-03', 110000)
+    expect(await listCategoryBudgets()).toHaveLength(1)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-03')).toBe(110000)
+  })
+
+  it('con null se quita la vigencia de ese mes y vuelve a regir la anterior', async () => {
+    const c = await categoria()
+    await setCategoryBudget(c.id, '2026-03', 100000)
+    await setCategoryBudget(c.id, '2026-09', 150000)
+    await setCategoryBudget(c.id, '2026-09', null)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-09')).toBe(100000)
+  })
+
+  it('un presupuesto de 0 es un presupuesto, no la ausencia de uno', async () => {
+    const c = await categoria()
+    await setCategoryBudget(c.id, '2026-03', 100000)
+    await setCategoryBudget(c.id, '2026-06', 0)
+    expect(await getCategoryBudgetForMonth(c.id, '2026-07')).toBe(0)
+  })
+
+  it('borrar la categoría se lleva sus vigencias', async () => {
+    const c = await categoria()
+    await setCategoryBudget(c.id, '2026-03', 100000)
+    await softDeleteCategory(c.id)
+    expect(await listCategoryBudgets()).toEqual([])
   })
 })
 
@@ -230,12 +276,11 @@ describe('getYearTotals / getCategoryTotals', () => {
       debtAmount: null,
       revolving: false,
     })
-    const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     const groceries = await createCategory({
       name: 'Supermercado',
       emoji: '🛒',
       type: 'expense',
-      monthlyBudget: null,
     })
 
     await createTransaction({
@@ -244,6 +289,7 @@ describe('getYearTotals / getCategoryTotals', () => {
       type: 'income',
       amount: 500000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
     await createTransaction({
@@ -252,6 +298,7 @@ describe('getYearTotals / getCategoryTotals', () => {
       type: 'expense',
       amount: 38140,
       date: '2026-08-21',
+      financialMonth: '2026-08',
       notes: '',
     })
     // out of range year, must be excluded
@@ -261,6 +308,7 @@ describe('getYearTotals / getCategoryTotals', () => {
       type: 'expense',
       amount: 999,
       date: '2025-12-31',
+      financialMonth: '2025-12',
       notes: '',
     })
 
@@ -283,13 +331,14 @@ describe('listTransactions', () => {
       debtAmount: null,
       revolving: false,
     })
-    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const category = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     const older = await createTransaction({
       accountId: account.id,
       categoryId: category.id,
       type: 'income',
       amount: 1,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
     const newer = await createTransaction({
@@ -298,6 +347,7 @@ describe('listTransactions', () => {
       type: 'income',
       amount: 1,
       date: '2026-08-21',
+      financialMonth: '2026-08',
       notes: '',
     })
 
@@ -320,7 +370,6 @@ describe('getCategoryTotalsForMonth', () => {
       name: 'Supermercado',
       emoji: '🛒',
       type: 'expense',
-      monthlyBudget: 100000,
     })
     await createTransaction({
       accountId: account.id,
@@ -328,6 +377,7 @@ describe('getCategoryTotalsForMonth', () => {
       type: 'expense',
       amount: 30000,
       date: '2026-08-05',
+      financialMonth: '2026-08',
       notes: '',
     })
     await createTransaction({
@@ -336,6 +386,7 @@ describe('getCategoryTotalsForMonth', () => {
       type: 'expense',
       amount: 20000,
       date: '2026-08-20',
+      financialMonth: '2026-08',
       notes: '',
     })
     // different month, must be excluded
@@ -345,6 +396,7 @@ describe('getCategoryTotalsForMonth', () => {
       type: 'expense',
       amount: 999,
       date: '2026-07-31',
+      financialMonth: '2026-07',
       notes: '',
     })
 
@@ -367,7 +419,6 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       name: 'Vivienda',
       emoji: '🏠',
       type: 'expense',
-      monthlyBudget: null,
     })
     await createTransaction({
       accountId: account.id,
@@ -375,6 +426,7 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       type: 'expense',
       amount: 12300,
       date: '2026-08-29',
+      financialMonth: '2026-08',
       notes: 'Luz',
     })
     await createTransaction({
@@ -383,6 +435,7 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       type: 'expense',
       amount: 11000,
       date: '2026-08-15',
+      financialMonth: '2026-08',
       notes: 'Luz',
     })
     await createTransaction({
@@ -391,6 +444,7 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       type: 'expense',
       amount: 13000,
       date: '2026-07-10',
+      financialMonth: '2026-07',
       notes: 'Luz',
     })
     await createTransaction({
@@ -399,6 +453,7 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       type: 'expense',
       amount: 55820,
       date: '2026-08-29',
+      financialMonth: '2026-08',
       notes: 'GGCC',
     })
     await createTransaction({
@@ -407,6 +462,7 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       type: 'expense',
       amount: 999,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
 
@@ -424,7 +480,6 @@ describe('listNotesForCategory / getCategoryNoteMonthlyTotals', () => {
       name: 'Supermercado',
       emoji: '🛒',
       type: 'expense',
-      monthlyBudget: null,
     })
     expect(await listNotesForCategory(category.id)).toEqual([])
   })
@@ -536,6 +591,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       type: 'income',
       amount: 4000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
     expect(await getDebtProgress(debt)).toEqual({ paid: 4000, remaining: 6000, percent: 40 })
@@ -547,6 +603,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       type: 'income',
       amount: 8000,
       date: '2026-08-15',
+      financialMonth: '2026-08',
       notes: '',
     })
     expect(await getDebtProgress(debt)).toEqual({ paid: 12000, remaining: 0, percent: 100 })
@@ -575,6 +632,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       type: 'income',
       amount: 5000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
 
@@ -610,6 +668,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       type: 'expense',
       amount: 100000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
     expect(await getDebtProgress(card)).toEqual({ paid: 100000, remaining: 0, percent: 100 })
@@ -642,6 +701,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
       type: 'income',
       amount: 2000,
       date: '2026-08-01',
+      financialMonth: '2026-08',
       notes: '',
     })
 
@@ -661,12 +721,11 @@ describe('getMonthlyTotalsForYear', () => {
       debtAmount: null,
       revolving: false,
     })
-    const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income', monthlyBudget: null })
+    const salary = await createCategory({ name: 'Sueldo', emoji: '💰', type: 'income' })
     const groceries = await createCategory({
       name: 'Supermercado',
       emoji: '🛒',
       type: 'expense',
-      monthlyBudget: null,
     })
     await createTransaction({
       accountId: account.id,
@@ -674,6 +733,7 @@ describe('getMonthlyTotalsForYear', () => {
       type: 'income',
       amount: 500000,
       date: '2026-01-05',
+      financialMonth: '2026-01',
       notes: '',
     })
     await createTransaction({
@@ -682,6 +742,7 @@ describe('getMonthlyTotalsForYear', () => {
       type: 'expense',
       amount: 40000,
       date: '2026-03-10',
+      financialMonth: '2026-03',
       notes: '',
     })
 

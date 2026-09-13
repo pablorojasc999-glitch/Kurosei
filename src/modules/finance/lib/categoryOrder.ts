@@ -4,11 +4,17 @@ import type { FinanceCategory } from '../domain/types'
  * El orden de la grilla de categorías: primero todos los gastos juntos, de
  * mayor a menor presupuesto, y después los ingresos.
  *
+ * El presupuesto llega como un mapa y no se lee de la categoría porque depende
+ * del mes que se está mirando: en agosto puede ser otro que en septiembre.
+ *
  * Se ordena acá y no en el repositorio a propósito: `listCategories` respeta el
  * `order` que la persona eligió, y eso es lo que necesita el selector de una
  * transacción. Esto es cómo se mira la grilla, no cómo están guardadas.
  */
-export function sortCategoriesForGrid(categories: FinanceCategory[]): FinanceCategory[] {
+export function sortCategoriesForGrid(
+  categories: FinanceCategory[],
+  budgets: Map<string, number>,
+): FinanceCategory[] {
   return [...categories].sort((a, b) => {
     if (a.type !== b.type) return a.type === 'expense' ? -1 : 1
     // Los ingresos no tienen presupuesto: se quedan como la persona los ordenó.
@@ -16,20 +22,20 @@ export function sortCategoriesForGrid(categories: FinanceCategory[]): FinanceCat
 
     // Sin presupuesto va después de un presupuesto de 0: poner 0 es decir algo,
     // no ponerlo es no haberlo decidido todavía.
-    const budgetA = a.monthlyBudget ?? -1
-    const budgetB = b.monthlyBudget ?? -1
+    const budgetA = budgets.get(a.id) ?? -1
+    const budgetB = budgets.get(b.id) ?? -1
     if (budgetA !== budgetB) return budgetB - budgetA
     return a.name.localeCompare(b.name, 'es')
   })
 }
 
-/** Lo presupuestado al mes, sumando los gastos que tienen presupuesto puesto. */
-export function totalMonthlyBudget(categories: FinanceCategory[]): number {
-  return categories.reduce(
-    (total, category) =>
-      category.type === 'expense' && category.monthlyBudget !== null
-        ? total + category.monthlyBudget
-        : total,
-    0,
-  )
+/** Lo presupuestado en el mes, sumando los gastos que tienen presupuesto puesto. */
+export function totalMonthlyBudget(
+  categories: FinanceCategory[],
+  budgets: Map<string, number>,
+): number {
+  return categories.reduce((total, category) => {
+    if (category.type !== 'expense') return total
+    return total + (budgets.get(category.id) ?? 0)
+  }, 0)
 }

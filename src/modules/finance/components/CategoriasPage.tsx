@@ -6,33 +6,50 @@ import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButt
 import {
   createCategory,
   getCategoryNoteMonthlyTotals,
-  getCategoryTotals,
-  getYearTotals,
+  getCategoryTotalsForMonth,
+  getMonthTotals,
   listCategories,
+  listCategoryBudgets,
   listNotesForCategory,
+  setCategoryBudget,
   softDeleteCategory,
   updateCategory,
 } from '../db/financeRepository'
 import type { FinanceCategory, FinanceCategoryType } from '../domain/types'
+import { budgetsForMonth } from '../lib/budgets'
 import { sortCategoriesForGrid, totalMonthlyBudget } from '../lib/categoryOrder'
 import { formatMoney } from '../lib/money'
+import { formatMonthKey, toMonthKey, yearOfMonthKey } from '../lib/month'
 import { BalanceHeader } from './BalanceHeader'
-import { YearNav } from './YearNav'
+import { MonthNav } from './MonthNav'
 
 function formatMonthLabel(month: number, year: number): string {
   return new Date(year, month, 1).toLocaleDateString('es-CL', { month: 'long', year: 'numeric' })
 }
 
 export function CategoriasPage() {
-  const [year, setYear] = useState(() => new Date().getFullYear())
-  const categories = useLiveQuery(() => listCategories(), [])
-  const categoryTotals = useLiveQuery(() => getCategoryTotals(year), [year])
-  const yearTotals = useLiveQuery(() => getYearTotals(year), [year])
+  const [monthKey, setMonthKey] = useState(() => toMonthKey(new Date()))
+  const year = yearOfMonthKey(monthKey)
 
-  // Los gastos van todos juntos y de mayor a menor presupuesto, que es el orden
-  // en que se revisa en qué se va la plata.
-  const sortedCategories = useMemo(() => sortCategoriesForGrid(categories ?? []), [categories])
-  const budgetTotal = useMemo(() => totalMonthlyBudget(categories ?? []), [categories])
+  const categories = useLiveQuery(() => listCategories(), [])
+  const allBudgets = useLiveQuery(() => listCategoryBudgets(), [])
+  const categoryTotals = useLiveQuery(() => getCategoryTotalsForMonth(monthKey), [monthKey])
+  const monthTotals = useLiveQuery(() => getMonthTotals(monthKey), [monthKey])
+
+  // El presupuesto que rige en el mes que se está mirando, no "el" presupuesto:
+  // en agosto puede ser otro que en septiembre.
+  const budgets = useMemo(
+    () => budgetsForMonth(allBudgets ?? [], monthKey),
+    [allBudgets, monthKey],
+  )
+  const sortedCategories = useMemo(
+    () => sortCategoriesForGrid(categories ?? [], budgets),
+    [categories, budgets],
+  )
+  const budgetTotal = useMemo(
+    () => totalMonthlyBudget(categories ?? [], budgets),
+    [categories, budgets],
+  )
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -71,12 +88,13 @@ export function CategoriasPage() {
   }
 
   function startEdit(category: FinanceCategory) {
+    const budget = budgets.get(category.id)
     setShowForm(true)
     setEditingId(category.id)
     setName(category.name)
     setEmoji(category.emoji)
     setType(category.type)
-    setMonthlyBudget(category.monthlyBudget !== null ? String(category.monthlyBudget) : '')
+    setMonthlyBudget(budget !== undefined ? String(budget) : '')
     setError(null)
     setSelectedNote('')
   }
@@ -97,20 +115,16 @@ export function CategoriasPage() {
             throw new Error('El presupuesto debe ser un número válido.')
           }
         }
-        if (editingId) {
-          await updateCategory(editingId, {
-            name: trimmedName,
-            emoji: trimmedEmoji,
-            monthlyBudget: type === 'expense' ? parsedBudget : null,
-          })
-        } else {
-          await createCategory({
-            name: trimmedName,
-            emoji: trimmedEmoji,
-            type,
-            monthlyBudget: type === 'expense' ? parsedBudget : null,
-          })
-        }
+
+        const categoryId = editingId
+          ? (await updateCategory(editingId, { name: trimmedName, emoji: trimmedEmoji }),
+            editingId)
+          : (await createCategory({ name: trimmedName, emoji: trimmedEmoji, type })).id
+
+        // El presupuesto se guarda con la vigencia del mes que se está mirando,
+        // así que sólo rige de acá en adelante y no toca los meses anteriores.
+        if (type === 'expense') await setCategoryBudget(categoryId, monthKey, parsedBudget)
+
         resetForm()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
@@ -122,58 +136,59 @@ export function CategoriasPage() {
     <div className="page">
       <h1>Categorías</h1>
       <BalanceHeader />
-      <YearNav year={year} onChange={setYear} />
+      <MonthNav monthKey={monthKey} onChange={setMonthKey} />
 
       <div className="finance-summary-row">
         <div className="finance-summary-card finance-summary-card--expense">
           <span>Gastos</span>
-          <strong>{formatMoney(yearTotals?.expense ?? 0)}</strong>
+          <strong>{formatMoney(monthTotals?.expense ?? 0)}</strong>
         </div>
         <div className="finance-summary-card finance-summary-card--income">
           <span>Ingresos</span>
-          <strong>{formatMoney(yearTotals?.income ?? 0)}</strong>
+          <strong>{formatMoney(monthTotals?.income ?? 0)}</strong>
         </div>
         {budgetTotal > 0 && (
-          // Ocupa la fila entera para que no se lea como un tercer total del
-          // año: Gastos e Ingresos son lo que pasó en {year}, esto es al mes.
           <div className="finance-summary-card finance-summary-card--budget">
             <span>Presupuestado</span>
-            <strong>{formatMoney(budgetTotal)}/mes</strong>
+            <strong>{formatMoney(budgetTotal)}</strong>
           </div>
         )}
       </div>
 
       <div className="finance-category-grid">
-        {sortedCategories.map((category) => (
-          <div
-            key={category.id}
-            className={`finance-category-card finance-category-card--${category.type}`}
-          >
-            <ConfirmDeleteButton
-              variant="icon"
-              className="icon-button finance-category-delete"
-              label="Eliminar categoría"
-              confirmMessage={`¿Eliminar "${category.name}"?`}
-              onConfirm={() => softDeleteCategory(category.id)}
-            />
-            <button
-              type="button"
-              className="finance-category-card-body"
-              onClick={() => startEdit(category)}
+        {sortedCategories.map((category) => {
+          const budget = budgets.get(category.id)
+          return (
+            <div
+              key={category.id}
+              className={`finance-category-card finance-category-card--${category.type}`}
             >
-              <span className="finance-category-emoji">{category.emoji || '🏷️'}</span>
-              <span className="finance-category-name">{category.name}</span>
-              <span className="finance-category-total">
-                {formatMoney(categoryTotals?.get(category.id) ?? 0)}
-              </span>
-              {category.monthlyBudget !== null && (
-                <span className="finance-category-budget">
-                  Presup. {formatMoney(category.monthlyBudget)}/mes
+              <ConfirmDeleteButton
+                variant="icon"
+                className="icon-button finance-category-delete"
+                label="Eliminar categoría"
+                confirmMessage={`¿Eliminar "${category.name}"?`}
+                onConfirm={() => softDeleteCategory(category.id)}
+              />
+              <button
+                type="button"
+                className="finance-category-card-body"
+                onClick={() => startEdit(category)}
+              >
+                <span className="finance-category-emoji">{category.emoji || '🏷️'}</span>
+                <span className="finance-category-name">{category.name}</span>
+                <span className="finance-category-total">
+                  {formatMoney(categoryTotals?.get(category.id) ?? 0)}
                 </span>
-              )}
-            </button>
-          </div>
-        ))}
+                {budget !== undefined && (
+                  <span className="finance-category-budget">
+                    Presup. {formatMoney(budget)}
+                  </span>
+                )}
+              </button>
+            </div>
+          )
+        })}
         <button
           type="button"
           className="finance-category-card finance-category-card--add"
@@ -190,6 +205,7 @@ export function CategoriasPage() {
       {showForm && (
         <BottomSheet
           title={editingId ? 'Editar categoría' : 'Nueva categoría'}
+          subtitle={formatMonthKey(monthKey)}
           onClose={resetForm}
         >
 
@@ -256,7 +272,7 @@ export function CategoriasPage() {
             )}
             {type === 'expense' && (
               <label>
-                Presupuesto mensual (opcional)
+                Presupuesto desde {formatMonthKey(monthKey)}
                 <input
                   type="number"
                   inputMode="decimal"
@@ -265,6 +281,11 @@ export function CategoriasPage() {
                   onChange={(e) => setMonthlyBudget(e.target.value)}
                   placeholder="Sin presupuesto"
                 />
+                <span className="finance-field-hint">
+                  Rige desde este mes en adelante; los anteriores conservan el que tenían.
+                  Vacío quita el cambio hecho en este mes y vuelve a regir el anterior; para
+                  no presupuestar nada de acá en adelante, poné 0.
+                </span>
               </label>
             )}
             {error && <p className="error">{error}</p>}
