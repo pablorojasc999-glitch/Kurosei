@@ -464,15 +464,15 @@ export function PeriodizationPage({
           {showMacroForm && (
             <BottomSheet title={editingMacroId ? 'Editar macrociclo' : 'Nuevo macrociclo'} onClose={resetMacroForm}>
             <form onSubmit={handleSubmitMacrocycle} className="entity-form" autoComplete="off">
-              <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
-              <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
+              <input autoComplete="off" value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
+              <input autoComplete="off" value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
               <label>
                 Fecha de inicio
-                <input type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
+                <input autoComplete="off" type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
               </label>
               <label>
                 Fecha de fin
-                <input type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
+                <input autoComplete="off" type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
               </label>
               <button type="submit" disabled={isCreatingMacro}>
                 {editingMacroId ? 'Guardar cambios' : 'Crear macrociclo'}
@@ -509,19 +509,19 @@ export function PeriodizationPage({
           {showMesoForm && (
             <BottomSheet title={editingMesoId ? 'Editar mesociclo' : 'Nuevo mesociclo'} onClose={resetMesoForm}>
             <form onSubmit={handleSubmitMesocycle} className="entity-form" autoComplete="off">
-              <input value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
-              <select value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
+              <input autoComplete="off" value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
+              <select autoComplete="off" value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
                 {Object.entries(PHASE_LABELS).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
                 ))}
               </select>
               <label>
                 Fecha de inicio
-                <input type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
+                <input autoComplete="off" type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
               </label>
               <label>
                 Fecha de fin
-                <input type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
+                <input autoComplete="off" type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
               </label>
               <button type="submit" disabled={isCreatingMeso}>
                 {editingMesoId ? 'Guardar cambios' : 'Crear mesociclo'}
@@ -648,13 +648,14 @@ export function PeriodizationPage({
             <form onSubmit={handleSubmitDay} className="entity-form" autoComplete="off">
               <label>
                 Fecha
-                <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
+                <input autoComplete="off" type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
               </label>
-              <input value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
+              <input autoComplete="off" value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
               {!editingDayId && plannedDayOptions && plannedDayOptions.length > 0 && (
                 <label>
                   Copiar plan de un día ya planificado (opcional)
                   <select
+                    autoComplete="off"
                     value={copyFromDayId}
                     onChange={(e) => setCopyFromDayId(e.target.value)}
                   >
@@ -784,19 +785,19 @@ export function PeriodizationPage({
                     <div className="set-form">
                       <label>
                         Peso (kg)
-                        <input type="number" inputMode="decimal" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
+                        <input autoComplete="off" type="number" inputMode="decimal" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
                       </label>
                       <label>
                         Reps
-                        <input type="number" inputMode="numeric" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
+                        <input autoComplete="off" type="number" inputMode="numeric" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
                       </label>
                       <label>
                         RPE
-                        <input type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
+                        <input autoComplete="off" type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
                       </label>
                       <label>
                         Descanso (min)
-                        <input type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
+                        <input autoComplete="off" type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
                       </label>
                       <button
                         type="button"
@@ -829,13 +830,13 @@ export function PeriodizationPage({
             </p>
           ) : (
             <form onSubmit={handleAddPlannedExercise} className="entity-form" autoComplete="off">
-              <select value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} required>
+              <select autoComplete="off" value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} required>
                 <option value="">Elegir ejercicio</option>
                 {exercisesLibrary?.map((ex) => (
                   <option key={ex.id} value={ex.id}>{ex.name}</option>
                 ))}
               </select>
-              <input value={newExerciseNotes} onChange={(e) => setNewExerciseNotes(e.target.value)} placeholder="Notas (opcional)" />
+              <input autoComplete="off" value={newExerciseNotes} onChange={(e) => setNewExerciseNotes(e.target.value)} placeholder="Notas (opcional)" />
               <button type="submit" disabled={isAddingExercise}>Agregar ejercicio al día</button>
             </form>
           )}

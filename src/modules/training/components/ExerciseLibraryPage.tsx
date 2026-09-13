@@ -146,6 +146,7 @@ export function ExerciseLibraryPage() {
           <label>
             Nombre
             <input
+              autoComplete="off"
               value={exerciseName}
               onChange={(e) => setExerciseName(e.target.value)}
               required
@@ -155,6 +156,7 @@ export function ExerciseLibraryPage() {
           <label>
             Tipo
             <select
+              autoComplete="off"
               value={exerciseType}
               onChange={(e) => setExerciseType(e.target.value as ExerciseType)}
             >
@@ -167,6 +169,7 @@ export function ExerciseLibraryPage() {
             <label>
               Categoría (opcional)
               <select
+                autoComplete="off"
                 value={exerciseCategory}
                 onChange={(e) =>
                   setExerciseCategory(e.target.value as ExerciseCategory | '')
@@ -191,6 +194,7 @@ export function ExerciseLibraryPage() {
                 <div key={g.id} className="contribution-row">
                   <span className="contribution-row-label">{g.name}</span>
                   <select
+                    autoComplete="off"
                     value={factors[g.id] ?? ''}
                     onChange={(e) => updateFactor(g.id, e.target.value)}
                   >
@@ -223,6 +227,7 @@ export function ExerciseLibraryPage() {
       <section className="elevated-section">
         <h2>Ejercicios</h2>
         <input
+          autoComplete="off"
           type="search"
           className="exercise-search"
           value={search}

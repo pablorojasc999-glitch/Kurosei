@@ -49,6 +49,7 @@ export function WaterSection({ dateKey }: WaterSectionProps) {
         <label>
           <span className="sr-only">Cantidad en mililitros</span>
           <input
+            autoComplete="off"
             type="number"
             step="any"
             inputMode="numeric"

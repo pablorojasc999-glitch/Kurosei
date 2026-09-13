@@ -294,11 +294,12 @@ export function CuentasPage() {
           <form onSubmit={handleSubmit} className="entity-form" autoComplete="off">
             <label>
               Nombre
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <input autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} required />
             </label>
             <label>
               Emoji
               <input
+                autoComplete="off"
                 value={emoji}
                 onChange={(e) => setEmoji(e.target.value)}
                 placeholder="💳"
@@ -310,6 +311,7 @@ export function CuentasPage() {
                 <label>
                   Dirección
                   <select
+                    autoComplete="off"
                     value={debtDirection}
                     onChange={(e) => setDebtDirection(e.target.value as DebtDirection)}
                   >
@@ -320,6 +322,7 @@ export function CuentasPage() {
                 <label>
                   Monto
                   <input
+                    autoComplete="off"
                     type="number"
                     inputMode="decimal"
                     min={0}
@@ -330,6 +333,7 @@ export function CuentasPage() {
                 </label>
                 <label className="checkbox-row">
                   <input
+                    autoComplete="off"
                     type="checkbox"
                     checked={revolving}
                     onChange={(e) => setRevolving(e.target.checked)}

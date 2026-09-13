@@ -325,6 +325,7 @@ function ExercisePicker({
       onClose={onCancel}
     >
       <input
+        autoComplete="off"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar ejercicio…"
@@ -457,6 +458,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
             <div key={index} className="set-editor-row">
               <span className="set-editor-number">{index + 1}</span>
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="decimal"
                 step="0.5"
@@ -465,6 +467,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
                 onChange={(e) => updateSet(index, { weight: e.target.value })}
               />
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="numeric"
                 min={1}
@@ -473,6 +476,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
                 onChange={(e) => updateSet(index, { reps: e.target.value })}
               />
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="decimal"
                 step="0.5"

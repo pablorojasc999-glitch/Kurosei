@@ -270,6 +270,7 @@ export function SupermercadoPage() {
               <label>
                 Nombre
                 <input
+                  autoComplete="off"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Leche, arroz, detergente…"
@@ -278,6 +279,7 @@ export function SupermercadoPage() {
               <label>
                 Cantidad
                 <input
+                  autoComplete="off"
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
                   placeholder="2 L, 1 kg, 3 paquetes…"
@@ -290,6 +292,7 @@ export function SupermercadoPage() {
               <label>
                 Nota
                 <input
+                  autoComplete="off"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder="La marca, el pasillo, lo que sea"
@@ -298,6 +301,7 @@ export function SupermercadoPage() {
               <label>
                 Cada cuánto lo compras
                 <select
+                  autoComplete="off"
                   value={cadence}
                   onChange={(e) => setCadence(e.target.value as PurchaseCadence)}
                 >

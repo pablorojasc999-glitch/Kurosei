@@ -213,7 +213,7 @@ export function CategoriasPage() {
             <div className="finance-note-breakdown">
               <label>
                 Desglose por nota
-                <select value={activeNote} onChange={(e) => setSelectedNote(e.target.value)}>
+                <select autoComplete="off" value={activeNote} onChange={(e) => setSelectedNote(e.target.value)}>
                   {notesForCategory.map((note) => (
                     <option key={note} value={note}>
                       {note}
@@ -247,11 +247,12 @@ export function CategoriasPage() {
           <form onSubmit={handleSubmit} className="entity-form" autoComplete="off">
             <label>
               Nombre
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <input autoComplete="off" value={name} onChange={(e) => setName(e.target.value)} required />
             </label>
             <label>
               Emoji
               <input
+                autoComplete="off"
                 value={emoji}
                 onChange={(e) => setEmoji(e.target.value)}
                 placeholder="🛒"
@@ -262,6 +263,7 @@ export function CategoriasPage() {
               <label>
                 Tipo
                 <select
+                  autoComplete="off"
                   value={type}
                   onChange={(e) => setType(e.target.value as FinanceCategoryType)}
                 >
@@ -274,6 +276,7 @@ export function CategoriasPage() {
               <label>
                 Presupuesto desde {formatMonthKey(monthKey)}
                 <input
+                  autoComplete="off"
                   type="number"
                   inputMode="decimal"
                   min={0}

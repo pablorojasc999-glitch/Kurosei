@@ -301,6 +301,7 @@ export function RegistroPage() {
           <label>
             Nombre de la sección
             <input
+              autoComplete="off"
               value={newSectionName}
               onChange={(e) => setNewSectionName(e.target.value)}
               placeholder="Ej. Snack 1"
