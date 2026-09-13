@@ -142,7 +142,7 @@ export function ExerciseLibraryPage() {
           title={editingExerciseId ? 'Editar ejercicio' : 'Nuevo ejercicio'}
           onClose={resetForm}
         >
-          <form onSubmit={handleSubmit} className="exercise-form">
+          <form onSubmit={handleSubmit} className="exercise-form" autoComplete="off">
           <label>
             Nombre
             <input

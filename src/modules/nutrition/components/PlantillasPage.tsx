@@ -240,7 +240,7 @@ export function PlantillasPage() {
 
         {showNewSection && (
           <BottomSheet title="Nueva sección" onClose={() => setShowNewSection(false)}>
-            <form onSubmit={handleCreateSection} className="entity-form">
+            <form onSubmit={handleCreateSection} className="entity-form" autoComplete="off">
             <label>
               Nombre de la sección
               <input
@@ -261,6 +261,7 @@ export function PlantillasPage() {
         <section>
           <h2>Cargar a un día</h2>
           <form
+            autoComplete="off"
             className="entity-form"
             onSubmit={(e) => {
               e.preventDefault()
@@ -301,7 +302,7 @@ export function PlantillasPage() {
 
       {showNewTemplate && (
         <BottomSheet title="Nueva plantilla" onClose={() => setShowNewTemplate(false)}>
-          <form onSubmit={handleCreateTemplate} className="entity-form">
+          <form onSubmit={handleCreateTemplate} className="entity-form" autoComplete="off">
           <label>
             Nombre
             <input

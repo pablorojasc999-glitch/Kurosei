@@ -291,7 +291,7 @@ export function CuentasPage() {
           }
           onClose={resetForm}
         >
-          <form onSubmit={handleSubmit} className="entity-form">
+          <form onSubmit={handleSubmit} className="entity-form" autoComplete="off">
             <label>
               Nombre
               <input value={name} onChange={(e) => setName(e.target.value)} required />

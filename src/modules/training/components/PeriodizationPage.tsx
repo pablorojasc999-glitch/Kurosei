@@ -463,7 +463,7 @@ export function PeriodizationPage({
           <button type="button" className="finance-add-button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
           {showMacroForm && (
             <BottomSheet title={editingMacroId ? 'Editar macrociclo' : 'Nuevo macrociclo'} onClose={resetMacroForm}>
-            <form onSubmit={handleSubmitMacrocycle} className="entity-form">
+            <form onSubmit={handleSubmitMacrocycle} className="entity-form" autoComplete="off">
               <input value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
               <input value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
               <label>
@@ -508,7 +508,7 @@ export function PeriodizationPage({
           <button type="button" className="finance-add-button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
           {showMesoForm && (
             <BottomSheet title={editingMesoId ? 'Editar mesociclo' : 'Nuevo mesociclo'} onClose={resetMesoForm}>
-            <form onSubmit={handleSubmitMesocycle} className="entity-form">
+            <form onSubmit={handleSubmitMesocycle} className="entity-form" autoComplete="off">
               <input value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
               <select value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
                 {Object.entries(PHASE_LABELS).map(([key, label]) => (
@@ -645,7 +645,7 @@ export function PeriodizationPage({
           <button type="button" className="finance-add-button" onClick={openNewDayForm}>+ Agregar día</button>
           {showDayForm && (
             <BottomSheet title={editingDayId ? 'Editar día' : 'Nuevo día'} onClose={resetDayForm}>
-            <form onSubmit={handleSubmitDay} className="entity-form">
+            <form onSubmit={handleSubmitDay} className="entity-form" autoComplete="off">
               <label>
                 Fecha
                 <input type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
@@ -828,7 +828,7 @@ export function PeriodizationPage({
               seguir editándolo.
             </p>
           ) : (
-            <form onSubmit={handleAddPlannedExercise} className="entity-form">
+            <form onSubmit={handleAddPlannedExercise} className="entity-form" autoComplete="off">
               <select value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} required>
                 <option value="">Elegir ejercicio</option>
                 {exercisesLibrary?.map((ex) => (

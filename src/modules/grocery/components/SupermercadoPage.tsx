@@ -266,7 +266,7 @@ export function SupermercadoPage() {
               subtitle={CADENCE_LABEL[group.cadence]}
               onClose={resetForm}
             >
-              <form className="entity-form" onSubmit={handleSubmit}>
+              <form className="entity-form" onSubmit={handleSubmit} autoComplete="off">
               <label>
                 Nombre
                 <input

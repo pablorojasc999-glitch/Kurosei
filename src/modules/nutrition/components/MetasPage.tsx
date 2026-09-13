@@ -144,7 +144,7 @@ export function MetasPage() {
           title={editingId ? 'Editar meta' : 'Nueva meta'}
           onClose={() => setShowForm(false)}
         >
-          <form onSubmit={handleSubmit} className="entity-form">
+          <form onSubmit={handleSubmit} className="entity-form" autoComplete="off">
           <label>
             Nombre
             <input

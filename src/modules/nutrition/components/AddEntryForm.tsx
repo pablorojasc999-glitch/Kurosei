@@ -217,7 +217,7 @@ export function AddEntryForm({
         </div>
 
         {mode === 'food' ? (
-          <form onSubmit={handleAddFood} className="entity-form">
+          <form onSubmit={handleAddFood} className="entity-form" autoComplete="off">
             {!selectedFood ? (
               <>
                 <input
@@ -341,7 +341,7 @@ export function AddEntryForm({
             )}
           </form>
         ) : (
-          <form onSubmit={handleAddManual} className="entity-form">
+          <form onSubmit={handleAddManual} className="entity-form" autoComplete="off">
             <label>
               Nombre
               <input

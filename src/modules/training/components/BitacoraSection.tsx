@@ -250,7 +250,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             title={profile ? 'Editar perfil' : 'Completar perfil'}
             onClose={() => setShowProfileForm(false)}
           >
-            <form onSubmit={handleSubmitProfile} className="entity-form">
+            <form onSubmit={handleSubmitProfile} className="entity-form" autoComplete="off">
             <label>
               Estatura (cm)
               <input
@@ -319,7 +319,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         )}
       </div>
 
-      <form onSubmit={handleSubmitLog} className="entity-form bitacora-log-form">
+      <form onSubmit={handleSubmitLog} className="entity-form bitacora-log-form" autoComplete="off">
         {/* Lo que viene de Nutrición es de sólo lectura: va en una tira compacta
             y no en tarjetas grandes, que se comían un tercio de la sección. */}
         <div className="bitacora-intake">

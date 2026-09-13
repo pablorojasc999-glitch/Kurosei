@@ -787,7 +787,7 @@ export function SessionView({ dayId }: SessionViewProps) {
 
       {!session.endedAt && (
         showAddExerciseForm ? (
-          <form onSubmit={handleAddExercise} className="entity-form">
+          <form onSubmit={handleAddExercise} className="entity-form" autoComplete="off">
             <select
               value={newExerciseId}
               onChange={(e) => setNewExerciseId(e.target.value)}

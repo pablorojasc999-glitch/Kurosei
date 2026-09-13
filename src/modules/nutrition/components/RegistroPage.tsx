@@ -297,7 +297,7 @@ export function RegistroPage() {
 
       {showNewSection && (
         <BottomSheet title="Nueva sección" onClose={() => setShowNewSection(false)}>
-          <form onSubmit={handleCreateSection} className="entity-form">
+          <form onSubmit={handleCreateSection} className="entity-form" autoComplete="off">
           <label>
             Nombre de la sección
             <input

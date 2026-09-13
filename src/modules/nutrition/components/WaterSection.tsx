@@ -45,7 +45,7 @@ export function WaterSection({ dateKey }: WaterSectionProps) {
         <span className="nutrition-meal-section-totals">💧 {totalMl} ml</span>
       </div>
 
-      <form onSubmit={handleSubmit} className="nutrition-water-form">
+      <form onSubmit={handleSubmit} className="nutrition-water-form" autoComplete="off">
         <label>
           <span className="sr-only">Cantidad en mililitros</span>
           <input
