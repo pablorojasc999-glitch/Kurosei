@@ -4285,7 +4285,7 @@ section {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--text-muted);
+  color: var(--text);
   font: inherit;
   font-size: 11px;
   line-height: 1.1;
@@ -4296,10 +4296,9 @@ button.macro-cell {
   -webkit-tap-highlight-color: transparent;
 }
 
-.macro-cell--planned {
-  background: hsl(var(--meso-hue, 265) 45% 22%);
-  border-color: hsl(var(--meso-hue, 265) 45% 38%);
-  color: var(--text);
+.macro-cell--meso {
+  background: hsl(var(--meso-hue) 45% 22%);
+  border-color: hsl(var(--meso-hue) 45% 38%);
 }
 
 .macro-cell--in-now:not(.macro-cell--outside) {
@@ -4326,10 +4325,6 @@ button.macro-cell {
 .macro-date {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-.macro-cell--planned .macro-date {
-  color: var(--text);
 }
 
 .macro-dot {

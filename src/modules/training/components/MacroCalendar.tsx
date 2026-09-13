@@ -111,7 +111,10 @@ export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroC
               const className = [
                 'macro-cell',
                 cell.outside ? 'macro-cell--outside' : '',
-                cell.slot ? 'macro-cell--planned' : '',
+                // El relleno dice a qué mesociclo pertenece el día, no si se
+                // entrenó: de eso se encarga el punto. Por eso lo llevan todos
+                // los días del bloque y no sólo los que tienen plan.
+                hue !== null && !cell.outside ? 'macro-cell--meso' : '',
                 cell.isToday ? 'macro-cell--today' : '',
                 week.containsToday ? 'macro-cell--in-now' : '',
               ]

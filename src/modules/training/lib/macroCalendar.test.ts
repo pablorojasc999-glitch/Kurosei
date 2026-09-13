@@ -144,16 +144,22 @@ describe('buildMacroCalendar', () => {
     })
     expect(cal.weeks[0].state).toBe('done')
 
+    // Con algo pendiente queda en ámbar, no en gris: gris es "no había nada".
     const aMedias = build({
       days: [day('d1', '2026-08-31'), day('d2', '2026-09-01')],
       sessions: [session('d1', true)],
       today: parseDateInput('2026-09-20'),
     })
-    expect(aMedias.weeks[0].state).toBe('empty')
+    expect(aMedias.weeks[0].state).toBe('planned')
+  })
+
+  it('una semana sin nada planificado queda en gris aunque sea la de hoy', () => {
+    const cal = build()
+    expect(cal.weeks.map((w) => w.state)).toEqual(['empty', 'empty', 'empty', 'empty'])
   })
 
   it('la semana de hoy se distingue', () => {
-    const cal = build()
+    const cal = build({ days: [day('d1', '2026-09-07')] })
     const deHoy = cal.weeks.filter((w) => w.containsToday)
     expect(deHoy).toHaveLength(1)
     expect(deHoy[0].start).toBe('2026-09-07')
@@ -188,6 +194,7 @@ describe('buildMacroCalendar', () => {
     })
     expect(cal.mesocycles.map((m) => m.name)).toEqual(['Acumulación', 'Intensificación'])
     expect(cal.mesocycles[0].weekStates).toEqual(['done', 'empty'])
+    expect(cal.mesocycles[1].weekStates).toEqual(['empty', 'empty'])
     expect(cal.mesocycles[1].weekStates).toHaveLength(2)
   })
 
