@@ -231,15 +231,19 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
 
   return (
     <section className="elevated-section bitacora-section">
-      <h2>Bitácora</h2>
+      {/* El botón va en la línea del título: en el resumen empujaba el último
+          dato (% músculo) fuera de la tarjeta en pantallas de teléfono. */}
+      <div className="bitacora-header">
+        <h2>Bitácora</h2>
+        <button type="button" onClick={() => setShowProfileForm(true)}>
+          {profile ? 'Editar perfil' : 'Completar perfil'}
+        </button>
+      </div>
 
       <div className="bitacora-profile">
-        <div className="bitacora-profile-summary">
-          <span>{profileSummary || 'Completa tu perfil para calcular el gasto calórico.'}</span>
-          <button type="button" onClick={() => setShowProfileForm(true)}>
-            {profile ? 'Editar perfil' : 'Completar perfil'}
-          </button>
-        </div>
+        <p className="bitacora-profile-summary">
+          {profileSummary || 'Completa tu perfil para calcular el gasto calórico.'}
+        </p>
 
         {showProfileForm && (
           <BottomSheet
@@ -319,7 +323,6 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         {/* Lo que viene de Nutrición es de sólo lectura: va en una tira compacta
             y no en tarjetas grandes, que se comían un tercio de la sección. */}
         <div className="bitacora-intake">
-          <span className="bitacora-intake-label">Desde Nutrición</span>
           <div className="bitacora-intake-stats">
             <span>
               <small>kcal</small>
@@ -327,15 +330,15 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             </span>
             <span>
               <small>Prot</small>
-              {formatNutrient(dailyLog?.proteinG ?? 0)} g
+              {formatNutrient(dailyLog?.proteinG ?? 0)}
             </span>
             <span>
               <small>Carb</small>
-              {formatNutrient(dailyLog?.carbsG ?? 0)} g
+              {formatNutrient(dailyLog?.carbsG ?? 0)}
             </span>
             <span>
-              <small>Gras</small>
-              {formatNutrient(dailyLog?.fatG ?? 0)} g
+              <small>Grasa</small>
+              {formatNutrient(dailyLog?.fatG ?? 0)}
             </span>
             <span>
               <small>Agua</small>
@@ -343,81 +346,85 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             </span>
           </div>
         </div>
-        <label>
-          Peso corporal (kg)
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.bodyWeightKg}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, bodyWeightKg: e.target.value }))}
-          />
-        </label>
-        <label>
-          Horas de sueño
-          <input
-            type="number"
-            inputMode="decimal"
-            value={logForm.sleepHours}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, sleepHours: e.target.value }))}
-          />
-        </label>
-        <label>
-          Pasos
-          <input
-            type="number"
-            inputMode="numeric"
-            value={logForm.steps}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, steps: e.target.value }))}
-          />
-        </label>
-        <label>
-          Estrés (0 a 5)
-          <select
-            value={logForm.stress}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, stress: e.target.value }))}
-          >
-            <option value="">Sin registrar</option>
-            {SCALE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Estimulantes (0 a 5)
-          <select
-            value={logForm.stimulants}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, stimulants: e.target.value }))}
-          >
-            <option value="">Sin registrar</option>
-            {SCALE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Fatiga (0 a 5)
-          <select
-            value={logForm.fatigue}
-            disabled={logLocked}
-            onChange={(e) => setLogForm((prev) => ({ ...prev, fatigue: e.target.value }))}
-          >
-            <option value="">Sin registrar</option>
-            {SCALE_OPTIONS.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="bitacora-log-row">
+          <label>
+            Peso
+            <input
+              type="number"
+              inputMode="decimal"
+              value={logForm.bodyWeightKg}
+              disabled={logLocked}
+              onChange={(e) => setLogForm((prev) => ({ ...prev, bodyWeightKg: e.target.value }))}
+            />
+          </label>
+          <label>
+            Sueño
+            <input
+              type="number"
+              inputMode="decimal"
+              value={logForm.sleepHours}
+              disabled={logLocked}
+              onChange={(e) => setLogForm((prev) => ({ ...prev, sleepHours: e.target.value }))}
+            />
+          </label>
+          <label>
+            Pasos
+            <input
+              type="number"
+              inputMode="numeric"
+              value={logForm.steps}
+              disabled={logLocked}
+              onChange={(e) => setLogForm((prev) => ({ ...prev, steps: e.target.value }))}
+            />
+          </label>
+        </div>
+        <div className="bitacora-log-row">
+          <label>
+            Estrés
+            <select
+              value={logForm.stress}
+              disabled={logLocked}
+              onChange={(e) => setLogForm((prev) => ({ ...prev, stress: e.target.value }))}
+            >
+              <option value="">Sin registrar</option>
+              {SCALE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Estimulantes
+            <select
+              value={logForm.stimulants}
+              disabled={logLocked}
+              onChange={(e) => setLogForm((prev) => ({ ...prev, stimulants: e.target.value }))}
+            >
+              <option value="">Sin registrar</option>
+              {SCALE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Fatiga
+            <select
+              value={logForm.fatigue}
+              disabled={logLocked}
+              onChange={(e) => setLogForm((prev) => ({ ...prev, fatigue: e.target.value }))}
+            >
+              <option value="">Sin registrar</option>
+              {SCALE_OPTIONS.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="bitacora-supplements">
           <label className="checkbox-row">
             <input
