@@ -27,8 +27,12 @@ export interface GridSet {
 }
 
 export interface CellSummary {
-  /** `5×3`, o `5/5/3` cuando las series no son iguales. Vacío si no hay series. */
+  /** `5×3`, o el rango `3-5` cuando las reps no son iguales. Vacío si no hay series. */
   volume: string
+  /** Cuántas series. La celda lo enseña cuando `volume` es un rango. */
+  sets: number
+  /** Si las reps no eran todas iguales — y por tanto `volume` es un rango y no un `N×M`. */
+  varied: boolean
   /** `140 kg`, `@8`, `140 kg @8`. Vacío si no hay ni peso ni RPE. */
   intensity: string
 }
@@ -80,11 +84,16 @@ function formatKg(value: number): string {
  * volumen y a qué intensidad. Sirve igual para el plan y para lo realizado.
  */
 export function summarizeSets(ordered: GridSet[]): CellSummary {
-  if (ordered.length === 0) return { volume: '', intensity: '' }
+  if (ordered.length === 0) return { volume: '', sets: 0, varied: false, intensity: '' }
 
   const reps = ordered.map((s) => s.reps)
   const sameReps = reps.every((r) => r === reps[0])
-  const volume = sameReps ? `${ordered.length}×${reps[0]}` : reps.join('/')
+  // El rango y no la lista: `reps.join('/')` no tenía tope, y diez series
+  // variadas escribían veintiséis caracteres en una celda de 56 px. Un rango
+  // son siempre dos números, den igual tres series o cuarenta.
+  const volume = sameReps
+    ? `${ordered.length}×${reps[0]}`
+    : `${Math.min(...reps)}-${Math.max(...reps)}`
 
   const weights = ordered.map((s) => s.weightKg)
   const rpes = ordered.map((s) => s.rpe)
@@ -110,7 +119,68 @@ export function summarizeSets(ordered: GridSet[]): CellSummary {
     parts.push(sameRpe ? `@${definedRpes[0]}` : `@${Math.max(...definedRpes)} máx`)
   }
 
-  return { volume, intensity: parts.join(' ') }
+  return { volume, sets: ordered.length, varied: !sameReps, intensity: parts.join(' ') }
+}
+
+/**
+ * Si lo que se hizo es exactamente lo planificado.
+ *
+ * Se miran las repeticiones y el peso, no el RPE: el RPE es cómo se sintió, no
+ * un objetivo que se falle. Un peso sin prescribir tampoco cuenta — si el plan
+ * no decía cuánto cargar, cargar 80 no es salirse de él.
+ */
+export function executedMatchesPlan(planned: GridSet[], executed: GridSet[]): boolean {
+  if (planned.length === 0 || planned.length !== executed.length) return false
+  return planned.every((plan, index) => {
+    const done = executed[index]
+    if (plan.reps !== done.reps) return false
+    return plan.weightKg === null || plan.weightKg === done.weightKg
+  })
+}
+
+/** Una serie del plan junto a la que se hizo en su lugar. Cualquiera de las dos puede faltar. */
+export interface SetComparison {
+  planned: GridSet | null
+  executed: GridSet | null
+}
+
+/**
+ * Empareja el plan con lo hecho, serie a serie, para poder leerlos en paralelo.
+ *
+ * Se emparejan por posición, que es como se entrena: la tercera serie que
+ * hiciste responde a la tercera que planeaste. Las que sobran por un lado salen
+ * con `null` en el otro, en vez de desaparecer.
+ */
+export function compareSets(planned: GridSet[], executed: GridSet[]): SetComparison[] {
+  const total = Math.max(planned.length, executed.length)
+  return Array.from({ length: total }, (_, index) => ({
+    planned: planned[index] ?? null,
+    executed: executed[index] ?? null,
+  }))
+}
+
+/**
+ * Qué semana está en curso: la última que ya empezó. `-1` si el bloque entero
+ * es futuro o no hay fechas.
+ *
+ * La semana no guarda fecha propia, así que se toma la del primer día que
+ * tenga en cualquiera de sus posiciones.
+ */
+export function currentWeekIndex(slots: GridDaySlot[], todayKey: string): number {
+  const startByWeek: string[] = []
+  for (const slot of slots) {
+    slot.dates.forEach((date, weekIndex) => {
+      if (date === null) return
+      const current = startByWeek[weekIndex]
+      if (current === undefined || date < current) startByWeek[weekIndex] = date
+    })
+  }
+
+  let found = -1
+  startByWeek.forEach((start, weekIndex) => {
+    if (start !== undefined && start <= todayKey) found = weekIndex
+  })
+  return found
 }
 
 /** Una serie suelta, como se lee en la fila desplegada: `130×2 @8`. */

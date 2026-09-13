@@ -10,8 +10,12 @@ import {
 } from '../db/planningRepository'
 import { listExercises } from '../db/trainingRepository'
 import type { Exercise } from '../domain/types'
+import { toDateKey } from '../lib/calendarGrid'
 import {
   buildBlockGrid,
+  compareSets,
+  currentWeekIndex,
+  executedMatchesPlan,
   formatSet,
   type GridCell,
   type GridDaySlot,
@@ -35,12 +39,11 @@ interface CellRef {
 
 interface BlockGridProps {
   mesocycleId: string
-  mesocycleName: string
   /** Para saltar del detalle de una celda al día completo. */
   onOpenDay: (weekId: string, dayId: string) => void
 }
 
-export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridProps) {
+export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   const data = useLiveQuery(() => getBlockGridData(mesocycleId), [mesocycleId])
   const exercises = useLiveQuery(() => listExercises(), [])
   const [editing, setEditing] = useState<CellRef | null>(null)
@@ -61,6 +64,7 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
   }
 
   const rowKey = (slot: GridDaySlot, row: GridRow) => `${slot.slotIndex}:${row.exerciseId}`
+  const thisWeek = currentWeekIndex(grid.slots, toDateKey(new Date()))
 
   function toggleRow(key: string) {
     setExpanded((current) => {
@@ -81,11 +85,6 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
 
   return (
     <>
-      <p className="empty-hint">
-        Todo {mesocycleName} de un vistazo: cada fila es un ejercicio y cada columna una semana.
-        Toca el nombre para desplegar sus series, o una celda para editarla.
-      </p>
-
       {notice && (
         <p className="grid-notice" role="status">
           {notice}{' '}
@@ -103,8 +102,13 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
                 <span className="sr-only">Ejercicio</span>
               </th>
               {grid.weeks.map((week, index) => (
-                <th key={week.id} scope="col">
+                <th
+                  key={week.id}
+                  scope="col"
+                  className={index === thisWeek ? 'block-grid-week--current' : undefined}
+                >
                   S{index + 1}
+                  {index === thisWeek && <span className="sr-only"> (semana en curso)</span>}
                 </th>
               ))}
             </tr>
@@ -172,36 +176,40 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
                         <span className="block-grid-caret" aria-hidden="true">
                           {open ? '▾' : '▸'}
                         </span>
-                        {row.exerciseName}
+                        <span className="block-grid-name-text">{row.exerciseName}</span>
                       </button>
                     </th>
-                    {row.cells.map((cell, index) => (
+                    {row.cells.map((cell, index) => {
+                      const done = cell.executedSets.length > 0
+                      const asPlanned =
+                        done && executedMatchesPlan(cell.plannedSets, cell.executedSets)
+                      // Cuando te saliste del plan, manda lo que hiciste: es el dato
+                      // nuevo. Si lo cumpliste, el plan y lo hecho dicen lo mismo.
+                      const shown = done && !asPlanned ? cell.executed : cell.planned
+                      const state = !done ? '' : asPlanned ? ' block-grid-cell--done' : ' block-grid-cell--differs'
+                      // El pie dice cuántas series cuando el titular es un rango:
+                      // sin eso, "8-10" no distingue tres series de diez.
+                      const footnote = shown.varied ? `×${shown.sets}` : shown.intensity
+                      return (
                       <td key={cell.weekId}>
                         {cell.plannedExerciseId ? (
                           <button
                             type="button"
-                            className={`block-grid-cell${open ? ' block-grid-cell--open' : ''}`}
+                            className={`block-grid-cell${state}${open ? ' block-grid-cell--open' : ''}${
+                              index === thisWeek ? ' block-grid-cell--current' : ''
+                            }`}
                             aria-label={`${row.exerciseName}, semana ${index + 1}: ${
                               cell.planned.volume || 'sin series'
-                            } ${cell.planned.intensity}`}
+                            }${done ? (asPlanned ? ', hecho tal cual' : `, hiciste ${cell.executed.volume}`) : ''}`}
                             onClick={() => setEditing({ slot, row, cell, weekIndex: index })}
                           >
                             {open ? (
                               <CellDetail cell={cell} />
                             ) : (
                               <>
-                                <span className="block-grid-volume">
-                                  {cell.planned.volume || '—'}
-                                </span>
-                                {cell.planned.intensity && (
-                                  <span className="block-grid-intensity">
-                                    {cell.planned.intensity}
-                                  </span>
-                                )}
-                                {cell.executedSets.length > 0 && (
-                                  <span className="block-grid-done">
-                                    ✓ {cell.executed.volume}
-                                  </span>
+                                <span className="block-grid-volume">{shown.volume || '—'}</span>
+                                {footnote && (
+                                  <span className="block-grid-intensity">{footnote}</span>
                                 )}
                               </>
                             )}
@@ -222,10 +230,13 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
                             +
                           </button>
                         ) : (
-                          <span className="block-grid-missing">—</span>
+                          // Esa semana no tiene ese día: un hueco lo dice mejor que
+                          // un guion, que se confundía con el "+" de "falta añadirlo".
+                          <span className="block-grid-gap" aria-hidden="true" />
                         )}
                       </td>
-                    ))}
+                      )
+                    })}
                   </tr>
                 )
               })}
@@ -237,7 +248,7 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
                     className="block-grid-add"
                     onClick={() => setAdding({ slot, weekIndex: 0 })}
                   >
-                    + Ejercicio
+                    + Ejercicio en S1
                   </button>
                 </th>
                 {grid.weeks.map((week) => (
@@ -270,6 +281,78 @@ export function BlockGrid({ mesocycleId, mesocycleName, onOpenDay }: BlockGridPr
         />
       )}
     </>
+  )
+}
+
+const sumReps = (sets: GridSet[]) => sets.reduce((total, set) => total + set.reps, 0)
+
+/** La línea que se lee primero: si cumpliste el plan y, si no, en qué te saliste. */
+function Verdict({ planned, executed }: { planned: GridSet[]; executed: GridSet[] }) {
+  if (executedMatchesPlan(planned, executed)) {
+    return (
+      <p className="cell-verdict cell-verdict--done">
+        Tal cual lo planeado: {planned.length}{' '}
+        {planned.length === 1 ? 'serie' : 'series'}.
+      </p>
+    )
+  }
+
+  const delta = sumReps(executed) - sumReps(planned)
+  return (
+    <p className="cell-verdict cell-verdict--differs">
+      {executed.length} de {planned.length} {planned.length === 1 ? 'serie' : 'series'} ·{' '}
+      {delta === 0
+        ? 'mismas reps en total'
+        : `${delta > 0 ? '+' : ''}${delta} reps en total`}
+    </p>
+  )
+}
+
+/**
+ * El plan y lo hecho en paralelo, una fila por serie.
+ *
+ * Antes eran dos listas separadas y en idiomas distintos —el plan como
+ * formulario, lo hecho como texto— así que para saber si la tercera serie salió
+ * como la planeaste había que contar en una y luego en la otra.
+ */
+function PlanVsDone({ planned, executed }: { planned: GridSet[]; executed: GridSet[] }) {
+  const rows = compareSets(planned, executed)
+
+  return (
+    <div className="cell-compare">
+      <div className="cell-compare-head" aria-hidden="true">
+        <span>#</span>
+        <span>Plan</span>
+        <span>Hecho</span>
+      </div>
+      {rows.map((pair, index) => {
+        const delta =
+          pair.planned && pair.executed ? pair.executed.reps - pair.planned.reps : null
+        const state =
+          pair.executed === null
+            ? ' cell-compare-done--missing'
+            : delta === 0 || delta === null
+              ? ' cell-compare-done--equal'
+              : ' cell-compare-done--differs'
+        return (
+          <div key={index} className="cell-compare-row">
+            <span className="cell-compare-number">{index + 1}</span>
+            <span className="cell-compare-planned">
+              {pair.planned ? formatSet(pair.planned) : '—'}
+            </span>
+            <span className={`cell-compare-done${state}`}>
+              {pair.executed ? formatSet(pair.executed) : 'sin hacer'}
+              {delta !== null && delta !== 0 && (
+                <small>
+                  {delta > 0 ? '+' : ''}
+                  {delta}
+                </small>
+              )}
+            </span>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
@@ -446,6 +529,10 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
       subtitle={`${slot.label} · Semana ${weekIndex + 1}${date ? ` · ${shortDate(date)}` : ''}`}
       onClose={onClose}
     >
+      {cell.executedSets.length > 0 && (
+        <Verdict planned={cell.plannedSets} executed={cell.executedSets} />
+      )}
+
       <div className="set-editor">
           <div className="set-editor-head" aria-hidden="true">
             <span>#</span>
@@ -507,14 +594,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
         </div>
 
         {cell.executedSets.length > 0 && (
-          <div className="set-editor-done">
-            <span className="set-editor-done-title">Lo que hiciste</span>
-            {cell.executedSets.map((set, index) => (
-              <span key={index} className="set-editor-done-row">
-                {index + 1}. {formatSet(set)}
-              </span>
-            ))}
-          </div>
+          <PlanVsDone planned={cell.plannedSets} executed={cell.executedSets} />
         )}
 
       {error && <p className="error">{error}</p>}

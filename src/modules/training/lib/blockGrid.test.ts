@@ -9,7 +9,15 @@ import type {
   StrengthSession,
   Week,
 } from '../domain/types'
-import { buildBlockGrid, formatSet, summarizeSets, type GridSet } from './blockGrid'
+import {
+  buildBlockGrid,
+  compareSets,
+  currentWeekIndex,
+  executedMatchesPlan,
+  formatSet,
+  summarizeSets,
+  type GridSet,
+} from './blockGrid'
 
 const base = { createdAt: '2026-01-01', updatedAt: '2026-01-01', deletedAt: null }
 
@@ -111,7 +119,7 @@ function input(
 
 describe('summarizeSets', () => {
   it('sin series no dice nada', () => {
-    expect(summarizeSets([])).toEqual({ volume: '', intensity: '' })
+    expect(summarizeSets([])).toEqual({ volume: '', sets: 0, varied: false, intensity: '' })
   })
 
   it('series iguales se resumen como N×R', () => {
@@ -119,7 +127,7 @@ describe('summarizeSets', () => {
   })
 
   it('series distintas se listan, que es la información que se perdería al promediar', () => {
-    expect(summarizeSets([gs(5), gs(5), gs(3)]).volume).toBe('5/5/3')
+    expect(summarizeSets([gs(5), gs(5), gs(3)]).volume).toBe('3-5')
   })
 
   it('peso y RPE constantes se muestran tal cual', () => {
@@ -311,7 +319,7 @@ describe('lo realizado junto al plan', () => {
       '132.5×2 @8.5',
       '135×1 @10',
     ])
-    expect(cells[0].executed.volume).toBe('2/2/1')
+    expect(cells[0].executed.volume).toBe('1-2')
     // La semana sin sesión se queda sólo con el plan.
     expect(cells[1].executedSets).toEqual([])
     expect(cells[1].executed.volume).toBe('')
@@ -352,5 +360,128 @@ describe('lo realizado junto al plan', () => {
     const cells = grid.slots[0].rows[0].cells
     expect(cells[0].executedSets).toEqual([])
     expect(cells[1].executedSets.map(formatSet)).toEqual(['140×2 @9'])
+  })
+})
+
+describe('el titular de la celda está acotado', () => {
+  it('con reps distintas da un rango, no la lista', () => {
+    const r = summarizeSets([gs(10), gs(10), gs(8)])
+    expect(r.volume).toBe('8-10')
+    expect(r.varied).toBe(true)
+    expect(r.sets).toBe(3)
+  })
+
+  it('diez series variadas siguen siendo dos números', () => {
+    const diez = [12, 10, 10, 8, 8, 8, 6, 6, 5, 5].map((reps) => gs(reps))
+    const r = summarizeSets(diez)
+    expect(r.volume).toBe('5-12')
+    expect(r.sets).toBe(10)
+    // Lo que se salía de la celda: la lista medía 26 caracteres.
+    expect(r.volume.length).toBeLessThanOrEqual(7)
+  })
+
+  it('con reps iguales sigue siendo N×M y no un rango', () => {
+    const r = summarizeSets([gs(8), gs(8), gs(8)])
+    expect(r.volume).toBe('3×8')
+    expect(r.varied).toBe(false)
+  })
+
+  it('una sola serie no es un rango', () => {
+    expect(summarizeSets([gs(5)])).toMatchObject({ volume: '1×5', varied: false })
+  })
+})
+
+describe('executedMatchesPlan', () => {
+  it('mismas series y mismas reps es cumplir el plan', () => {
+    expect(executedMatchesPlan([gs(8), gs(8)], [gs(8), gs(8)])).toBe(true)
+  })
+
+  it('menos series no es cumplirlo', () => {
+    expect(executedMatchesPlan([gs(8), gs(8), gs(8)], [gs(8), gs(8)])).toBe(false)
+  })
+
+  it('más reps tampoco: es otra cosa, aunque sea mejor', () => {
+    expect(executedMatchesPlan([gs(8)], [gs(10)])).toBe(false)
+  })
+
+  it('el peso cuenta cuando el plan lo prescribe', () => {
+    expect(executedMatchesPlan([gs(8, 100)], [gs(8, 80)])).toBe(false)
+    expect(executedMatchesPlan([gs(8, 100)], [gs(8, 100)])).toBe(true)
+  })
+
+  it('si el plan no decía peso, cargar lo que sea no es salirse', () => {
+    expect(executedMatchesPlan([gs(8, null)], [gs(8, 80)])).toBe(true)
+  })
+
+  it('el RPE no cuenta: es cómo se sintió, no un objetivo', () => {
+    expect(executedMatchesPlan([gs(8, 100, 8)], [gs(8, 100, 9)])).toBe(true)
+  })
+
+  it('sin plan no hay nada que cumplir', () => {
+    expect(executedMatchesPlan([], [])).toBe(false)
+    expect(executedMatchesPlan([], [gs(8)])).toBe(false)
+  })
+})
+
+describe('compareSets', () => {
+  it('empareja por posición', () => {
+    const r = compareSets([gs(8), gs(8)], [gs(10), gs(8)])
+    expect(r).toHaveLength(2)
+    expect(r[0].planned?.reps).toBe(8)
+    expect(r[0].executed?.reps).toBe(10)
+  })
+
+  it('la serie que no llegaste a hacer sale sin ejecutada', () => {
+    const r = compareSets([gs(8), gs(8), gs(8)], [gs(8)])
+    expect(r).toHaveLength(3)
+    expect(r[2].planned?.reps).toBe(8)
+    expect(r[2].executed).toBeNull()
+  })
+
+  it('la serie de más sale sin plan', () => {
+    const r = compareSets([gs(8)], [gs(8), gs(6)])
+    expect(r).toHaveLength(2)
+    expect(r[1].planned).toBeNull()
+    expect(r[1].executed?.reps).toBe(6)
+  })
+
+  it('sin nada no da filas', () => {
+    expect(compareSets([], [])).toEqual([])
+  })
+})
+
+describe('currentWeekIndex', () => {
+  const slots = (fechas: (string | null)[][]) =>
+    fechas.map((dates, slotIndex) => ({
+      slotIndex,
+      label: `Día ${slotIndex + 1}`,
+      dates,
+      dayIds: dates.map(() => null),
+      rows: [],
+    }))
+
+  it('es la última semana que ya empezó', () => {
+    const s = slots([['2026-09-01', '2026-09-08', '2026-09-15']])
+    expect(currentWeekIndex(s, '2026-09-10')).toBe(1)
+  })
+
+  it('el primer día de la semana ya cuenta como empezada', () => {
+    const s = slots([['2026-09-01', '2026-09-08']])
+    expect(currentWeekIndex(s, '2026-09-08')).toBe(1)
+  })
+
+  it('toma el día más temprano de la semana, esté en la posición que esté', () => {
+    // El segundo día de la semana 0 es anterior al primero de la semana 1.
+    const s = slots([['2026-09-03', '2026-09-10'], ['2026-09-01', '2026-09-08']])
+    expect(currentWeekIndex(s, '2026-09-02')).toBe(0)
+  })
+
+  it('si el bloque entero es futuro, ninguna', () => {
+    expect(currentWeekIndex(slots([['2026-10-01']]), '2026-09-13')).toBe(-1)
+  })
+
+  it('sin fechas tampoco falla', () => {
+    expect(currentWeekIndex(slots([[null, null]]), '2026-09-13')).toBe(-1)
+    expect(currentWeekIndex([], '2026-09-13')).toBe(-1)
   })
 })
