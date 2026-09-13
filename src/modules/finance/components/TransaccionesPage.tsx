@@ -16,6 +16,7 @@ import {
 } from '../db/financeRepository'
 import type { FinanceCategoryType, FinanceTransaction } from '../domain/types'
 import { budgetsForMonth } from '../lib/budgets'
+import { sortCategoriesForGrid } from '../lib/categoryOrder'
 import { formatMoney, formatSignedMoney } from '../lib/money'
 import {
   financialMonthOptions,
@@ -50,8 +51,18 @@ export function TransaccionesPage() {
     () => budgetsForMonth(allBudgets ?? [], monthKey),
     [allBudgets, monthKey],
   )
-  const budgetedCategories = (categories ?? []).filter(
-    (c) => c.type === 'expense' && (monthBudgets.get(c.id) ?? 0) > 0,
+  // Mismo criterio que la grilla de Categorías: de mayor a menor presupuesto.
+  // Acá sólo quedan gastos con presupuesto puesto, así que el orden sale del
+  // monto y los empates se resuelven alfabéticamente.
+  const budgetedCategories = useMemo(
+    () =>
+      sortCategoriesForGrid(
+        (categories ?? []).filter(
+          (c) => c.type === 'expense' && (monthBudgets.get(c.id) ?? 0) > 0,
+        ),
+        monthBudgets,
+      ),
+    [categories, monthBudgets],
   )
   const monthLabel = formatMonthKey(monthKey)
 
