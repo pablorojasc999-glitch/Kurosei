@@ -31,6 +31,7 @@ import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { BlockGrid } from './BlockGrid'
+import { MacroCalendar } from './MacroCalendar'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
   Day,
@@ -89,6 +90,17 @@ export function PeriodizationPage({
       cancelled = true
     }
   }, [jumpToDayId, onJumpHandled])
+
+  // Desde el calendario se toca un día suelto: hay que reconstruir la ruta
+  // (mesociclo y semana) para que el detalle y las migas de pan cuadren.
+  async function openDayFromCalendar(id: string) {
+    const day = await db.training_days.get(id)
+    if (!day) return
+    const week = day.weekId ? await db.training_weeks.get(day.weekId) : null
+    setMesocycleId(week?.mesocycleId ?? null)
+    setWeekId(day.weekId)
+    setDayId(id)
+  }
 
   const macrocycles = useLiveQuery(
     () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
@@ -481,6 +493,17 @@ export function PeriodizationPage({
             </form>
             </BottomSheet>
           )}
+        </section>
+      )}
+
+      {selectedMacrocycle && !mesocycleId && (
+        <section className="elevated-section">
+          <h2>Calendario</h2>
+          <MacroCalendar
+            macrocycle={selectedMacrocycle}
+            onOpenDay={openDayFromCalendar}
+            onOpenMesocycle={setMesocycleId}
+          />
         </section>
       )}
 
