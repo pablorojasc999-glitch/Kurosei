@@ -69,14 +69,29 @@ export function formatDayHeader(date: Date): string {
   return `${topLine}, ${dateOnly}`
 }
 
-/** Monday-first 6-week (42-day) grid covering the month plus lead/trail days. */
+/**
+ * Cuadrícula de lunes a domingo con el mes entero más los días sueltos que
+ * completan su primera y última semana.
+ *
+ * Tiene las semanas que el mes ocupa de verdad —cuatro, cinco o seis— y no seis
+ * siempre: la mayoría de los meses caben en cinco, y fijarlas en seis dejaba una
+ * fila entera de días del mes siguiente ocupando pantalla para no decir nada.
+ */
 export function buildMonthGrid(monthStart: Date): Date[] {
   const jsWeekday = monthStart.getDay()
   const mondayOffset = (jsWeekday + 6) % 7
   const gridStart = new Date(monthStart)
   gridStart.setDate(gridStart.getDate() - mondayOffset)
 
-  return Array.from({ length: 42 }, (_, i) => {
+  // El día 0 del mes siguiente es el último del actual.
+  const daysInMonth = new Date(
+    monthStart.getFullYear(),
+    monthStart.getMonth() + 1,
+    0,
+  ).getDate()
+  const weeks = Math.ceil((mondayOffset + daysInMonth) / 7)
+
+  return Array.from({ length: weeks * 7 }, (_, i) => {
     const d = new Date(gridStart)
     d.setDate(d.getDate() + i)
     return d
