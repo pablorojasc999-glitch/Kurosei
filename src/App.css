@@ -1873,8 +1873,8 @@ section {
   color: var(--success);
 }
 
-/* Lo presupuestado es al mes, no del año como los dos de arriba: va en su
-   propia fila para que no se lean como tres cifras comparables. */
+/* Lo presupuestado va en su propia fila: es un plan, no algo que ya pasó como
+   los dos de arriba. */
 .finance-summary-card--budget {
   grid-column: 1 / -1;
   flex-direction: row;
@@ -3584,4 +3584,17 @@ section {
   color: var(--accent-2);
   font-size: 13px;
   text-decoration: underline;
+}
+
+/* Aclaración bajo un campo del formulario: por qué existe o cómo se comporta. */
+.finance-field-hint {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+/* Una transacción imputada a un mes distinto al de su fecha. */
+.finance-transaction-month {
+  font-size: 11px;
+  color: var(--accent-2);
 }

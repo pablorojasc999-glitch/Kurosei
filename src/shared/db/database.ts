@@ -1,10 +1,12 @@
 import Dexie, { type EntityTable } from 'dexie'
-import { FINANCE_STORES_V4 } from '../../modules/finance/db/schema'
+import { generateId } from '../lib/id'
+import { FINANCE_STORES_V4, FINANCE_STORES_V10 } from '../../modules/finance/db/schema'
 import { GROCERY_STORES_V8 } from '../../modules/grocery/db/schema'
 import type { GroceryItem } from '../../modules/grocery/domain/types'
 import type {
   FinanceAccount,
   FinanceCategory,
+  FinanceCategoryBudget,
   FinanceTransaction,
 } from '../../modules/finance/domain/types'
 import { NUTRITION_STORES_V5, NUTRITION_STORES_V6 } from '../../modules/nutrition/db/schema'
@@ -73,6 +75,7 @@ export class KuroseiDatabase extends Dexie {
   finance_accounts!: EntityTable<FinanceAccount, 'id'>
   finance_categories!: EntityTable<FinanceCategory, 'id'>
   finance_transactions!: EntityTable<FinanceTransaction, 'id'>
+  finance_category_budgets!: EntityTable<FinanceCategoryBudget, 'id'>
   nutrition_foods!: EntityTable<FoodItem, 'id'>
   nutrition_meal_sections!: EntityTable<MealSection, 'id'>
   nutrition_entries!: EntityTable<NutritionEntry, 'id'>
@@ -114,7 +117,52 @@ export class KuroseiDatabase extends Dexie {
       ...GROCERY_STORES_V8,
     })
     this.version(9).stores({ ...RETIRED_ATLAS_STORES_V9 })
+    // El mes financiero pasa a ser un dato de la transacción, y el presupuesto
+    // deja de ser un número en la categoría para volverse un historial con
+    // fecha de vigencia.
+    this.version(10)
+      .stores({ ...FINANCE_STORES_V10 })
+      .upgrade(async (tx) => {
+        // Hasta ahora el mes lo decidía la fecha, así que ese es el valor que
+        // deja las cuentas exactamente como estaban.
+        await tx
+          .table('finance_transactions')
+          .toCollection()
+          .modify((t: { date?: string; financialMonth?: string }) => {
+            if (t.financialMonth === undefined) t.financialMonth = (t.date ?? '').slice(0, 7)
+          })
+
+        const categories = await tx.table('finance_categories').toArray()
+        const timestamp = new Date().toISOString()
+        const budgets = categories
+          .filter((c: LegacyBudgetCategory) => typeof c.monthlyBudget === 'number')
+          .map((c: LegacyBudgetCategory) => ({
+            id: generateId(),
+            categoryId: c.id,
+            // El presupuesto viejo era uno solo y valía para todos los meses,
+            // así que entra en vigor antes de cualquier mes que se pueda mirar.
+            effectiveFrom: '1970-01',
+            amount: c.monthlyBudget as number,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+            deletedAt: null,
+          }))
+        if (budgets.length > 0) await tx.table('finance_category_budgets').bulkAdd(budgets)
+
+        await tx
+          .table('finance_categories')
+          .toCollection()
+          .modify((c: LegacyBudgetCategory) => {
+            delete c.monthlyBudget
+          })
+      })
   }
+}
+
+/** La categoría tal como era antes de la v10, con el presupuesto encima. */
+interface LegacyBudgetCategory {
+  id: string
+  monthlyBudget?: number | null
 }
 
 export const db = new KuroseiDatabase()

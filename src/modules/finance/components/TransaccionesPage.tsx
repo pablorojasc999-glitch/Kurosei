@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
@@ -9,13 +9,20 @@ import {
   getCategoryTotalsForMonth,
   listAccounts,
   listCategories,
+  listCategoryBudgets,
   listTransactions,
   softDeleteTransaction,
   updateTransaction,
 } from '../db/financeRepository'
 import type { FinanceCategoryType, FinanceTransaction } from '../domain/types'
+import { budgetsForMonth } from '../lib/budgets'
 import { formatMoney, formatSignedMoney } from '../lib/money'
-import { toMonthKey } from '../lib/month'
+import {
+  financialMonthOptions,
+  formatMonthKey,
+  monthKeyOfDate,
+  toMonthKey,
+} from '../lib/month'
 import { useAccountsTotalBalance } from '../lib/useAccountsTotalBalance'
 import { BalanceHeader } from './BalanceHeader'
 import { YearNav } from './YearNav'
@@ -40,13 +47,15 @@ export function TransaccionesPage() {
     () => getCategoryTotalsForMonth(currentMonthKey),
     [currentMonthKey],
   )
-  const budgetedCategories = (categories ?? []).filter(
-    (c) => c.type === 'expense' && c.monthlyBudget !== null && c.monthlyBudget > 0,
+  const allBudgets = useLiveQuery(() => listCategoryBudgets(), [])
+  const currentBudgets = useMemo(
+    () => budgetsForMonth(allBudgets ?? [], currentMonthKey),
+    [allBudgets, currentMonthKey],
   )
-  const currentMonthLabel = new Date().toLocaleDateString('es-CL', {
-    month: 'long',
-    year: 'numeric',
-  })
+  const budgetedCategories = (categories ?? []).filter(
+    (c) => c.type === 'expense' && (currentBudgets.get(c.id) ?? 0) > 0,
+  )
+  const currentMonthLabel = formatMonthKey(currentMonthKey)
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -55,6 +64,8 @@ export function TransaccionesPage() {
   const [categoryId, setCategoryId] = useState('')
   const [amount, setAmount] = useState('')
   const [date, setDate] = useState(() => toDateKey(new Date()))
+  // Por defecto sigue a la fecha; se separa sólo si se elige otro a mano.
+  const [financialMonth, setFinancialMonth] = useState(() => toMonthKey(new Date()))
   const [notes, setNotes] = useState('')
   const [error, setError] = useState<string | null>(null)
   const { isSubmitting, guard } = useSubmitGuard()
@@ -69,6 +80,7 @@ export function TransaccionesPage() {
     setCategoryId('')
     setAmount('')
     setDate(toDateKey(new Date()))
+    setFinancialMonth(toMonthKey(new Date()))
     setNotes('')
     setError(null)
   }
@@ -81,6 +93,7 @@ export function TransaccionesPage() {
     setCategoryId(t.categoryId)
     setAmount(String(t.amount))
     setDate(t.date)
+    setFinancialMonth(t.financialMonth)
     setNotes(t.notes)
     setError(null)
   }
@@ -102,6 +115,7 @@ export function TransaccionesPage() {
           type,
           amount: parsedAmount,
           date,
+          financialMonth,
           notes: notes.trim(),
         }
         if (editingId) {
@@ -157,7 +171,7 @@ export function TransaccionesPage() {
           <h2>Presupuestos de {currentMonthLabel}</h2>
           <ul className="finance-budget-list">
             {budgetedCategories.map((category) => {
-              const budget = category.monthlyBudget as number
+              const budget = currentBudgets.get(category.id) as number
               const spent = currentMonthSpend?.get(category.id) ?? 0
               const pct = Math.min(Math.round((spent / budget) * 100), 999)
               const overBudget = spent > budget
@@ -256,7 +270,37 @@ export function TransaccionesPage() {
             </label>
             <label>
               Fecha
-              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  const next = e.target.value
+                  // Mientras el mes financiero siga al de la fecha, se mueve
+                  // con ella. Si ya se eligió otro a mano, no se pisa.
+                  if (financialMonth === monthKeyOfDate(date)) {
+                    setFinancialMonth(monthKeyOfDate(next))
+                  }
+                  setDate(next)
+                }}
+                required
+              />
+            </label>
+            <label>
+              Mes financiero
+              <select
+                value={financialMonth}
+                onChange={(e) => setFinancialMonth(e.target.value)}
+              >
+                {financialMonthOptions(date, financialMonth).map((option) => (
+                  <option key={option} value={option}>
+                    {formatMonthKey(option)}
+                  </option>
+                ))}
+              </select>
+              <span className="finance-field-hint">
+                A qué mes se le imputa. Por defecto el de la fecha, pero una compra de fin de
+                mes puede ir al siguiente: es lo que cuentan los totales y los presupuestos.
+              </span>
             </label>
             <label>
               Nota (opcional)
@@ -306,6 +350,13 @@ export function TransaccionesPage() {
                           <strong>{category?.name ?? 'Categoría eliminada'}</strong>
                           {subtitle && (
                             <span className="finance-transaction-subtitle">{subtitle}</span>
+                          )}
+                          {t.financialMonth !== monthKeyOfDate(t.date) && (
+                            // Imputada a otro mes: se dice, porque si no el
+                            // total del mes no cuadraría con lo que se ve acá.
+                            <span className="finance-transaction-month">
+                              cuenta en {formatMonthKey(t.financialMonth)}
+                            </span>
                           )}
                         </span>
                         <span
