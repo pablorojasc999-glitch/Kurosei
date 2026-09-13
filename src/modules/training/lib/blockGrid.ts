@@ -33,7 +33,7 @@ export interface CellSummary {
   sets: number
   /** Si las reps no eran todas iguales — y por tanto `volume` es un rango y no un `N×M`. */
   varied: boolean
-  /** `140 kg`, `@8`, `140 kg @8`. Vacío si no hay ni peso ni RPE. */
+  /** `140 kg`, `140 kg+` si sube dentro del día, o `@8` cuando no hay peso. Nunca las dos cosas: no caben. */
   intensity: string
 }
 
@@ -48,6 +48,8 @@ export interface GridCell {
   plannedSets: GridSet[]
   /** Lo que se hizo de verdad, serie a serie. Vacío si ese día no se registró. */
   executedSets: GridSet[]
+  /** La sesión de ese día está finalizada, así que el plan ya no se toca. */
+  sessionEnded: boolean
   executed: CellSummary
   setCount: number
 }
@@ -95,31 +97,37 @@ export function summarizeSets(ordered: GridSet[]): CellSummary {
     ? `${ordered.length}×${reps[0]}`
     : `${Math.min(...reps)}-${Math.max(...reps)}`
 
-  const weights = ordered.map((s) => s.weightKg)
-  const rpes = ordered.map((s) => s.rpe)
-  const parts: string[] = []
+  return {
+    volume,
+    sets: ordered.length,
+    varied: !sameReps,
+    intensity: intensityOf(ordered),
+  }
+}
 
-  const definedWeights = weights.filter((w): w is number => w !== null)
-  if (definedWeights.length > 0) {
-    const sameWeight =
-      definedWeights.length === ordered.length &&
-      definedWeights.every((w) => w === definedWeights[0])
-    // Cuando el peso sube dentro del día, la serie tope es la que informa.
-    parts.push(
-      sameWeight
-        ? `${formatKg(definedWeights[0])} kg`
-        : `${formatKg(Math.max(...definedWeights))} kg máx`,
-    )
+/**
+ * La segunda línea de la celda: el peso, o el RPE cuando no hay peso.
+ *
+ * Nunca las dos: `190 kg máx @8 máx` mide 104 px en un hueco de 50 y se salía
+ * por los cuatro costados. El peso manda porque es lo concreto — el RPE es cómo
+ * se sintió— y las dos cosas están a un toque, en el panel de la celda.
+ *
+ * El `+` dice "y sube": cuando el peso o el RPE cambian dentro del día, informa
+ * la serie tope, y « máx» no cabía.
+ */
+function intensityOf(ordered: GridSet[]): string {
+  const weights = ordered.map((s) => s.weightKg).filter((w): w is number => w !== null)
+  if (weights.length > 0) {
+    const same = weights.length === ordered.length && weights.every((w) => w === weights[0])
+    return same
+      ? `${formatKg(weights[0])} kg`
+      : `${formatKg(Math.max(...weights))} kg+`
   }
 
-  const definedRpes = rpes.filter((r): r is number => r !== null)
-  if (definedRpes.length > 0) {
-    const sameRpe =
-      definedRpes.length === ordered.length && definedRpes.every((r) => r === definedRpes[0])
-    parts.push(sameRpe ? `@${definedRpes[0]}` : `@${Math.max(...definedRpes)} máx`)
-  }
-
-  return { volume, sets: ordered.length, varied: !sameReps, intensity: parts.join(' ') }
+  const rpes = ordered.map((s) => s.rpe).filter((r): r is number => r !== null)
+  if (rpes.length === 0) return ''
+  const same = rpes.length === ordered.length && rpes.every((r) => r === rpes[0])
+  return same ? `@${rpes[0]}` : `@${Math.max(...rpes)}+`
 }
 
 /**
@@ -131,11 +139,18 @@ export function summarizeSets(ordered: GridSet[]): CellSummary {
  */
 export function executedMatchesPlan(planned: GridSet[], executed: GridSet[]): boolean {
   if (planned.length === 0 || planned.length !== executed.length) return false
-  return planned.every((plan, index) => {
-    const done = executed[index]
-    if (plan.reps !== done.reps) return false
-    return plan.weightKg === null || plan.weightKg === done.weightKg
-  })
+  return planned.every((plan, index) => setMatchesPlan(plan, executed[index]))
+}
+
+/**
+ * Lo mismo para una serie suelta, que es lo que necesita la comparación fila a
+ * fila: si mirara sólo las repeticiones, un plan de 160-170-180-190 hecho todo
+ * a 190 saldría verde en cada fila mientras el veredicto de arriba dice que te
+ * saliste. Los dos tienen que contar lo mismo.
+ */
+export function setMatchesPlan(plan: GridSet, done: GridSet): boolean {
+  if (plan.reps !== done.reps) return false
+  return plan.weightKg === null || plan.weightKg === done.weightKg
 }
 
 /** Una serie del plan junto a la que se hizo en su lugar. Cualquiera de las dos puede faltar. */
@@ -247,6 +262,7 @@ export function buildBlockGrid({
 
   // Lo realizado se alcanza por día: día → sesión → ejercicio de sesión → series.
   const sessionByDay = new Map(sessions.map((s) => [s.dayId, s.id]))
+  const endedSessions = new Set(sessions.filter((s) => s.endedAt !== null).map((s) => s.id))
   const sessionExerciseKey = new Map<string, string>()
   for (const se of sessionExercises) {
     sessionExerciseKey.set(`${se.sessionId}:${se.exerciseId}`, se.id)
@@ -315,6 +331,7 @@ export function buildBlockGrid({
           planned: summarizeSets(plannedSetList),
           plannedSets: plannedSetList,
           executedSets: executedList,
+          sessionEnded: sessionId !== undefined && endedSessions.has(sessionId),
           executed: summarizeSets(executedList),
           setCount: plannedSetList.length,
         }
