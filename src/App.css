@@ -3759,15 +3759,18 @@ section {
   background: rgba(0, 0, 0, 0.6);
 }
 
+/* El panel se apoya sobre el teclado, no debajo. En Chrome el meta viewport ya
+   encoge la página y `--keyboard-inset` vale 0, así que esto no hace nada; en
+   los navegadores que superponen el teclado sin avisar, lo levanta. */
 .sheet {
   position: fixed;
   z-index: 20;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--keyboard-inset, 0px);
   box-sizing: border-box;
-  max-height: 86svh;
-  max-height: 86dvh;
+  max-height: calc(86svh - var(--keyboard-inset, 0px));
+  max-height: calc(86dvh - var(--keyboard-inset, 0px));
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 14px 14px calc(14px + env(safe-area-inset-bottom));
