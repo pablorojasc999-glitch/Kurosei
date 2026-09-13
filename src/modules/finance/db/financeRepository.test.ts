@@ -20,7 +20,8 @@ import {
   listAccounts,
   listCategories,
   listNotesForCategory,
-  listTransactions,
+  listTransactionsForFinancialYear,
+  listTransactionsForMonth,
   softDeleteAccount,
   softDeleteCategory,
   softDeleteTransaction,
@@ -321,7 +322,7 @@ describe('getYearTotals / getCategoryTotals', () => {
   })
 })
 
-describe('listTransactions', () => {
+describe('listTransactionsForMonth', () => {
   it('sorts newest first', async () => {
     const account = await createAccount({
       name: 'Banco',
@@ -351,7 +352,7 @@ describe('listTransactions', () => {
       notes: '',
     })
 
-    const transactions = await listTransactions()
+    const transactions = await listTransactionsForMonth('2026-08')
     expect(transactions.map((t) => t.id)).toEqual([newer.id, older.id])
   })
 })
@@ -641,7 +642,7 @@ describe('getDebtProgress / archiveDebtIfPaid', () => {
     expect(await listAccounts('debt')).toEqual([])
     const [category] = await listCategories('income')
     expect(category.id).toBe(debt.categoryId)
-    const transactions = await listTransactions(2026)
+    const transactions = await listTransactionsForFinancialYear(2026)
     expect(transactions).toHaveLength(1)
   })
 
