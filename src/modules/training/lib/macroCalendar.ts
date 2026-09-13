@@ -40,7 +40,11 @@ export interface CalendarWeek {
   /** Abreviatura del mes cuando la semana estrena mes; si no, null. */
   monthLabel: string | null
   containsToday: boolean
-  /** Verde si todo lo planificado se hizo, ámbar si es la semana de hoy. */
+  /**
+   * Verde si se hizo todo lo planificado, ámbar si queda algo pendiente, gris
+   * si la semana no tenía nada planificado. Mismo criterio que el punto de
+   * cada día, para que el color signifique lo mismo en toda la vista.
+   */
   state: CellState
   cells: CalendarCell[]
 }
@@ -160,11 +164,11 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
       monthLabel,
       containsToday,
       state:
-        plannedInWeek > 0 && doneInWeek === plannedInWeek
-          ? 'done'
-          : containsToday
-            ? 'planned'
-            : 'empty',
+        plannedInWeek === 0
+          ? 'empty'
+          : doneInWeek === plannedInWeek
+            ? 'done'
+            : 'planned',
       cells,
     })
 
