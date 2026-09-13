@@ -383,6 +383,7 @@ export function ProgressPage() {
             <p className="empty-hint">Todavía no armaste un macrociclo en Periodización.</p>
           ) : (
             <select
+              autoComplete="off"
               className="week-select"
               value={activeMacroId}
               onChange={(e) => setScopeMacroId(e.target.value)}
@@ -400,6 +401,7 @@ export function ProgressPage() {
             <p className="empty-hint">Todavía no armaste un mesociclo en Periodización.</p>
           ) : (
             <select
+              autoComplete="off"
               className="week-select"
               value={activeMesoId}
               onChange={(e) => setScopeMesoId(e.target.value)}
@@ -417,6 +419,7 @@ export function ProgressPage() {
             <p className="empty-hint">Todavía no armaste una semana en Periodización.</p>
           ) : (
             <select
+              autoComplete="off"
               className="week-select"
               value={activeWeekId}
               onChange={(e) => setScopeWeekId(e.target.value)}
@@ -431,6 +434,7 @@ export function ProgressPage() {
 
         {scopeKind === 'day' && (
           <input
+            autoComplete="off"
             type="date"
             value={activeDay}
             onChange={(e) => setScopeDay(e.target.value)}
@@ -523,6 +527,7 @@ export function ProgressPage() {
         ) : (
           <>
             <select
+              autoComplete="off"
               value={trendExerciseId}
               onChange={(e) => setSelectedExerciseId(e.target.value)}
             >

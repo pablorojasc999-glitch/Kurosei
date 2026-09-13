@@ -344,6 +344,7 @@ export function SessionView({ dayId }: SessionViewProps) {
             <label>
               O cargar un día ya planificado
               <select
+                autoComplete="off"
                 value={pickedSourceDayId}
                 onChange={(e) => setPickedSourceDayId(e.target.value)}
               >
@@ -429,6 +430,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           <label>
             Cargar ejercicios de otro día planificado
             <select
+              autoComplete="off"
               value={pickedSourceDayId}
               onChange={(e) => setPickedSourceDayId(e.target.value)}
             >
@@ -598,6 +600,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     <label>
                       Ver historial a
                       <input
+                        autoComplete="off"
                         type="number"
                         inputMode="numeric"
                         value={historyRepsValue}
@@ -680,6 +683,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                         : ' '}
                     </span>
                     <input
+                      autoComplete="off"
                       type="number"
                       inputMode="decimal"
                       value={form.weight}
@@ -699,6 +703,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                         : ' '}
                     </span>
                     <input
+                      autoComplete="off"
                       type="number"
                       inputMode="numeric"
                       value={form.reps}
@@ -718,6 +723,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                         : ' '}
                     </span>
                     <input
+                      autoComplete="off"
                       type="number"
                       inputMode="decimal"
                       step="0.5"
@@ -734,6 +740,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     EVA
                     <span className="planned-hint">{' '}</span>
                     <input
+                      autoComplete="off"
                       type="number"
                       inputMode="numeric"
                       min={0}
@@ -750,6 +757,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                   <label className="set-form-notes">
                     Notas
                     <input
+                      autoComplete="off"
                       type="text"
                       value={form.notes}
                       onChange={(e) =>
@@ -789,6 +797,7 @@ export function SessionView({ dayId }: SessionViewProps) {
         showAddExerciseForm ? (
           <form onSubmit={handleAddExercise} className="entity-form" autoComplete="off">
             <select
+              autoComplete="off"
               value={newExerciseId}
               onChange={(e) => setNewExerciseId(e.target.value)}
               required

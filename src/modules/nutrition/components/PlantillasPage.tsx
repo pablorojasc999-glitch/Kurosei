@@ -244,6 +244,7 @@ export function PlantillasPage() {
             <label>
               Nombre de la sección
               <input
+                autoComplete="off"
                 value={newSectionName}
                 onChange={(e) => setNewSectionName(e.target.value)}
                 placeholder="Ej. Snack 1"
@@ -271,6 +272,7 @@ export function PlantillasPage() {
             <label>
               Fecha
               <input
+                autoComplete="off"
                 type="date"
                 value={applyDate}
                 onChange={(e) => {
@@ -306,6 +308,7 @@ export function PlantillasPage() {
           <label>
             Nombre
             <input
+              autoComplete="off"
               value={newTemplateName}
               onChange={(e) => setNewTemplateName(e.target.value)}
               placeholder="Ej. Día de entrenamiento"
@@ -315,6 +318,7 @@ export function PlantillasPage() {
           <label>
             Emoji (opcional)
             <input
+              autoComplete="off"
               value={newTemplateEmoji}
               onChange={(e) => setNewTemplateEmoji(e.target.value)}
               placeholder="🏋️"

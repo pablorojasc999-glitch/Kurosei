@@ -83,6 +83,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
           <label>
             Cantidad ({food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit})
             <input
+              autoComplete="off"
               type="number"
               step="any"
               inputMode="decimal"
@@ -108,6 +109,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
         <label>
           Nombre
           <input
+            autoComplete="off"
             value={manualName}
             onChange={(e) => setManualName(e.target.value)}
             required
@@ -116,6 +118,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
         <label>
           Calorías (kcal)
           <input
+            autoComplete="off"
             type="number"
             step="any"
             inputMode="decimal"
@@ -128,6 +131,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
         <label>
           Proteínas (g)
           <input
+            autoComplete="off"
             type="number"
             step="any"
             inputMode="decimal"
@@ -140,6 +144,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
         <label>
           Carbohidratos (g)
           <input
+            autoComplete="off"
             type="number"
             step="any"
             inputMode="decimal"
@@ -152,6 +157,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
         <label>
           Grasas (g)
           <input
+            autoComplete="off"
             type="number"
             step="any"
             inputMode="decimal"

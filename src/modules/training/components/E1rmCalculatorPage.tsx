@@ -47,6 +47,7 @@ export function E1rmCalculatorPage() {
         <label>
           Peso (kg)
           <input
+            autoComplete="off"
             type="number"
             inputMode="decimal"
             value={haveWeight}
@@ -56,6 +57,7 @@ export function E1rmCalculatorPage() {
         <label>
           Reps
           <input
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={haveReps}
@@ -64,7 +66,7 @@ export function E1rmCalculatorPage() {
         </label>
         <label>
           RPE
-          <select value={haveRpe} onChange={(e) => setHaveRpe(e.target.value)}>
+          <select autoComplete="off" value={haveRpe} onChange={(e) => setHaveRpe(e.target.value)}>
             <option value="">Sin registrar</option>
             {RPE_OPTIONS.map((n) => (
               <option key={n} value={n}>
@@ -86,6 +88,7 @@ export function E1rmCalculatorPage() {
         <label>
           Reps
           <input
+            autoComplete="off"
             type="number"
             inputMode="numeric"
             value={wantReps}
@@ -94,7 +97,7 @@ export function E1rmCalculatorPage() {
         </label>
         <label>
           RPE
-          <select value={wantRpe} onChange={(e) => setWantRpe(e.target.value)}>
+          <select autoComplete="off" value={wantRpe} onChange={(e) => setWantRpe(e.target.value)}>
             <option value="">Elegir RPE</option>
             {RPE_OPTIONS.map((n) => (
               <option key={n} value={n}>

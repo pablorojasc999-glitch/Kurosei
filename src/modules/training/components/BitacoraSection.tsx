@@ -254,6 +254,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <label>
               Estatura (cm)
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="decimal"
                 value={profileForm.heightCm}
@@ -265,6 +266,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <label>
               Fecha de nacimiento
               <input
+                autoComplete="off"
                 type="date"
                 value={profileForm.birthDate}
                 onChange={(e) =>
@@ -275,6 +277,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <label>
               Sexo
               <select
+                autoComplete="off"
                 value={profileForm.sex}
                 onChange={(e) =>
                   setProfileForm((prev) => ({
@@ -291,6 +294,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <label>
               % Grasa corporal (opcional, se actualiza cuando te evalúan)
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="decimal"
                 value={profileForm.bodyFatPercent}
@@ -302,6 +306,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             <label>
               % Masa muscular (opcional, se actualiza cuando te evalúan)
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="decimal"
                 value={profileForm.muscleMassPercent}
@@ -350,6 +355,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <label>
             Peso
             <input
+              autoComplete="off"
               type="number"
               inputMode="decimal"
               value={logForm.bodyWeightKg}
@@ -360,6 +366,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <label>
             Sueño
             <input
+              autoComplete="off"
               type="number"
               inputMode="decimal"
               value={logForm.sleepHours}
@@ -370,6 +377,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <label>
             Pasos
             <input
+              autoComplete="off"
               type="number"
               inputMode="numeric"
               value={logForm.steps}
@@ -382,6 +390,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <label>
             Estrés
             <select
+              autoComplete="off"
               value={logForm.stress}
               disabled={logLocked}
               onChange={(e) => setLogForm((prev) => ({ ...prev, stress: e.target.value }))}
@@ -397,6 +406,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <label>
             Estimulantes
             <select
+              autoComplete="off"
               value={logForm.stimulants}
               disabled={logLocked}
               onChange={(e) => setLogForm((prev) => ({ ...prev, stimulants: e.target.value }))}
@@ -412,6 +422,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           <label>
             Fatiga
             <select
+              autoComplete="off"
               value={logForm.fatigue}
               disabled={logLocked}
               onChange={(e) => setLogForm((prev) => ({ ...prev, fatigue: e.target.value }))}
@@ -428,6 +439,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         <div className="bitacora-supplements">
           <label className="checkbox-row">
             <input
+              autoComplete="off"
               type="checkbox"
               checked={logForm.creatineTaken}
               disabled={logLocked}
@@ -439,6 +451,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           </label>
           <label className="checkbox-row">
             <input
+              autoComplete="off"
               type="checkbox"
               checked={logForm.omega3Taken}
               disabled={logLocked}
@@ -450,6 +463,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
           </label>
           <label className="checkbox-row">
             <input
+              autoComplete="off"
               type="checkbox"
               checked={logForm.vitaminDTaken}
               disabled={logLocked}

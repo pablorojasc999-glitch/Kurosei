@@ -221,6 +221,7 @@ export function AddEntryForm({
             {!selectedFood ? (
               <>
                 <input
+                  autoComplete="off"
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -287,6 +288,7 @@ export function AddEntryForm({
                   </button>
                   <label className="nutrition-quantity-field">
                     <input
+                      autoComplete="off"
                       type="number"
                       step="any"
                       inputMode="decimal"
@@ -345,6 +347,7 @@ export function AddEntryForm({
             <label>
               Nombre
               <input
+                autoComplete="off"
                 value={manualName}
                 onChange={(e) => setManualName(e.target.value)}
                 placeholder="Ej. Almuerzo restaurante X"
@@ -354,6 +357,7 @@ export function AddEntryForm({
             <label>
               Calorías (kcal)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -366,6 +370,7 @@ export function AddEntryForm({
             <label>
               Proteínas (g)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -378,6 +383,7 @@ export function AddEntryForm({
             <label>
               Carbohidratos (g)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -390,6 +396,7 @@ export function AddEntryForm({
             <label>
               Grasas (g)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"

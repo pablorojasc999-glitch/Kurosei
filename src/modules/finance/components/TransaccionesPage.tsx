@@ -235,6 +235,7 @@ export function TransaccionesPage() {
             <label>
               Tipo
               <select
+                autoComplete="off"
                 value={type}
                 onChange={(e) => {
                   setType(e.target.value as FinanceCategoryType)
@@ -247,7 +248,7 @@ export function TransaccionesPage() {
             </label>
             <label>
               Categoría
-              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
+              <select autoComplete="off" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} required>
                 <option value="">Elegir categoría</option>
                 {categoriesForType.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -258,7 +259,7 @@ export function TransaccionesPage() {
             </label>
             <label>
               Cuenta
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+              <select autoComplete="off" value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
                 <option value="">Elegir cuenta</option>
                 {accounts?.map((a) => (
                   <option key={a.id} value={a.id}>
@@ -270,6 +271,7 @@ export function TransaccionesPage() {
             <label>
               Monto
               <input
+                autoComplete="off"
                 type="number"
                 inputMode="decimal"
                 min={0}
@@ -281,6 +283,7 @@ export function TransaccionesPage() {
             <label>
               Fecha
               <input
+                autoComplete="off"
                 type="date"
                 value={date}
                 onChange={(e) => {
@@ -298,6 +301,7 @@ export function TransaccionesPage() {
             <label>
               Mes financiero
               <select
+                autoComplete="off"
                 value={financialMonth}
                 onChange={(e) => setFinancialMonth(e.target.value)}
               >
@@ -314,7 +318,7 @@ export function TransaccionesPage() {
             </label>
             <label>
               Nota (opcional)
-              <input value={notes} onChange={(e) => setNotes(e.target.value)} />
+              <input autoComplete="off" value={notes} onChange={(e) => setNotes(e.target.value)} />
             </label>
             {error && <p className="error">{error}</p>}
             <button type="submit" disabled={isSubmitting}>

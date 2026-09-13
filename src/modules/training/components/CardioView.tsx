@@ -113,6 +113,7 @@ export function CardioView({ dayId }: CardioViewProps) {
         <BottomSheet title="Nuevo cardio" onClose={() => setShowForm(false)}>
           <form onSubmit={handleAddCardioSession} className="entity-form" autoComplete="off">
           <select
+            autoComplete="off"
             value={exerciseId}
             onChange={(e) => setExerciseId(e.target.value)}
             required
@@ -127,6 +128,7 @@ export function CardioView({ dayId }: CardioViewProps) {
           <label>
             Hora de inicio
             <input
+              autoComplete="off"
               type="datetime-local"
               value={startedAt}
               onChange={(e) => setStartedAt(e.target.value)}
@@ -136,6 +138,7 @@ export function CardioView({ dayId }: CardioViewProps) {
           <label>
             Duración (min)
             <input
+              autoComplete="off"
               type="number"
               inputMode="numeric"
               value={duration}
@@ -146,6 +149,7 @@ export function CardioView({ dayId }: CardioViewProps) {
           <label>
             Distancia (km, opcional)
             <input
+              autoComplete="off"
               type="number"
               inputMode="decimal"
               value={distance}
@@ -155,6 +159,7 @@ export function CardioView({ dayId }: CardioViewProps) {
           <label>
             Calorías (kcal, opcional)
             <input
+              autoComplete="off"
               type="number"
               inputMode="numeric"
               value={calories}
@@ -162,6 +167,7 @@ export function CardioView({ dayId }: CardioViewProps) {
             />
           </label>
           <input
+            autoComplete="off"
             type="text"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

@@ -168,6 +168,7 @@ export function BibliotecaPage() {
             <label>
               Nombre
               <input
+                autoComplete="off"
                 value={form.name}
                 onChange={(e) => updateField('name', e.target.value)}
                 required
@@ -176,6 +177,7 @@ export function BibliotecaPage() {
             <label>
               Marca (opcional)
               <input
+                autoComplete="off"
                 value={form.brand}
                 onChange={(e) => updateField('brand', e.target.value)}
                 placeholder="Ej. Nestlé"
@@ -184,6 +186,7 @@ export function BibliotecaPage() {
             <label>
               Emoji
               <input
+                autoComplete="off"
                 value={form.emoji}
                 onChange={(e) => updateField('emoji', e.target.value)}
                 placeholder="🍎"
@@ -193,6 +196,7 @@ export function BibliotecaPage() {
             <label>
               Porción de referencia
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -205,6 +209,7 @@ export function BibliotecaPage() {
             <label>
               Unidad
               <select
+                autoComplete="off"
                 value={form.servingUnit}
                 onChange={(e) => updateField('servingUnit', e.target.value as ServingUnit)}
               >
@@ -216,6 +221,7 @@ export function BibliotecaPage() {
             <label>
               Calorías (kcal)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -228,6 +234,7 @@ export function BibliotecaPage() {
             <label>
               Proteínas (g)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -239,6 +246,7 @@ export function BibliotecaPage() {
             <label>
               Carbohidratos (g)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -250,6 +258,7 @@ export function BibliotecaPage() {
             <label>
               Grasas (g)
               <input
+                autoComplete="off"
                 type="number"
                 step="any"
                 inputMode="decimal"
@@ -272,6 +281,7 @@ export function BibliotecaPage() {
                   <label key={key}>
                     {label} ({unit})
                     <input
+                      autoComplete="off"
                       type="number"
                       step="any"
                       inputMode="decimal"
@@ -298,6 +308,7 @@ export function BibliotecaPage() {
       <section>
         <h2>Alimentos</h2>
         <input
+          autoComplete="off"
           type="search"
           className="exercise-search"
           value={search}

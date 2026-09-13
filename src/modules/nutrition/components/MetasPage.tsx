@@ -148,6 +148,7 @@ export function MetasPage() {
           <label>
             Nombre
             <input
+              autoComplete="off"
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
               placeholder="Ej. Volumen"
@@ -157,6 +158,7 @@ export function MetasPage() {
           <label>
             Fecha de inicio
             <input
+              autoComplete="off"
               type="date"
               value={form.startDate}
               onChange={(e) => updateField('startDate', e.target.value)}
@@ -165,6 +167,7 @@ export function MetasPage() {
           </label>
           <label className="checkbox-row">
             <input
+              autoComplete="off"
               type="checkbox"
               checked={form.ongoing}
               onChange={(e) => updateField('ongoing', e.target.checked)}
@@ -175,6 +178,7 @@ export function MetasPage() {
             <label>
               Fecha de fin
               <input
+                autoComplete="off"
                 type="date"
                 value={form.endDate}
                 onChange={(e) => updateField('endDate', e.target.value)}
@@ -185,6 +189,7 @@ export function MetasPage() {
           <label>
             Calorías (kcal/día)
             <input
+              autoComplete="off"
               type="number"
               step="any"
               inputMode="decimal"
@@ -197,6 +202,7 @@ export function MetasPage() {
           <label>
             Proteínas (g/día)
             <input
+              autoComplete="off"
               type="number"
               step="any"
               inputMode="decimal"
@@ -209,6 +215,7 @@ export function MetasPage() {
           <label>
             Carbohidratos (g/día)
             <input
+              autoComplete="off"
               type="number"
               step="any"
               inputMode="decimal"
@@ -221,6 +228,7 @@ export function MetasPage() {
           <label>
             Grasas (g/día)
             <input
+              autoComplete="off"
               type="number"
               step="any"
               inputMode="decimal"
@@ -233,6 +241,7 @@ export function MetasPage() {
           <label>
             Agua (ml/día)
             <input
+              autoComplete="off"
               type="number"
               step="any"
               inputMode="decimal"
