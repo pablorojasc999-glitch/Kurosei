@@ -1873,6 +1873,22 @@ section {
   color: var(--success);
 }
 
+/* Lo presupuestado es al mes, no del año como los dos de arriba: va en su
+   propia fila para que no se lean como tres cifras comparables. */
+.finance-summary-card--budget {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.finance-summary-card--budget strong {
+  color: var(--accent-2);
+}
+
 .finance-category-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

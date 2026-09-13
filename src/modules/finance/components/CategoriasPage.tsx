@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
@@ -14,6 +14,7 @@ import {
   updateCategory,
 } from '../db/financeRepository'
 import type { FinanceCategory, FinanceCategoryType } from '../domain/types'
+import { sortCategoriesForGrid, totalMonthlyBudget } from '../lib/categoryOrder'
 import { formatMoney } from '../lib/money'
 import { BalanceHeader } from './BalanceHeader'
 import { YearNav } from './YearNav'
@@ -27,6 +28,11 @@ export function CategoriasPage() {
   const categories = useLiveQuery(() => listCategories(), [])
   const categoryTotals = useLiveQuery(() => getCategoryTotals(year), [year])
   const yearTotals = useLiveQuery(() => getYearTotals(year), [year])
+
+  // Los gastos van todos juntos y de mayor a menor presupuesto, que es el orden
+  // en que se revisa en qué se va la plata.
+  const sortedCategories = useMemo(() => sortCategoriesForGrid(categories ?? []), [categories])
+  const budgetTotal = useMemo(() => totalMonthlyBudget(categories ?? []), [categories])
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -127,10 +133,18 @@ export function CategoriasPage() {
           <span>Ingresos</span>
           <strong>{formatMoney(yearTotals?.income ?? 0)}</strong>
         </div>
+        {budgetTotal > 0 && (
+          // Ocupa la fila entera para que no se lea como un tercer total del
+          // año: Gastos e Ingresos son lo que pasó en {year}, esto es al mes.
+          <div className="finance-summary-card finance-summary-card--budget">
+            <span>Presupuestado</span>
+            <strong>{formatMoney(budgetTotal)}/mes</strong>
+          </div>
+        )}
       </div>
 
       <div className="finance-category-grid">
-        {categories?.map((category) => (
+        {sortedCategories.map((category) => (
           <div
             key={category.id}
             className={`finance-category-card finance-category-card--${category.type}`}
