@@ -17,6 +17,7 @@ import {
   currentWeekIndex,
   executedMatchesPlan,
   formatSet,
+  setMatchesPlan,
   type GridCell,
   type GridDaySlot,
   type GridRow,
@@ -48,7 +49,6 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   const exercises = useLiveQuery(() => listExercises(), [])
   const [editing, setEditing] = useState<CellRef | null>(null)
   const [adding, setAdding] = useState<{ slot: GridDaySlot; weekIndex: number } | null>(null)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [notice, setNotice] = useState<string | null>(null)
 
   if (!data || !exercises) return <p className="empty-hint">Cargando la planilla…</p>
@@ -63,17 +63,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
     )
   }
 
-  const rowKey = (slot: GridDaySlot, row: GridRow) => `${slot.slotIndex}:${row.exerciseId}`
   const thisWeek = currentWeekIndex(grid.slots, toDateKey(new Date()))
-
-  function toggleRow(key: string) {
-    setExpanded((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }
 
   async function handleAddExercise(exerciseId: string) {
     if (!adding) return
@@ -95,7 +85,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
       )}
 
       <div className="block-grid-scroll">
-        <table className={`block-grid${expanded.size > 0 ? ' block-grid--detail' : ''}`}>
+        <table className="block-grid">
           <thead>
             <tr>
               <th className="block-grid-corner" scope="col">
@@ -162,22 +152,12 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
               )}
 
               {slot.rows.map((row) => {
-                const key = rowKey(slot, row)
-                const open = expanded.has(key)
                 return (
-                  <tr key={row.exerciseId} className={open ? 'block-grid-row--open' : undefined}>
+                  <tr key={row.exerciseId}>
                     <th className="block-grid-corner block-grid-name" scope="row">
-                      <button
-                        type="button"
-                        className="block-grid-name-toggle"
-                        aria-expanded={open}
-                        onClick={() => toggleRow(key)}
-                      >
-                        <span className="block-grid-caret" aria-hidden="true">
-                          {open ? '▾' : '▸'}
-                        </span>
-                        <span className="block-grid-name-text">{row.exerciseName}</span>
-                      </button>
+                      <span className="block-grid-name-text" title={row.exerciseName}>
+                        {row.exerciseName}
+                      </span>
                     </th>
                     {row.cells.map((cell, index) => {
                       const done = cell.executedSets.length > 0
@@ -195,7 +175,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                         {cell.plannedExerciseId ? (
                           <button
                             type="button"
-                            className={`block-grid-cell${state}${open ? ' block-grid-cell--open' : ''}${
+                            className={`block-grid-cell${state}${
                               index === thisWeek ? ' block-grid-cell--current' : ''
                             }`}
                             aria-label={`${row.exerciseName}, semana ${index + 1}: ${
@@ -203,15 +183,9 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                             }${done ? (asPlanned ? ', hecho tal cual' : `, hiciste ${cell.executed.volume}`) : ''}`}
                             onClick={() => setEditing({ slot, row, cell, weekIndex: index })}
                           >
-                            {open ? (
-                              <CellDetail cell={cell} />
-                            ) : (
-                              <>
-                                <span className="block-grid-volume">{shown.volume || '—'}</span>
-                                {footnote && (
-                                  <span className="block-grid-intensity">{footnote}</span>
-                                )}
-                              </>
+                            <span className="block-grid-volume">{shown.volume || '—'}</span>
+                            {footnote && (
+                              <span className="block-grid-intensity">{footnote}</span>
                             )}
                           </button>
                         ) : slot.dayIds[index] ? (
@@ -328,10 +302,16 @@ function PlanVsDone({ planned, executed }: { planned: GridSet[]; executed: GridS
       {rows.map((pair, index) => {
         const delta =
           pair.planned && pair.executed ? pair.executed.reps - pair.planned.reps : null
+        // Se mira lo mismo que el veredicto —reps y peso— para que no diga que
+        // te saliste mientras todas las filas salen en verde.
+        const matches =
+          pair.planned !== null &&
+          pair.executed !== null &&
+          setMatchesPlan(pair.planned, pair.executed)
         const state =
           pair.executed === null
             ? ' cell-compare-done--missing'
-            : delta === 0 || delta === null
+            : matches
               ? ' cell-compare-done--equal'
               : ' cell-compare-done--differs'
         return (
@@ -353,30 +333,6 @@ function PlanVsDone({ planned, executed }: { planned: GridSet[]; executed: GridS
         )
       })}
     </div>
-  )
-}
-
-/** El contenido de una celda desplegada: el plan serie a serie y, debajo, lo que se hizo. */
-function CellDetail({ cell }: { cell: GridCell }) {
-  return (
-    <>
-      {cell.plannedSets.length === 0 && <span className="block-grid-volume">—</span>}
-      {cell.plannedSets.map((set, index) => (
-        <span key={index} className="block-grid-set">
-          {formatSet(set)}
-        </span>
-      ))}
-      {cell.executedSets.length > 0 && (
-        <>
-          <span className="block-grid-set-rule" aria-hidden="true" />
-          {cell.executedSets.map((set, index) => (
-            <span key={index} className="block-grid-set block-grid-set--done">
-              {formatSet(set)}
-            </span>
-          ))}
-        </>
-      )}
-    </>
   )
 }
 
@@ -533,6 +489,14 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
         <Verdict planned={cell.plannedSets} executed={cell.executedSets} />
       )}
 
+      {cell.sessionEnded ? (
+        // El día está cerrado: cambiar el plan ya no cambia nada, y dejar el
+        // formulario invitaba a editar una prescripción que ya se ejecutó.
+        <p className="cell-closed-note">
+          Este día está finalizado: el plan queda como quedó.
+        </p>
+      ) : (
+        <>
       <div className="set-editor">
           <div className="set-editor-head" aria-hidden="true">
             <span>#</span>
@@ -592,6 +556,8 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
             Igualar a la 1ª
           </button>
         </div>
+        </>
+      )}
 
         {cell.executedSets.length > 0 && (
           <PlanVsDone planned={cell.plannedSets} executed={cell.executedSets} />
@@ -601,14 +567,18 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
 
       <div className="sheet-actions">
         <button type="button" onClick={onClose}>
-          Cancelar
+          {cell.sessionEnded ? 'Cerrar' : 'Cancelar'}
         </button>
-        <button type="button" disabled={isSubmitting} onClick={() => void handleSave(true)}>
-          Guardar y fijar
-        </button>
-        <button type="button" disabled={isSubmitting} onClick={() => void handleSave(false)}>
-          Guardar
-        </button>
+        {!cell.sessionEnded && (
+          <>
+            <button type="button" disabled={isSubmitting} onClick={() => void handleSave(true)}>
+              Guardar y fijar
+            </button>
+            <button type="button" disabled={isSubmitting} onClick={() => void handleSave(false)}>
+              Guardar
+            </button>
+          </>
+        )}
       </div>
 
       {cell.dayId && (

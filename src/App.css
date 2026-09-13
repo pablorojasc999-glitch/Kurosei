@@ -3621,8 +3621,8 @@ section {
 }
 
 .block-grid td {
-  width: 60px;
-  min-width: 60px;
+  width: 56px;
+  min-width: 56px;
 }
 
 /* La columna de nombres queda fija mientras las semanas se desplazan. */
@@ -3651,24 +3651,22 @@ section {
 /* Una línea y puntos suspensivos: con nombres de dos líneas las filas quedaban
    de alturas distintas y la cuadrícula dejaba de leerse como cuadrícula. El
    nombre entero está en el panel de la celda. */
+/* Dos líneas en vez de una: a una sola, casi todos los nombres acababan en
+   puntos suspensivos («Press inclina…», «Remo en pol…»). Con el tope en dos
+   líneas las filas siguen siendo parejas, que era lo que se quería salvar.
+   El tope de ancho va en el texto y no en la celda: en una tabla el `min-width`
+   de una celda no frena el contenido, y un nombre largo ensanchaba la columna. */
 .block-grid-name-text {
-  display: block;
-  /* El tope va aquí y no en la celda: en una tabla el `min-width` de una celda
-     no frena el contenido, así que un nombre largo ensanchaba la columna a 156
-     px y se llevaba por delante la última semana. */
-  max-width: 76px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-width: 120px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
-.block-grid-name-toggle {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-  width: 100%;
-  min-width: 0;
-}
+
 
 /* El día como cabecera de grupo, con una regla debajo: antes competía con los
    nombres de ejercicio en la misma columna y no se veía dónde empezaba cada uno. */
@@ -3722,9 +3720,9 @@ section {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  width: 54px;
+  width: 52px;
   min-height: 44px;
-  margin: 2px 3px;
+  margin: 2px 2px;
   padding: 4px 2px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
@@ -4050,6 +4048,17 @@ section {
   background: var(--warning-bg);
   border: 1px solid rgba(251, 191, 36, 0.34);
   color: var(--warning);
+}
+
+.cell-closed-note {
+  margin: 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.35;
 }
 
 .cell-compare {

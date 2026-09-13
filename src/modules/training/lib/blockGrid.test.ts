@@ -15,6 +15,7 @@ import {
   currentWeekIndex,
   executedMatchesPlan,
   formatSet,
+  setMatchesPlan,
   summarizeSets,
   type GridSet,
 } from './blockGrid'
@@ -126,25 +127,36 @@ describe('summarizeSets', () => {
     expect(summarizeSets([gs(3), gs(3), gs(3)]).volume).toBe('3×3')
   })
 
-  it('series distintas se listan, que es la información que se perdería al promediar', () => {
+  it('series distintas dan el rango, que es lo que cabe en la celda', () => {
     expect(summarizeSets([gs(5), gs(5), gs(3)]).volume).toBe('3-5')
   })
 
-  it('peso y RPE constantes se muestran tal cual', () => {
-    expect(summarizeSets([gs(3, 140, 8), gs(3, 140, 8)]).intensity).toBe('140 kg @8')
+  it('con peso manda el peso: el peso y el RPE juntos no caben en la celda', () => {
+    // `190 kg máx @8 máx` medía 104 px en un hueco de 50 y se salía.
+    expect(summarizeSets([gs(3, 140, 8), gs(3, 140, 8)]).intensity).toBe('140 kg')
   })
 
-  it('si el peso sube dentro del día informa la serie tope', () => {
-    expect(summarizeSets([gs(3, 120), gs(3, 130), gs(3, 140)]).intensity).toBe('140 kg máx')
+  it('si el peso sube dentro del día informa la serie tope con un +', () => {
+    expect(summarizeSets([gs(3, 120), gs(3, 130), gs(3, 140)]).intensity).toBe('140 kg+')
   })
 
   it('un peso a medio poner no se toma como constante', () => {
-    expect(summarizeSets([gs(3, 140), gs(3, null)]).intensity).toBe('140 kg máx')
+    expect(summarizeSets([gs(3, 140), gs(3, null)]).intensity).toBe('140 kg+')
+  })
+
+  it('la intensidad está acotada, pase lo que pase', () => {
+    const duro = [gs(3, 190, 8), gs(3, 200, 9), gs(3, 212.5, 10)]
+    expect(summarizeSets(duro).intensity).toBe('212.5 kg+')
+    expect(summarizeSets(duro).intensity.length).toBeLessThanOrEqual(10)
   })
 
   it('quita el decimal muerto pero conserva los medios kilos', () => {
     expect(summarizeSets([gs(3, 140)]).intensity).toBe('140 kg')
     expect(summarizeSets([gs(3, 137.5)]).intensity).toBe('137.5 kg')
+  })
+
+  it('el RPE variable también lleva +', () => {
+    expect(summarizeSets([gs(3, null, 7), gs(3, null, 9)]).intensity).toBe('@9+')
   })
 
   it('sólo RPE, sin peso', () => {
@@ -420,6 +432,23 @@ describe('executedMatchesPlan', () => {
   it('sin plan no hay nada que cumplir', () => {
     expect(executedMatchesPlan([], [])).toBe(false)
     expect(executedMatchesPlan([], [gs(8)])).toBe(false)
+  })
+})
+
+describe('setMatchesPlan', () => {
+  it('misma serie, mismas reps y mismo peso', () => {
+    expect(setMatchesPlan(gs(4, 190), gs(4, 190))).toBe(true)
+  })
+
+  it('el mismo número de reps con otro peso no es la misma serie', () => {
+    // El caso de la rampa: planeado 160, hecho 190. Las reps coinciden y aun
+    // así te saliste del plan.
+    expect(setMatchesPlan(gs(4, 160), gs(4, 190))).toBe(false)
+  })
+
+  it('sin peso prescrito, sólo cuentan las reps', () => {
+    expect(setMatchesPlan(gs(4, null), gs(4, 190))).toBe(true)
+    expect(setMatchesPlan(gs(4, null), gs(5, 190))).toBe(false)
   })
 })
 
