@@ -230,7 +230,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
   }
 
   return (
-    <section className="elevated-section">
+    <section className="elevated-section bitacora-section">
       <h2>Bitácora</h2>
 
       <div className="bitacora-profile">
@@ -316,6 +316,33 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       </div>
 
       <form onSubmit={handleSubmitLog} className="entity-form bitacora-log-form">
+        {/* Lo que viene de Nutrición es de sólo lectura: va en una tira compacta
+            y no en tarjetas grandes, que se comían un tercio de la sección. */}
+        <div className="bitacora-intake">
+          <span className="bitacora-intake-label">Desde Nutrición</span>
+          <div className="bitacora-intake-stats">
+            <span>
+              <small>kcal</small>
+              {formatNutrient(dailyLog?.calories ?? 0)}
+            </span>
+            <span>
+              <small>Prot</small>
+              {formatNutrient(dailyLog?.proteinG ?? 0)} g
+            </span>
+            <span>
+              <small>Carb</small>
+              {formatNutrient(dailyLog?.carbsG ?? 0)} g
+            </span>
+            <span>
+              <small>Gras</small>
+              {formatNutrient(dailyLog?.fatG ?? 0)} g
+            </span>
+            <span>
+              <small>Agua</small>
+              {formatNutrient(dailyLog?.waterLiters ?? 0)} L
+            </span>
+          </div>
+        </div>
         <label>
           Peso corporal (kg)
           <input
@@ -326,38 +353,6 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
             onChange={(e) => setLogForm((prev) => ({ ...prev, bodyWeightKg: e.target.value }))}
           />
         </label>
-        <div className="bitacora-nutrition-summary">
-          <span className="bitacora-nutrition-summary-label">
-            Calorías y macros — desde Nutrición
-          </span>
-          <div className="finance-summary-row">
-            <div className="finance-summary-card">
-              <span>Calorías</span>
-              <strong>{formatNutrient(dailyLog?.calories ?? 0)}</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Proteínas</span>
-              <strong>{formatNutrient(dailyLog?.proteinG ?? 0)} g</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Carbos</span>
-              <strong>{formatNutrient(dailyLog?.carbsG ?? 0)} g</strong>
-            </div>
-            <div className="finance-summary-card">
-              <span>Grasas</span>
-              <strong>{formatNutrient(dailyLog?.fatG ?? 0)} g</strong>
-            </div>
-          </div>
-        </div>
-        <div className="bitacora-nutrition-summary">
-          <span className="bitacora-nutrition-summary-label">Agua — desde Nutrición</span>
-          <div className="finance-summary-row">
-            <div className="finance-summary-card">
-              <span>Agua</span>
-              <strong>{formatNutrient(dailyLog?.waterLiters ?? 0)} L</strong>
-            </div>
-          </div>
-        </div>
         <label>
           Horas de sueño
           <input
@@ -485,8 +480,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         ) : (
           <span className="empty-hint">
             {!profileComplete
-              ? 'Completa tu perfil (estatura, fecha de nacimiento y sexo) para calcularlo.'
-              : 'Registra tu peso corporal de hoy para calcularlo.'}
+              ? 'Completa tu perfil para calcularlo.'
+              : 'Registra tu peso de hoy.'}
           </span>
         )}
       </div>
