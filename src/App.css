@@ -2755,11 +2755,56 @@ section {
   right: 4px;
 }
 
-.nutrition-water-total {
-  font-size: 32px;
-  font-weight: 700;
-  text-align: center;
-  margin: 8px 0;
+/* Alta de agua: el campo y el botón en una línea, que es un gesto de dos
+   toques y no merece un formulario entero. */
+.nutrition-water-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.nutrition-water-form label {
+  flex: 1;
+  min-width: 0;
+}
+
+.nutrition-water-form input {
+  width: 100%;
+}
+
+.nutrition-water-form button {
+  flex: none;
+  padding: 0 16px;
+  background: var(--accent-dark);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nutrition-water-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nutrition-water-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.nutrition-water-amount {
+  font-family: var(--mono);
+  font-size: 14px;
 }
 
 .nutrition-goal-list {
