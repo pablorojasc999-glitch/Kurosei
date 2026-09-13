@@ -111,7 +111,7 @@ export function CardioView({ dayId }: CardioViewProps) {
 
       {showForm && (
         <BottomSheet title="Nuevo cardio" onClose={() => setShowForm(false)}>
-          <form onSubmit={handleAddCardioSession} className="entity-form">
+          <form onSubmit={handleAddCardioSession} className="entity-form" autoComplete="off">
           <select
             value={exerciseId}
             onChange={(e) => setExerciseId(e.target.value)}

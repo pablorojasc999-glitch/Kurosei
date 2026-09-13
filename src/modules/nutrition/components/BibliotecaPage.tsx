@@ -164,7 +164,7 @@ export function BibliotecaPage() {
           title={editingId ? 'Editar alimento' : 'Nuevo alimento'}
           onClose={resetForm}
         >
-          <form onSubmit={handleSubmit} className="entity-form">
+          <form onSubmit={handleSubmit} className="entity-form" autoComplete="off">
             <label>
               Nombre
               <input

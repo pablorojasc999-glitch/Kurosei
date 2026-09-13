@@ -79,7 +79,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
   if (isFood && food) {
     return (
       <div className="nutrition-entry-editor">
-        <form onSubmit={handleSaveQuantity} className="entity-form">
+        <form onSubmit={handleSaveQuantity} className="entity-form" autoComplete="off">
           <label>
             Cantidad ({food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit})
             <input
@@ -104,7 +104,7 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
 
   return (
     <div className="nutrition-entry-editor">
-      <form onSubmit={handleSaveManual} className="entity-form">
+      <form onSubmit={handleSaveManual} className="entity-form" autoComplete="off">
         <label>
           Nombre
           <input

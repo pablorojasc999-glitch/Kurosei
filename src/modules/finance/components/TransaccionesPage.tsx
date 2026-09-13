@@ -231,7 +231,7 @@ export function TransaccionesPage() {
           title={editingId ? 'Editar transacción' : 'Nueva transacción'}
           onClose={resetForm}
         >
-          <form onSubmit={handleSubmit} className="entity-form">
+          <form onSubmit={handleSubmit} className="entity-form" autoComplete="off">
             <label>
               Tipo
               <select
