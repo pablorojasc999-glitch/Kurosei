@@ -10,7 +10,7 @@ import {
   listAccounts,
   listCategories,
   listCategoryBudgets,
-  listTransactions,
+  listTransactionsForMonth,
   softDeleteTransaction,
   updateTransaction,
 } from '../db/financeRepository'
@@ -25,7 +25,7 @@ import {
 } from '../lib/month'
 import { useAccountsTotalBalance } from '../lib/useAccountsTotalBalance'
 import { BalanceHeader } from './BalanceHeader'
-import { YearNav } from './YearNav'
+import { MonthNav } from './MonthNav'
 
 function formatDateHeader(date: string): string {
   const [year, month, day] = date.split('-').map(Number)
@@ -36,26 +36,24 @@ function formatDateHeader(date: string): string {
 }
 
 export function TransaccionesPage() {
-  const [year, setYear] = useState(() => new Date().getFullYear())
-  const transactions = useLiveQuery(() => listTransactions(year), [year])
+  const [monthKey, setMonthKey] = useState(() => toMonthKey(new Date()))
+  // La lista sigue al mes financiero, no al de la fecha: así lo que se ve acá
+  // es exactamente lo que suma Categorías para ese mes.
+  const transactions = useLiveQuery(() => listTransactionsForMonth(monthKey), [monthKey])
   const accounts = useLiveQuery(() => listAccounts('account'), [])
   const categories = useLiveQuery(() => listCategories(), [])
   const finalBalance = useAccountsTotalBalance()
 
-  const currentMonthKey = toMonthKey(new Date())
-  const currentMonthSpend = useLiveQuery(
-    () => getCategoryTotalsForMonth(currentMonthKey),
-    [currentMonthKey],
-  )
+  const monthSpend = useLiveQuery(() => getCategoryTotalsForMonth(monthKey), [monthKey])
   const allBudgets = useLiveQuery(() => listCategoryBudgets(), [])
-  const currentBudgets = useMemo(
-    () => budgetsForMonth(allBudgets ?? [], currentMonthKey),
-    [allBudgets, currentMonthKey],
+  const monthBudgets = useMemo(
+    () => budgetsForMonth(allBudgets ?? [], monthKey),
+    [allBudgets, monthKey],
   )
   const budgetedCategories = (categories ?? []).filter(
-    (c) => c.type === 'expense' && (currentBudgets.get(c.id) ?? 0) > 0,
+    (c) => c.type === 'expense' && (monthBudgets.get(c.id) ?? 0) > 0,
   )
-  const currentMonthLabel = formatMonthKey(currentMonthKey)
+  const monthLabel = formatMonthKey(monthKey)
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -80,7 +78,8 @@ export function TransaccionesPage() {
     setCategoryId('')
     setAmount('')
     setDate(toDateKey(new Date()))
-    setFinancialMonth(toMonthKey(new Date()))
+    // Nace imputada al mes que se está mirando, que es donde se la espera.
+    setFinancialMonth(monthKey)
     setNotes('')
     setError(null)
   }
@@ -153,7 +152,7 @@ export function TransaccionesPage() {
     <div className="page">
       <h1>Transacciones</h1>
       <BalanceHeader />
-      <YearNav year={year} onChange={setYear} />
+      <MonthNav monthKey={monthKey} onChange={setMonthKey} />
 
       <div className="finance-summary-row">
         <div className="finance-summary-card">
@@ -168,11 +167,11 @@ export function TransaccionesPage() {
 
       {budgetedCategories.length > 0 && (
         <section>
-          <h2>Presupuestos de {currentMonthLabel}</h2>
+          <h2>Presupuestos de {monthLabel}</h2>
           <ul className="finance-budget-list">
             {budgetedCategories.map((category) => {
-              const budget = currentBudgets.get(category.id) as number
-              const spent = currentMonthSpend?.get(category.id) ?? 0
+              const budget = monthBudgets.get(category.id) as number
+              const spent = monthSpend?.get(category.id) ?? 0
               const pct = Math.min(Math.round((spent / budget) * 100), 999)
               const overBudget = spent > budget
               return (
@@ -383,7 +382,7 @@ export function TransaccionesPage() {
           )
         })}
         {groups.length === 0 && (
-          <p className="empty-hint">Sin transacciones registradas en {year}.</p>
+          <p className="empty-hint">Sin movimientos imputados a {monthLabel}.</p>
         )}
       </ul>
     </div>

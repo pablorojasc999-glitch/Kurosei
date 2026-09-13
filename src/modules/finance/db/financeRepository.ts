@@ -264,16 +264,6 @@ export async function getCategoryBudgetForMonth(
 // Transactions
 // ---------------------------------------------------------------------
 
-export async function listTransactions(year?: number): Promise<FinanceTransaction[]> {
-  const transactions = await db.finance_transactions
-    .filter(
-      (t) =>
-        t.deletedAt === null && (year === undefined || t.date.startsWith(`${year}-`)),
-    )
-    .toArray()
-  return transactions.sort((a, b) => b.date.localeCompare(a.date))
-}
-
 export interface CreateTransactionInput {
   accountId: string
   categoryId: string
