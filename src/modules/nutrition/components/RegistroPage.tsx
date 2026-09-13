@@ -30,6 +30,7 @@ import { weekDates } from '../lib/weekStrip'
 import { AddEntryForm } from './AddEntryForm'
 import { EntryEditor } from './EntryEditor'
 import { EntryRow } from './EntryRow'
+import { WaterSection } from './WaterSection'
 import { WeekStrip } from './WeekStrip'
 
 function MacroCard({
@@ -180,6 +181,10 @@ export function RegistroPage() {
           target={activePlan?.targetFatG ?? null}
         />
       </div>
+
+      {/* El agua es un total del día, como los macros, no una comida: va antes
+          de las secciones y no entre ellas. */}
+      <WaterSection dateKey={dateKey} />
 
       {sections?.map((section) => {
         const sectionEntries = (entries ?? [])
