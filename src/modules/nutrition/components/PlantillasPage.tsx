@@ -193,9 +193,20 @@ export function PlantillasPage() {
                   <p className="empty-hint">Sin alimentos todavía.</p>
                 )}
               </div>
-              {addingToSectionId === section.id ? (
+              {/* El "+" no desaparece al abrir: el panel flota por encima. */}
+              <button
+                type="button"
+                className="nutrition-add-pill"
+                aria-label={`Agregar a ${section.name}`}
+                onClick={() => setAddingToSectionId(section.id)}
+              >
+                +
+              </button>
+              {addingToSectionId === section.id && (
                 <AddEntryForm
                   foods={foods ?? []}
+                  title={`Agregar a ${section.name}`}
+                  subtitle={openTemplate.name}
                   onAddFood={async (foodId, quantity, notes) => {
                     await addFoodEntryToTemplate({
                       templateId: openTemplateId,
@@ -214,15 +225,6 @@ export function PlantillasPage() {
                   }}
                   onDone={() => setAddingToSectionId(null)}
                 />
-              ) : (
-                <button
-                  type="button"
-                  className="nutrition-add-pill"
-                  aria-label={`Agregar a ${section.name}`}
-                  onClick={() => setAddingToSectionId(section.id)}
-                >
-                  +
-                </button>
               )}
             </section>
           )
@@ -245,7 +247,6 @@ export function PlantillasPage() {
                 value={newSectionName}
                 onChange={(e) => setNewSectionName(e.target.value)}
                 placeholder="Ej. Snack 1"
-                autoFocus
                 required
               />
             </label>
@@ -307,7 +308,6 @@ export function PlantillasPage() {
               value={newTemplateName}
               onChange={(e) => setNewTemplateName(e.target.value)}
               placeholder="Ej. Día de entrenamiento"
-              autoFocus
               required
             />
           </label>

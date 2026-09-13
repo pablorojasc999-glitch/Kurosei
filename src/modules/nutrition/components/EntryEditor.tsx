@@ -90,7 +90,6 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
               value={quantity}
               onChange={(e) => setQuantity(e.target.value)}
               required
-              autoFocus
             />
           </label>
           {error && <p className="error">{error}</p>}
@@ -112,7 +111,6 @@ export function EntryEditor({ entry, food, onSaveQuantity, onSaveManual }: Entry
             value={manualName}
             onChange={(e) => setManualName(e.target.value)}
             required
-            autoFocus
           />
         </label>
         <label>

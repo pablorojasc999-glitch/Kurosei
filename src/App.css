@@ -2659,11 +2659,6 @@ section {
 }
 
 .nutrition-add-entry {
-  background: var(--surface-3);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 10px;
-  margin-top: 8px;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -2780,25 +2775,263 @@ section {
   color: var(--text);
 }
 
+/* Dentro del panel scrollea el panel entero, así que la lista ya no necesita
+   su propio scroll: anidar dos era lo que hacía difícil llegar al final. */
 .nutrition-food-search-results {
   list-style: none;
   padding: 0;
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  max-height: 220px;
-  overflow-y: auto;
 }
 
-.nutrition-food-search-results li button {
-  width: 100%;
+.nutrition-suggestion-label {
+  display: block;
+  margin-top: 12px;
+  font-size: 10px;
+  line-height: 1.2;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Una fila = elegir (para ajustar la cantidad) o "+" (para agregarla tal cual).
+   El "+" es el atajo de lo que ya comes siempre: no abre nada. */
+.nutrition-food-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.nutrition-food-row > button:first-child {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   text-align: left;
   background: var(--surface-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 8px 10px;
   font-size: 13px;
+}
+
+.nutrition-food-row-emoji {
+  flex: none;
+  font-size: 17px;
+}
+
+.nutrition-food-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nutrition-food-row-qty {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.nutrition-food-row-quick {
+  flex: none;
+  width: 42px;
+  background: var(--accent-dark);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.nutrition-picked-food {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
+
+.nutrition-picked-food .nutrition-food-row-name {
+  font-weight: 600;
+}
+
+/* Ajustar la cantidad sin abrir el teclado. El campo sigue ahí para escribir
+   un valor exacto, pero lo normal es no tocar nada: la porción ya viene puesta. */
+.nutrition-quantity-stepper {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.nutrition-quantity-stepper > button {
+  flex: none;
+  width: 52px;
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.nutrition-quantity-field {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0 12px;
+}
+
+.nutrition-quantity-field input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 19px;
+  padding: 0;
+}
+
+.nutrition-quantity-field input:focus {
+  outline: none;
+}
+
+/* Fuera las flechitas nativas: al lado de los botones − y + son un segundo
+   control para lo mismo, más pequeño y peor de acertar con el dedo. */
+.nutrition-quantity-field input::-webkit-outer-spin-button,
+.nutrition-quantity-field input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.nutrition-quantity-field input {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.nutrition-quantity-field > span {
+  flex: none;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.nutrition-portions {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.nutrition-portions button {
+  background: var(--surface-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  padding: 8px 0;
+  font-size: 13px;
+  min-height: 38px;
+}
+
+.nutrition-portions button.active {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--text);
+}
+
+/* La acción principal queda pegada al pie del panel: da igual cuánto midan los
+   macros o si el teclado está abierto, nunca hay que bajar a buscarla. Los
+   márgenes negativos la sacan del padding del panel para que llegue a los bordes. */
+.nutrition-add-entry-foot {
+  position: sticky;
+  bottom: calc(-14px - env(safe-area-inset-bottom));
+  z-index: 1;
+  margin: 4px -14px calc(-14px - env(safe-area-inset-bottom));
+  padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.nutrition-add-cta {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  background: var(--accent-dark);
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.nutrition-add-cta-kcal {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 13px;
+  opacity: 0.75;
+}
+
+/* Las cuatro cifras en una fila, como la tira de la Bitácora. */
+.nutrition-macro-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  min-width: 0;
+}
+
+.nutrition-macro-strip span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--mono);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.nutrition-macro-strip small {
+  font-family: var(--sans);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.nutrition-micros-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: left;
+  padding: 6px 2px;
+  min-height: 36px;
+}
+
+.nutrition-micros-caret {
+  display: inline-block;
+  transition: transform 0.18s ease;
+}
+
+.nutrition-micros-toggle[aria-expanded='true'] .nutrition-micros-caret {
+  transform: rotate(90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nutrition-micros-caret {
+    transition: none;
+  }
 }
 
 .nutrition-template-grid {

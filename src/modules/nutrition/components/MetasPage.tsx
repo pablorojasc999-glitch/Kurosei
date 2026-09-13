@@ -151,7 +151,6 @@ export function MetasPage() {
               value={form.name}
               onChange={(e) => updateField('name', e.target.value)}
               placeholder="Ej. Volumen"
-              autoFocus
               required
             />
           </label>
