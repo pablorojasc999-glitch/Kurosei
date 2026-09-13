@@ -329,7 +329,6 @@ function ExercisePicker({
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Buscar ejercicio…"
         aria-label="Buscar ejercicio"
-        autoFocus
       />
       <div className="sheet-list">
         {matches.length === 0 && <p className="empty-hint">Nada coincide con esa búsqueda.</p>}

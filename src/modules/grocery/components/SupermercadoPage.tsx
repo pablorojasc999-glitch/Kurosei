@@ -273,7 +273,6 @@ export function SupermercadoPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Leche, arroz, detergente…"
-                  autoFocus
                 />
               </label>
               <label>

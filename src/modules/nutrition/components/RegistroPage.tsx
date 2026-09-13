@@ -66,6 +66,13 @@ function MacroCard({
   )
 }
 
+/** La fecha del panel, en la misma forma que el resto de la app la escribe. */
+function formatDateSubtitle(date: Date): string {
+  const weekday = date.toLocaleDateString('es-CL', { weekday: 'long' })
+  const month = date.toLocaleDateString('es-CL', { month: 'long' })
+  return `${weekday} ${date.getDate()} de ${month}`
+}
+
 export function RegistroPage() {
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()))
   const dateKey = toDateKey(selectedDate)
@@ -257,9 +264,20 @@ export function RegistroPage() {
                 <p className="empty-hint">Sin registros todavía.</p>
               )}
             </div>
-            {addingToSectionId === section.id ? (
+            {/* El "+" no desaparece al abrir: el panel flota por encima. */}
+            <button
+              type="button"
+              className="nutrition-add-pill"
+              aria-label={`Agregar a ${section.name}`}
+              onClick={() => setAddingToSectionId(section.id)}
+            >
+              +
+            </button>
+            {addingToSectionId === section.id && (
               <AddEntryForm
                 foods={foods ?? []}
+                title={`Agregar a ${section.name}`}
+                subtitle={formatDateSubtitle(selectedDate)}
                 onAddFood={async (foodId, quantity, notes) => {
                   await addFoodEntry({ date: dateKey, sectionId: section.id, foodId, quantity, notes })
                 }}
@@ -268,15 +286,6 @@ export function RegistroPage() {
                 }}
                 onDone={() => setAddingToSectionId(null)}
               />
-            ) : (
-              <button
-                type="button"
-                className="nutrition-add-pill"
-                aria-label={`Agregar a ${section.name}`}
-                onClick={() => setAddingToSectionId(section.id)}
-              >
-                +
-              </button>
             )}
           </section>
         )
@@ -295,7 +304,6 @@ export function RegistroPage() {
               value={newSectionName}
               onChange={(e) => setNewSectionName(e.target.value)}
               placeholder="Ej. Snack 1"
-              autoFocus
               required
             />
           </label>
