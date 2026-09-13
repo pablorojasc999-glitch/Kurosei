@@ -170,7 +170,12 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [showAddExerciseForm, setShowAddExerciseForm] = useState(false)
   const [newExerciseId, setNewExerciseId] = useState('')
   const [setForms, setSetForms] = useState<Record<string, SetFormState>>({})
-  const [restTargets, setRestTargets] = useState<Record<string, number>>({})
+  // Un solo descanso a la vez, el del ejercicio en el que acabas de anotar.
+  // Antes había un cronómetro por ejercicio con series: tres ejercicios, tres
+  // relojes corriendo y pitando cada uno por su cuenta.
+  const [rest, setRest] = useState<{ sessionExerciseId: string; nonce: number } | null>(
+    null,
+  )
   const [pickedSourceDayId, setPickedSourceDayId] = useState('')
   const [historyReps, setHistoryReps] = useState<Record<string, string>>({})
   const [confirmingReopen, setConfirmingReopen] = useState(false)
@@ -283,6 +288,8 @@ export function SessionView({ dayId }: SessionViewProps) {
         await updateExecutedSet(editingId, input)
       } else {
         await createExecutedSet({ sessionExerciseId, ...input })
+        // El nonce hace que el cronómetro se monte de nuevo y empiece limpio.
+        setRest((prev) => ({ sessionExerciseId, nonce: (prev?.nonce ?? 0) + 1 }))
       }
       setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
       setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
@@ -308,11 +315,7 @@ export function SessionView({ dayId }: SessionViewProps) {
     setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
   }
 
-  function restTargetFor(
-    exerciseId: string,
-    sessionExerciseId: string,
-    nextSetNumber: number,
-  ): number {
+  function restTargetFor(exerciseId: string, nextSetNumber: number): number {
     const plannedExercise = plannedExercises?.find(
       (pe) => pe.exerciseId === exerciseId,
     )
@@ -326,7 +329,7 @@ export function SessionView({ dayId }: SessionViewProps) {
     if (matchingPlannedSet?.restSecondsTarget) {
       return matchingPlannedSet.restSecondsTarget
     }
-    return restTargets[sessionExerciseId] ?? DEFAULT_REST_SECONDS
+    return DEFAULT_REST_SECONDS
   }
 
   if (!session) {
@@ -461,7 +464,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           const form = setForms[se.id] ?? EMPTY_SET_FORM
           const nextSetNumber = sets.length + 1
           const lastSet = sets.at(-1)
-          const target = restTargetFor(se.exerciseId, se.id, nextSetNumber)
+          const target = restTargetFor(se.exerciseId, nextSetNumber)
           const plannedExercise = plannedExercises?.find(
             (pe) => pe.exerciseId === se.exerciseId,
           )
@@ -662,13 +665,11 @@ export function SessionView({ dayId }: SessionViewProps) {
                 )
               )}
 
-              {lastSet && !locked && (
+              {rest?.sessionExerciseId === se.id && !locked && (
                 <RestTimer
-                  key={lastSet.id}
+                  key={rest.nonce}
                   targetSeconds={target}
-                  onTargetSecondsChange={(seconds) =>
-                    setRestTargets((prev) => ({ ...prev, [se.id]: seconds }))
-                  }
+                  onDismiss={() => setRest(null)}
                 />
               )}
 
