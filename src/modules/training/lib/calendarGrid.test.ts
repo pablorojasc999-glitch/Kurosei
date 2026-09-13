@@ -102,9 +102,32 @@ describe('formatDayHeaderLines', () => {
 })
 
 describe('buildMonthGrid', () => {
-  it('always returns 42 days (6 Monday-first weeks)', () => {
-    const grid = buildMonthGrid(startOfMonth(new Date(2026, 1, 1)))
-    expect(grid).toHaveLength(42)
+  it('tiene sólo las semanas que el mes ocupa, no seis siempre', () => {
+    // Septiembre de 2026 cabe en cinco: una sexta fila serían siete días de
+    // octubre ocupando pantalla para no decir nada.
+    expect(buildMonthGrid(startOfMonth(new Date(2026, 8, 1)))).toHaveLength(35)
+  })
+
+  it('usa seis semanas cuando el mes de verdad las cruza', () => {
+    // Marzo de 2026 empieza en domingo y tiene 31 días: no cabe en cinco.
+    expect(buildMonthGrid(startOfMonth(new Date(2026, 2, 1)))).toHaveLength(42)
+  })
+
+  it('usa cuatro cuando el mes encaja justo en la semana', () => {
+    // Febrero de 2027: empieza lunes y tiene 28 días, exactamente cuatro semanas.
+    expect(buildMonthGrid(startOfMonth(new Date(2027, 1, 1)))).toHaveLength(28)
+  })
+
+  it('empieza siempre en el primer lunes que cubre el mes', () => {
+    const grid = buildMonthGrid(startOfMonth(new Date(2026, 8, 1)))
+    expect(grid[0].getDay()).toBe(1)
+    expect(toDateKey(grid[0])).toBe('2026-08-31')
+  })
+
+  it('termina el domingo que cierra la última semana del mes', () => {
+    const grid = buildMonthGrid(startOfMonth(new Date(2026, 8, 1)))
+    expect(grid[grid.length - 1].getDay()).toBe(0)
+    expect(toDateKey(grid[grid.length - 1])).toBe('2026-10-04')
   })
 
   it('starts on a Monday', () => {
