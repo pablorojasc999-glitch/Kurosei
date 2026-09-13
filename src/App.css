@@ -1544,27 +1544,37 @@ section {
   flex: none;
 }
 
-.bitacora-profile {
-  margin-bottom: 10px;
-}
-
-.bitacora-profile-summary {
+/* El botón de perfil vive en la línea del título: dentro del resumen le
+   robaba el ancho y el último dato (% músculo) se salía de la tarjeta. */
+.bitacora-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-size: 12px;
-  line-height: 1.35;
-  color: var(--text-muted);
+  margin-bottom: 8px;
 }
 
-/* El botón no puede empujar el resumen a dos líneas. */
-.bitacora-profile-summary button {
+.bitacora-header h2 {
+  margin: 0;
+}
+
+.bitacora-header button {
   flex: none;
   min-height: 32px;
   padding: 4px 12px;
   font-size: 12px;
   white-space: nowrap;
+}
+
+.bitacora-profile {
+  margin-bottom: 10px;
+}
+
+.bitacora-profile-summary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-muted);
 }
 
 .bitacora-log-form {
@@ -1576,6 +1586,36 @@ section {
 
 .bitacora-log-form > label {
   gap: 4px;
+}
+
+/* Peso/sueño/pasos y estrés/estimulantes/fatiga: tres campos por fila, con
+   tipografía y padding más apretados para que quepan sin desbordar. */
+.bitacora-log-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  min-width: 0;
+}
+
+.bitacora-log-row label {
+  gap: 4px;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.bitacora-log-row input {
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+/* A un tercio de ancho, "Sin registrar" sólo cabe apretando tipografía y
+   padding; el desplegable nativo se queda con el resto para la flecha. */
+.bitacora-log-row select {
+  min-width: 0;
+  padding: 0 2px 0 6px;
+  font-size: 12px;
 }
 
 .bitacora-supplements {
@@ -1601,14 +1641,6 @@ section {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: 6px 10px;
-}
-
-.bitacora-intake-label {
-  font-size: 10px;
-  line-height: 1.2;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--text-muted);
 }
 
 .bitacora-intake-stats {
@@ -2483,9 +2515,6 @@ section {
   padding: 12px 14px;
 }
 
-.bitacora-section > h2 {
-  margin-bottom: 8px;
-}
 
 .nutrition-meal-section-header {
   display: flex;
