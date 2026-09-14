@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatNutrient, scaleNutrientProfile } from './nutrients'
+import { formatNutrient, formatSummaryAmount, scaleNutrientProfile } from './nutrients'
 
 const BASE = {
   servingAmount: 166,
@@ -58,5 +58,22 @@ describe('formatNutrient', () => {
     expect(formatNutrient(47.5)).toBe('47.5')
     expect(formatNutrient(0)).toBe('0.0')
     expect(formatNutrient(11.456)).toBe('11.5')
+  })
+})
+
+describe('formatSummaryAmount', () => {
+  it('redondea: el resumen del día se lee de un vistazo, no se mide', () => {
+    expect(formatSummaryAmount(0)).toBe('0')
+    expect(formatSummaryAmount(156.4)).toBe('156')
+    expect(formatSummaryAmount(156.6)).toBe('157')
+  })
+
+  it('separa los miles', () => {
+    expect(formatSummaryAmount(2222)).toBe('2.222')
+    expect(formatSummaryAmount(1543.7)).toBe('1.544')
+  })
+
+  it('no muestra un cero negativo', () => {
+    expect(formatSummaryAmount(-0.2)).toBe('0')
   })
 })
