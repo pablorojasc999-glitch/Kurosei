@@ -33,6 +33,17 @@ export function formatNutrient(n: number): string {
   return n.toFixed(1)
 }
 
+/**
+ * El total del día en el resumen va redondeado y con separador de miles: es un
+ * número que se lee de un vistazo. El decimal queda para el detalle de cada
+ * alimento, donde sí importa la diferencia entre 12,4 y 12,6 g.
+ */
+export function formatSummaryAmount(n: number): string {
+  // -0 se formatea como "-0" y en un total no tiene sentido mostrarlo.
+  const rounded = Math.round(n) || 0
+  return rounded.toLocaleString('es-CL')
+}
+
 /** Scales every field of a food's full nutrient panel (macros + micros) to `quantity` in the same unit as its `servingAmount`. Null micronutrients stay null. */
 export function scaleNutrientProfile(
   food: NutrientProfile & { servingAmount: number },

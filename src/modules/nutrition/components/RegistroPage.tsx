@@ -21,10 +21,10 @@ import {
   updateFoodEntryQuantity,
   updateManualEntry,
 } from '../db/nutritionRepository'
-import type { NutritionEntry } from '../domain/types'
+import type { NutritionEntry, NutritionGoalPlan } from '../domain/types'
 import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans'
 import type { MacroTotals } from '../lib/macros'
-import { formatNutrient } from '../lib/nutrients'
+import { formatNutrient, formatSummaryAmount } from '../lib/nutrients'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { weekDates } from '../lib/weekStrip'
 import { AddEntryForm } from './AddEntryForm'
@@ -33,36 +33,71 @@ import { EntryRow } from './EntryRow'
 import { WaterSection } from './WaterSection'
 import { WeekStrip } from './WeekStrip'
 
-function MacroCard({
+/** La barra de avance de un macro. Sin meta no hay contra qué avanzar, así que no se dibuja. */
+function ProgressBar({ consumed, target }: { consumed: number; target: number | null }) {
+  if (target === null) return null
+  return (
+    <div className="nutrition-progress-track">
+      <div
+        className="nutrition-progress-fill"
+        style={{ width: `${progressPercent(consumed, target)}%` }}
+      />
+    </div>
+  )
+}
+
+/** Uno de los tres macros de la fila de abajo: nombre, consumido sobre meta, y avance. */
+function MacroStat({
   label,
   consumed,
-  unit,
   target,
 }: {
   label: string
   consumed: number
-  unit: string
   target: number | null
 }) {
   return (
-    <div className="finance-summary-card">
-      <span>{label}</span>
-      <strong>
-        {formatNutrient(consumed)}
-        {unit}
-        {target !== null && (
-          <span className="nutrition-progress-goal"> / {formatNutrient(target)}{unit}</span>
-        )}
-      </strong>
-      {target !== null && (
-        <div className="nutrition-progress-track">
-          <div
-            className="nutrition-progress-fill"
-            style={{ width: `${progressPercent(consumed, target)}%` }}
-          />
-        </div>
-      )}
+    <div className="nutrition-summary-macro">
+      <span className="nutrition-summary-macro-label">{label}</span>
+      <p className="nutrition-summary-macro-value">
+        <strong>{formatSummaryAmount(consumed)}</strong>
+        {target !== null && <span> / {formatSummaryAmount(target)}</span>}
+        <span className="nutrition-summary-unit"> g</span>
+      </p>
+      <ProgressBar consumed={consumed} target={target} />
     </div>
+  )
+}
+
+/**
+ * El resumen del día: las calorías mandan y por eso van solas arriba, grandes y
+ * centradas; los tres macros quedan abajo repartidos en columnas.
+ *
+ * Los totales van redondeados a propósito: acá se mira de reojo cuánto queda,
+ * no se pesa nada.
+ */
+function DaySummary({
+  totals,
+  plan,
+}: {
+  totals: MacroTotals
+  plan: NutritionGoalPlan | null
+}) {
+  return (
+    <section className="nutrition-summary">
+      <span className="nutrition-summary-label">kcal</span>
+      <p className="nutrition-summary-value">
+        <strong>{formatSummaryAmount(totals.calories)}</strong>
+        {plan && <span> / {formatSummaryAmount(plan.targetCalories)}</span>}
+      </p>
+      <ProgressBar consumed={totals.calories} target={plan?.targetCalories ?? null} />
+
+      <div className="nutrition-summary-macros">
+        <MacroStat label="Proteínas" consumed={totals.proteinG} target={plan?.targetProteinG ?? null} />
+        <MacroStat label="Carbs" consumed={totals.carbsG} target={plan?.targetCarbsG ?? null} />
+        <MacroStat label="Grasas" consumed={totals.fatG} target={plan?.targetFatG ?? null} />
+      </div>
+    </section>
   )
 }
 
@@ -162,32 +197,7 @@ export function RegistroPage() {
         </button>
       </div>
 
-      <div className="finance-summary-row">
-        <MacroCard
-          label="Calorías"
-          consumed={dayTotals.calories}
-          unit=""
-          target={activePlan?.targetCalories ?? null}
-        />
-        <MacroCard
-          label="Proteínas"
-          consumed={dayTotals.proteinG}
-          unit=" g"
-          target={activePlan?.targetProteinG ?? null}
-        />
-        <MacroCard
-          label="Carbos"
-          consumed={dayTotals.carbsG}
-          unit=" g"
-          target={activePlan?.targetCarbsG ?? null}
-        />
-        <MacroCard
-          label="Grasas"
-          consumed={dayTotals.fatG}
-          unit=" g"
-          target={activePlan?.targetFatG ?? null}
-        />
-      </div>
+      <DaySummary totals={dayTotals} plan={activePlan ?? null} />
 
       {/* El agua es un total del día, como los macros, no una comida: va antes
           de las secciones y no entre ellas. */}

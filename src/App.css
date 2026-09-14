@@ -4382,3 +4382,97 @@ button.macro-cell {
   align-items: center;
   gap: 3px;
 }
+
+/* ---- Resumen del día en Nutrición ---------------------------------------
+   Las calorías mandan: van solas arriba, grandes y centradas. Los tres macros
+   quedan abajo repartidos en columnas, cada uno con su barra de avance. */
+
+.nutrition-summary {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 14px 14px;
+  margin-bottom: 16px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.nutrition-summary-label {
+  align-self: center;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.nutrition-summary-value {
+  align-self: center;
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  /* Se achica en pantallas angostas en vez de desbordar la tarjeta: un día de
+     5 cifras de kcal no cabe a 320px al tamaño grande. */
+  font-size: clamp(22px, 7.2vw, 30px);
+  line-height: 1.15;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.nutrition-summary-value strong {
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* La barra de las calorías respira más que las de los macros: es la que se
+   mira primero. */
+.nutrition-summary > .nutrition-progress-track {
+  margin-top: 12px;
+  height: 7px;
+}
+
+.nutrition-summary-macros {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.nutrition-summary-macro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+
+.nutrition-summary-macro-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.nutrition-summary-macro-value {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  /* Tres columnas iguales: el ancho disponible es un tercio, así que el número
+     tiene que encogerse con la pantalla o se sale de la tarjeta. */
+  font-size: clamp(11px, 3.4vw, 16px);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.nutrition-summary-macro-value strong {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.nutrition-summary-unit {
+  font-size: 0.82em;
+}
+
+.nutrition-summary-macro .nutrition-progress-track {
+  align-self: stretch;
+  margin-top: 8px;
+}
+
+/* Sobre el fondo de la tarjeta, --surface-3 queda casi invisible: sin ver el
+   riel entero no se lee cuánto falta, que es justamente el punto. */
+.nutrition-summary .nutrition-progress-track {
+  background: var(--border);
+}
