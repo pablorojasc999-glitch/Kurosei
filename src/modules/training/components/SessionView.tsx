@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { db } from '../../../shared/db/database'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
@@ -9,6 +9,7 @@ import {
   deleteSession,
   deleteSessionExercise,
   endSession,
+  updateSessionTimes,
   getSessionForDay,
   reopenSession,
   reorderSessionExercise,
@@ -28,11 +29,12 @@ import { SessionSummary } from './SessionSummary'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import {
-  clearSessionTimerState,
-  loadSessionTimerState,
-  saveSessionTimerState,
-  tickSessionTimer,
-} from '../lib/sessionTimer'
+  endIsoFromTime,
+  formatSessionDuration,
+  sessionDurationMinutes,
+  toTimeInput,
+  withTimeOfDay,
+} from '../lib/sessionTimes'
 import type { ExecutedSet, SessionExercise } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
@@ -46,15 +48,6 @@ function e1rmSuffix(set: Pick<ExecutedSet, 'weightKg' | 'reps' | 'rpe'>): string
     rpe: set.rpe ?? undefined,
   })
   return ` · e1RM ${Math.round(e1rm)}`
-}
-
-function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-  return [hours, minutes, seconds]
-    .map((v) => v.toString().padStart(2, '0'))
-    .join(':')
 }
 
 interface SetFormState {
@@ -113,59 +106,6 @@ export function SessionView({ dayId }: SessionViewProps) {
     () => listPlannedDaysWithExercises(),
     [],
   )
-
-  const [runningElapsed, setRunningElapsed] = useState(0)
-  useEffect(() => {
-    if (!session) return
-    if (session.endedAt) {
-      clearSessionTimerState(session.id)
-      return
-    }
-    const startedAtMs = new Date(session.startedAt).getTime()
-    // Seed from the persisted state if there is one; otherwise (a session
-    // already running before this device ever recorded one) seed from the
-    // real elapsed time so it doesn't visually reset to zero.
-    let state =
-      loadSessionTimerState(session.id) ??
-      {
-        activeSeconds: Math.max(0, Math.floor((Date.now() - startedAtMs) / 1000)),
-        lastActivityAt: Date.now(),
-      }
-
-    function tick() {
-      setRunningElapsed(state.activeSeconds)
-    }
-    tick()
-
-    function registerActivity() {
-      state = { ...state, lastActivityAt: Date.now() }
-    }
-    const activityEvents = ['pointerdown', 'keydown'] as const
-    for (const eventName of activityEvents) {
-      window.addEventListener(eventName, registerActivity)
-    }
-
-    const interval = window.setInterval(() => {
-      state = tickSessionTimer(state, Date.now())
-      tick()
-      saveSessionTimerState(session.id, state)
-    }, 1000)
-
-    return () => {
-      window.clearInterval(interval)
-      for (const eventName of activityEvents) {
-        window.removeEventListener(eventName, registerActivity)
-      }
-    }
-  }, [session])
-
-  const elapsed = session?.endedAt
-    ? Math.floor(
-        (new Date(session.endedAt).getTime() -
-          new Date(session.startedAt).getTime()) /
-          1000,
-      )
-    : runningElapsed
 
   const [showAddExerciseForm, setShowAddExerciseForm] = useState(false)
   const [newExerciseId, setNewExerciseId] = useState('')
@@ -373,10 +313,58 @@ export function SessionView({ dayId }: SessionViewProps) {
     )
   }
 
+  const durationMinutes = sessionDurationMinutes(session.startedAt, session.endedAt)
+
+  // Las horas se corrigen a mano porque casi nunca se abre la app justo al
+  // entrar y justo al salir del gimnasio.
+  async function handleStartTimeChange(time: string) {
+    if (!session) return
+    const startedAt = withTimeOfDay(session.startedAt, time)
+    if (!startedAt) return
+    // Moviendo el inicio, el término se recalcula sobre la hora que ya tenía
+    // para que no quede colgado en el día anterior.
+    const endedAt = session.endedAt
+      ? endIsoFromTime(startedAt, toTimeInput(session.endedAt))
+      : undefined
+    await updateSessionTimes(session.id, { startedAt, ...(endedAt ? { endedAt } : {}) })
+  }
+
+  async function handleEndTimeChange(time: string) {
+    if (!session) return
+    // Borrar la hora de término deja la sesión abierta otra vez.
+    if (time === '') {
+      await updateSessionTimes(session.id, { endedAt: null })
+      return
+    }
+    const endedAt = endIsoFromTime(session.startedAt, time)
+    if (!endedAt) return
+    await updateSessionTimes(session.id, { endedAt })
+  }
+
   return (
     <div>
       <div className="session-header">
-        <span className="session-duration numeric">{formatDuration(elapsed)}</span>
+        <div className="session-times">
+          <label className="session-time">
+            <span>Inicio</span>
+            <input
+              type="time"
+              value={toTimeInput(session.startedAt)}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
+            />
+          </label>
+          <label className="session-time">
+            <span>Término</span>
+            <input
+              type="time"
+              value={session.endedAt ? toTimeInput(session.endedAt) : ''}
+              onChange={(e) => handleEndTimeChange(e.target.value)}
+            />
+          </label>
+          <span className="session-duration numeric">
+            {durationMinutes === null ? '—' : formatSessionDuration(durationMinutes)}
+          </span>
+        </div>
         <div className="session-header-actions">
           {session.endedAt ? (
             <button type="button" onClick={() => setConfirmingReopen(true)}>

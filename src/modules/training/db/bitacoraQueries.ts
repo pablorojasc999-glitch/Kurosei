@@ -1,6 +1,7 @@
 import { db } from '../../../shared/db/database'
 import { toDateKey } from '../lib/calendarGrid'
 import type { DateRange } from '../lib/progressScope'
+import { sessionDurationMinutes } from '../lib/sessionTimes'
 
 export interface DailyMetric {
   date: string
@@ -28,6 +29,8 @@ export interface DailyMetric {
   strengthSetCount: number
   /** True if a strength session was started that day (finished or not). */
   hadStrengthSession: boolean
+  /** Minutos que duró la sesión de fuerza, si tiene anotadas las dos horas. */
+  strengthMinutes: number | null
 }
 
 /**
@@ -80,11 +83,18 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
 
   const sessionIdToDateKey = new Map<string, string>()
   const hadStrengthSessionDates = new Set<string>()
+  // Si un día tuviera más de una sesión, los minutos se suman: fue todo tiempo
+  // entrenando ese día.
+  const strengthMinutesByDate = new Map<string, number>()
   for (const s of sessions) {
     const dateKey = dayIdToDateKey.get(s.dayId)
     if (!dateKey) continue
     hadStrengthSessionDates.add(dateKey)
     sessionIdToDateKey.set(s.id, dateKey)
+    const minutes = sessionDurationMinutes(s.startedAt, s.endedAt)
+    if (minutes !== null) {
+      strengthMinutesByDate.set(dateKey, (strengthMinutesByDate.get(dateKey) ?? 0) + minutes)
+    }
   }
   const relevantSessionIds = new Set(sessionIdToDateKey.keys())
 
@@ -141,6 +151,7 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
       cardioDistanceKm: cardioDistanceByDate.get(date) ?? 0,
       strengthSetCount: strengthSetCountByDate.get(date) ?? 0,
       hadStrengthSession: hadStrengthSessionDates.has(date),
+      strengthMinutes: strengthMinutesByDate.get(date) ?? null,
     }
   })
 }

@@ -848,7 +848,8 @@ section {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px 8px;
   margin-bottom: 16px;
 }
 
@@ -859,8 +860,36 @@ section {
   gap: 8px;
 }
 
+/* Las horas se escriben a mano, así que la cabecera lleva los dos campos y la
+   duración que sale de ellos, ya no un cronómetro corriendo. */
+/* Fila propia: con los botones al lado los dos campos se apilaban, y la hora
+   de inicio y la de término se leen juntas o no se leen. */
+.session-times {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+}
+
+.session-time {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.session-time input {
+  min-height: 36px;
+  padding: 4px 6px;
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
 .session-duration {
-  font-size: 24px;
+  align-self: center;
+  font-size: 17px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   color: var(--accent);
@@ -1066,6 +1095,49 @@ section {
   border-radius: 8px;
   padding: 8px 10px;
   margin-bottom: 10px;
+}
+
+.rep-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+/* Dos opciones excluyentes, pegadas como un interruptor: se ve de inmediato
+   cuál de las dos está mirando. */
+.rep-history-modes {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.rep-history-mode {
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.rep-history-mode--on {
+  background: var(--accent-bg);
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+.rep-history-more {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .rep-history-title {

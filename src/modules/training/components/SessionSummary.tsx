@@ -3,6 +3,7 @@ import { db } from '../../../shared/db/database'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
 import { calculateE1rm } from '../lib/e1rm'
 import { isNewPR, muscleGroupVolume, tonnage } from '../lib/metrics'
+import { mergeMuscleGroupTotals } from '../lib/muscleGroupTotals'
 
 interface SessionSummaryProps {
   sessionId: string
@@ -52,6 +53,7 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
     contributionsByExercise.set(c.exerciseId, list)
   }
   const volumeByGroup = muscleGroupVolume(thisSessionSets, contributionsByExercise)
+  const volumeTotals = mergeMuscleGroupTotals(volumeByGroup, muscleGroupName)
 
   function exerciseName(id: string): string {
     return exercises?.find((e) => e.id === id)?.name ?? '?'
@@ -115,11 +117,11 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
       <p className="summary-tonnage numeric">{Math.round(thisTonnage)} kg de tonelaje</p>
       {isSessionVolumePR && <span className="pr-badge">🏆 PR de volumen de sesión</span>}
 
-      {volumeByGroup.size > 0 && (
+      {volumeTotals.length > 0 && (
         <div className="muscle-volume-list">
-          {[...volumeByGroup.entries()].map(([groupId, sets]) => (
-            <span key={groupId} className="muscle-volume-chip">
-              {muscleGroupName(groupId)}: {sets.toFixed(1)} series
+          {volumeTotals.map((g) => (
+            <span key={g.key} className="muscle-volume-chip">
+              {g.name}: {g.value.toFixed(1)} series
             </span>
           ))}
         </div>

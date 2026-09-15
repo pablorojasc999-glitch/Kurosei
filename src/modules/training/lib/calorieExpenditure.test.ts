@@ -5,6 +5,8 @@ import {
   estimateCalorieExpenditure,
   estimateStrengthMinutesFromSetCount,
   estimateStrengthSessionCalories,
+  strengthMetForDensity,
+  strengthSessionMinutes,
 } from './calorieExpenditure'
 
 describe('calculateAge', () => {
@@ -41,15 +43,15 @@ describe('estimateStrengthMinutesFromSetCount', () => {
 })
 
 describe('estimateStrengthSessionCalories', () => {
-  it('scales linearly with set count and body weight', () => {
-    const tenSets = estimateStrengthSessionCalories({ weightKg: 80, setCount: 10 })
+  it('sin horas anotadas, escala con el número de series y el peso corporal', () => {
+    const tenSets = estimateStrengthSessionCalories({ weightKg: 80, setCount: 10, loggedMinutes: null })
     expect(tenSets).toBeCloseTo(6 * 80 * (40 / 60))
-    const fiveSets = estimateStrengthSessionCalories({ weightKg: 80, setCount: 5 })
+    const fiveSets = estimateStrengthSessionCalories({ weightKg: 80, setCount: 5, loggedMinutes: null })
     expect(fiveSets).toBeCloseTo(tenSets / 2)
   })
 
-  it('is 0 with no sets', () => {
-    expect(estimateStrengthSessionCalories({ weightKg: 80, setCount: 0 })).toBe(0)
+  it('sin series no hay gasto', () => {
+    expect(estimateStrengthSessionCalories({ weightKg: 80, setCount: 0, loggedMinutes: null })).toBe(0)
   })
 })
 
@@ -64,6 +66,7 @@ describe('estimateCalorieExpenditure', () => {
       targetDate,
       cardioCaloriesBurned: 300,
       strengthSetCount: 10,
+      strengthMinutes: null,
     })
     const expectedBmr = bmrMifflinStJeor({
       weightKg: 80,
@@ -71,7 +74,69 @@ describe('estimateCalorieExpenditure', () => {
       age: calculateAge('1998-01-15', targetDate),
       sex: 'male',
     })
-    const expectedStrength = estimateStrengthSessionCalories({ weightKg: 80, setCount: 10 })
+    const expectedStrength = estimateStrengthSessionCalories({ weightKg: 80, setCount: 10, loggedMinutes: null })
     expect(total).toBeCloseTo(expectedBmr + expectedStrength + 300)
+  })
+})
+
+describe('strengthMetForDensity', () => {
+  it('una sesión densa cuenta como vigorosa', () => {
+    // 20 series en 90 min = 13.3 series/hora.
+    expect(strengthMetForDensity(20, 90)).toBe(6)
+  })
+
+  it('una sesión mayormente de descanso cuenta como moderada', () => {
+    // 6 series en 90 min = 4 series/hora.
+    expect(strengthMetForDensity(6, 90)).toBe(3.5)
+  })
+
+  it('en el medio interpola', () => {
+    // 9 series/hora: justo a mitad de camino entre 6 y 12.
+    expect(strengthMetForDensity(9, 60)).toBeCloseTo(4.75)
+  })
+
+  it('sin duración no se castiga: se asume vigorosa', () => {
+    expect(strengthMetForDensity(10, 0)).toBe(6)
+  })
+})
+
+describe('strengthSessionMinutes', () => {
+  it('manda la duración real cuando existe', () => {
+    expect(strengthSessionMinutes(10, 75)).toBe(75)
+  })
+
+  it('sin duración real cae a la estimación por series', () => {
+    expect(strengthSessionMinutes(10, null)).toBe(40)
+    expect(strengthSessionMinutes(10, 0)).toBe(40)
+  })
+})
+
+describe('estimateStrengthSessionCalories con la duración real', () => {
+  it('usa los minutos anotados en vez de estimarlos', () => {
+    // 20 series en 90 min: densa, así que 6 MET sobre 1.5 h.
+    const conHoras = estimateStrengthSessionCalories({ weightKg: 80, setCount: 20, loggedMinutes: 90 })
+    expect(conHoras).toBeCloseTo(6 * 80 * 1.5)
+  })
+
+  it('quedarse de más entre series no infla el gasto sin límite', () => {
+    // Las mismas 20 series, pero en el doble de tiempo: el MET baja, así que
+    // el gasto sube menos que al doble.
+    const denso = estimateStrengthSessionCalories({ weightKg: 80, setCount: 20, loggedMinutes: 90 })
+    const lento = estimateStrengthSessionCalories({ weightKg: 80, setCount: 20, loggedMinutes: 180 })
+    expect(lento).toBeGreaterThan(denso)
+    expect(lento).toBeLessThan(denso * 2)
+  })
+
+  it('una sesión corta y densa no queda subestimada', () => {
+    // 15 series en 45 min = 20 series/hora: vigorosa.
+    expect(
+      estimateStrengthSessionCalories({ weightKg: 80, setCount: 15, loggedMinutes: 45 }),
+    ).toBeCloseTo(6 * 80 * 0.75)
+  })
+
+  it('sin series no hay gasto aunque haya horas anotadas', () => {
+    expect(
+      estimateStrengthSessionCalories({ weightKg: 80, setCount: 0, loggedMinutes: 90 }),
+    ).toBe(0)
   })
 })

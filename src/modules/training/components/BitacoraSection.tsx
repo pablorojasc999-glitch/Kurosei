@@ -12,6 +12,7 @@ import { countExecutedSetsForSession, getSessionForDay } from '../db/executionRe
 import { listCardioSessions } from '../db/cardioRepository'
 import { findDayByDate } from '../db/planningRepository'
 import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
+import { sessionDurationMinutes } from '../lib/sessionTimes'
 import { toDateKey } from '../lib/calendarGrid'
 import { formatNutrient } from '../../nutrition/lib/nutrients'
 import type { Sex } from '../domain/types'
@@ -226,6 +227,9 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       targetDate: date,
       cardioCaloriesBurned,
       strengthSetCount: executedSetCount ?? 0,
+      strengthMinutes: session
+        ? sessionDurationMinutes(session.startedAt, session.endedAt)
+        : null,
     })
   }
 
