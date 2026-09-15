@@ -19,6 +19,7 @@ import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate } from '../lib/format'
 import { buildE1rmTrend, muscleGroupStressIndex, muscleGroupVolume } from '../lib/metrics'
+import { mergeMuscleGroupTotals } from '../lib/muscleGroupTotals'
 import { dayRange, inclusiveRange, isWithinRange } from '../lib/progressScope'
 import type { DateRange, ScopeKind } from '../lib/progressScope'
 import {
@@ -190,26 +191,22 @@ export function ProgressPage() {
     list.push({ muscleGroupId: c.muscleGroupId, factor: c.factor })
     contributionsByExercise.set(c.exerciseId, list)
   }
-  const volumeByGroup = [
-    ...muscleGroupVolume(scopedSets, contributionsByExercise).entries(),
-  ].sort((a, b) => b[1] - a[1])
-  const maxVolume = Math.max(1, ...volumeByGroup.map(([, v]) => v))
+  const rawVolumeByGroup = muscleGroupVolume(scopedSets, contributionsByExercise)
+  const volumeByGroup = mergeMuscleGroupTotals(rawVolumeByGroup, muscleGroupName)
+  const maxVolume = Math.max(1, ...volumeByGroup.map((g) => g.value))
 
   const valuesByRegion: Partial<Record<BodyRegionKey, number>> = {}
-  for (const [groupId, value] of volumeByGroup) {
+  for (const [groupId, value] of rawVolumeByGroup) {
     const region = matchBodyRegion(muscleGroupName(groupId))
     if (!region) continue
     valuesByRegion[region] = (valuesByRegion[region] ?? 0) + value
   }
   const maxRegionValue = Math.max(1, ...Object.values(valuesByRegion))
 
-  const stressByGroup = [
-    ...muscleGroupStressIndex(
-      scopedSets,
-      contributionsByExercise,
-      calculateStressIndex,
-    ).entries(),
-  ].sort((a, b) => b[1] - a[1])
+  const stressByGroup = mergeMuscleGroupTotals(
+    muscleGroupStressIndex(scopedSets, contributionsByExercise, calculateStressIndex),
+    muscleGroupName,
+  )
 
   const trendExerciseId = allExerciseIds.includes(selectedExerciseId)
     ? selectedExerciseId
@@ -264,6 +261,7 @@ export function ProgressPage() {
                 targetDate: parseDateInput(m.date),
                 cardioCaloriesBurned: m.cardioCaloriesBurned,
                 strengthSetCount: m.strengthSetCount,
+                strengthMinutes: m.strengthMinutes,
               })
             : null,
       })),
@@ -477,17 +475,17 @@ export function ProgressPage() {
           <p className="empty-hint">Sin series en este periodo.</p>
         ) : (
           <ul className="volume-bars">
-            {volumeByGroup.map(([groupId, value]) => (
-              <li key={groupId} className="volume-bar-row">
-                <span className="volume-bar-label">{muscleGroupName(groupId)}</span>
+            {volumeByGroup.map((g) => (
+              <li key={g.key} className="volume-bar-row">
+                <span className="volume-bar-label">{g.name}</span>
                 <div className="volume-bar-track">
                   <div
                     className="volume-bar-fill"
-                    style={{ width: `${(value / maxVolume) * 100}%` }}
+                    style={{ width: `${(g.value / maxVolume) * 100}%` }}
                   />
                 </div>
                 <span className="volume-bar-value numeric">
-                  {value.toFixed(1)}
+                  {g.value.toFixed(1)}
                 </span>
               </li>
             ))}
@@ -501,12 +499,12 @@ export function ProgressPage() {
           <p className="empty-hint">Sin series con RPE cargado en este periodo.</p>
         ) : (
           <ul className="stress-list">
-            {stressByGroup.map(([groupId, value]) => {
-              const level = classifyStressLevel(value)
+            {stressByGroup.map((g) => {
+              const level = classifyStressLevel(g.value)
               return (
-                <li key={groupId} className={`stress-row stress-row--${level}`}>
-                  <span>{muscleGroupName(groupId)}</span>
-                  <span className="numeric">{value.toFixed(1)}</span>
+                <li key={g.key} className={`stress-row stress-row--${level}`}>
+                  <span>{g.name}</span>
+                  <span className="numeric">{g.value.toFixed(1)}</span>
                   <span className="stress-badge">
                     {STRESS_LEVEL_LABELS[level]}
                   </span>

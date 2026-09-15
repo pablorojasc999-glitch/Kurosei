@@ -1,29 +1,65 @@
 import type { Sex } from '../domain/types'
 
 /**
- * MET for resistance training, vigorous effort. Compendium MET values for
- * resistance training are themselves session-averaged — measured across a
- * typical training session including its natural rest between sets, not
- * just the concentric/eccentric movement — so this MET is meant to be
- * applied over a realistic per-set duration that already has rest baked in,
- * not over isolated "active lifting time".
+ * METs del Compendium para trabajo de fuerza, ya promediados por sesión: se
+ * midieron a lo largo de un entrenamiento completo, con sus descansos entre
+ * series incluidos, no sólo sobre el tiempo bajo la barra. Por eso se aplican
+ * a la duración total de la sesión y no a un "tiempo activo".
+ *
+ * Cuál de los dos corresponde depende de qué tan densa fue la sesión: una hora
+ * haciendo veinte series no es el mismo gasto que una hora haciendo seis.
  */
-const STRENGTH_TRAINING_MET = 6
+const STRENGTH_MET_VIGOROUS = 6
+const STRENGTH_MET_MODERATE = 3.5
 
 /**
- * Assumed average minutes per set, rest included, for powerlifting-style
- * training (heavier loads, longer rest than typical hypertrophy work).
- * Deliberately not derived from timestamps between logged sets: sets are
- * sometimes logged in a batch after several were actually performed (e.g.
- * catching up on a few forgotten entries at once), which would make
- * consecutive `performedAt` gaps meaningless. Set *count* is always
- * complete and reliable, so it's the only signal this estimate depends on.
+ * Series por hora a partir de las cuales la sesión cuenta como vigorosa. Con
+ * descansos de powerlifting (3 a 5 minutos), doce series por hora ya es un
+ * ritmo sostenido; por debajo de seis la sesión es mayormente descanso.
+ */
+const DENSE_SETS_PER_HOUR = 12
+const SPARSE_SETS_PER_HOUR = 6
+
+/**
+ * Minutos por serie que se asumen cuando la sesión no tiene hora de término.
+ * No se deriva de los tiempos entre series registradas: a veces se cargan
+ * varias de una vez al acordarse, y esos intervalos no significan nada. El
+ * conteo de series, en cambio, siempre está completo.
  */
 const MINUTES_PER_SET = 4
 
-/** Estimated session minutes for a session, from its executed set count. */
+/** Minutos estimados de una sesión a partir de cuántas series tuvo. */
 export function estimateStrengthMinutesFromSetCount(setCount: number): number {
   return setCount * MINUTES_PER_SET
+}
+
+/**
+ * El MET que le corresponde a la sesión según su densidad, interpolando entre
+ * moderado y vigoroso.
+ *
+ * Sin esto, anotar la hora real castigaría al que es honesto: quien se queda
+ * dos horas conversando entre series sumaría el doble de calorías que quien
+ * hace el mismo trabajo en una hora.
+ */
+export function strengthMetForDensity(setCount: number, minutes: number): number {
+  if (minutes <= 0) return STRENGTH_MET_VIGOROUS
+  const setsPerHour = setCount / (minutes / 60)
+  if (setsPerHour >= DENSE_SETS_PER_HOUR) return STRENGTH_MET_VIGOROUS
+  if (setsPerHour <= SPARSE_SETS_PER_HOUR) return STRENGTH_MET_MODERATE
+  const t = (setsPerHour - SPARSE_SETS_PER_HOUR) / (DENSE_SETS_PER_HOUR - SPARSE_SETS_PER_HOUR)
+  return STRENGTH_MET_MODERATE + t * (STRENGTH_MET_VIGOROUS - STRENGTH_MET_MODERATE)
+}
+
+/**
+ * Los minutos que se usan para el gasto: los reales si la sesión tiene hora de
+ * inicio y de término, y si no la estimación por series.
+ */
+export function strengthSessionMinutes(
+  setCount: number,
+  loggedMinutes: number | null,
+): number {
+  if (loggedMinutes !== null && loggedMinutes > 0) return loggedMinutes
+  return estimateStrengthMinutesFromSetCount(setCount)
 }
 
 /** Age in whole years at `atDate`, from a `YYYY-MM-DD` birth date. */
@@ -53,15 +89,27 @@ export function bmrMifflinStJeor({ weightKg, heightCm, age, sex }: BmrInput): nu
 export interface StrengthSessionCaloriesInput {
   weightKg: number
   setCount: number
+  /** Duración real de la sesión, cuando tiene anotadas las dos horas. */
+  loggedMinutes: number | null
 }
 
-/** Calories burned during a strength session, from its executed set count. */
+/**
+ * Calorías de una sesión de fuerza.
+ *
+ * Con las horas anotadas se usa la duración real y un MET ajustado a la
+ * densidad de la sesión; sin ellas se cae a la estimación por número de
+ * series, que es lo que había antes y sigue sirviendo para las sesiones
+ * viejas.
+ */
 export function estimateStrengthSessionCalories({
   weightKg,
   setCount,
+  loggedMinutes,
 }: StrengthSessionCaloriesInput): number {
-  const minutes = estimateStrengthMinutesFromSetCount(setCount)
-  return STRENGTH_TRAINING_MET * weightKg * (minutes / 60)
+  if (setCount <= 0) return 0
+  const minutes = strengthSessionMinutes(setCount, loggedMinutes)
+  const met = strengthMetForDensity(setCount, minutes)
+  return met * weightKg * (minutes / 60)
 }
 
 export interface CalorieExpenditureInput {
@@ -72,6 +120,8 @@ export interface CalorieExpenditureInput {
   targetDate: Date
   cardioCaloriesBurned: number
   strengthSetCount: number
+  /** Duración real de la sesión de fuerza, cuando tiene las dos horas anotadas. */
+  strengthMinutes: number | null
 }
 
 /**
@@ -90,6 +140,7 @@ export function estimateCalorieExpenditure(input: CalorieExpenditureInput): numb
   const strengthCalories = estimateStrengthSessionCalories({
     weightKg: input.weightKg,
     setCount: input.strengthSetCount,
+    loggedMinutes: input.strengthMinutes,
   })
   return bmr + strengthCalories + input.cardioCaloriesBurned
 }

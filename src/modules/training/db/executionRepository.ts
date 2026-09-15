@@ -55,6 +55,23 @@ export async function endSession(sessionId: string): Promise<void> {
   })
 }
 
+/**
+ * Corrige a mano las horas de la sesión.
+ *
+ * `endedAt` puede quedar en null para volver a dejarla abierta, que es lo que
+ * hace "Reabrir sesión"; por eso el campo se distingue de "no lo toques"
+ * (ausente) y de "bórralo" (null).
+ */
+export async function updateSessionTimes(
+  sessionId: string,
+  times: { startedAt?: string; endedAt?: string | null },
+): Promise<void> {
+  const changes: Partial<StrengthSession> = { updatedAt: nowIso() }
+  if (times.startedAt !== undefined) changes.startedAt = times.startedAt
+  if (times.endedAt !== undefined) changes.endedAt = times.endedAt
+  await db.training_sessions.update(sessionId, changes)
+}
+
 export async function reopenSession(sessionId: string): Promise<void> {
   await db.training_sessions.update(sessionId, {
     endedAt: null,
