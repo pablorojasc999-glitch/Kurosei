@@ -1,8 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../../../shared/db/database'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
-import { calculateE1rm } from '../lib/e1rm'
-import { isNewPR, muscleGroupVolume, tonnage } from '../lib/metrics'
+import { e1rmForSet } from '../lib/e1rm'
+import { isNewPR, maxOrNull, muscleGroupVolume, tonnage } from '../lib/metrics'
 import { mergeMuscleGroupTotals } from '../lib/muscleGroupTotals'
 
 interface SessionSummaryProps {
@@ -31,10 +31,9 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
     return null
   }
 
-  const setsWithContext = allExecutedSets.map((s) => ({
-    ...s,
-    e1rm: calculateE1rm({ weightKg: s.weightKg ?? 0, reps: s.reps, rpe: s.rpe ?? undefined }),
-  }))
+  // Sin peso anotado no hay e1RM: un ejercicio a peso corporal no marca récord
+  // de carga en cada sesión sólo porque "0" gana cuando no hay nada anterior.
+  const setsWithContext = allExecutedSets.map((s) => ({ ...s, e1rm: e1rmForSet(s) }))
 
   const thisSessionSets = setsWithContext.filter((s) => s.sessionId === sessionId)
   if (thisSessionSets.length === 0) return null
@@ -73,21 +72,24 @@ export function SessionSummary({ sessionId }: SessionSummaryProps) {
       (s) => s.exerciseId === exerciseId,
     )
 
-    const priorMaxWeight = historicalSets.length
-      ? Math.max(...historicalSets.map((s) => s.weightKg ?? 0))
-      : null
-    const bestWeightThisSession = Math.max(
-      ...thisExerciseSets.map((s) => s.weightKg ?? 0),
-    )
-    if (isNewPR(bestWeightThisSession, priorMaxWeight)) {
+    const weights = (sets: typeof thisExerciseSets) =>
+      sets.map((s) => s.weightKg).filter((w): w is number => w !== null)
+    const e1rms = (sets: typeof thisExerciseSets) =>
+      sets.map((s) => s.e1rm).filter((v): v is number => v !== null)
+
+    const bestWeightThisSession = maxOrNull(weights(thisExerciseSets))
+    if (
+      bestWeightThisSession !== null &&
+      isNewPR(bestWeightThisSession, maxOrNull(weights(historicalSets)))
+    ) {
       prs.push({ exerciseId, type: 'weight' })
     }
 
-    const priorMaxE1rm = historicalSets.length
-      ? Math.max(...historicalSets.map((s) => s.e1rm))
-      : null
-    const bestE1rmThisSession = Math.max(...thisExerciseSets.map((s) => s.e1rm))
-    if (isNewPR(bestE1rmThisSession, priorMaxE1rm)) {
+    const bestE1rmThisSession = maxOrNull(e1rms(thisExerciseSets))
+    if (
+      bestE1rmThisSession !== null &&
+      isNewPR(bestE1rmThisSession, maxOrNull(e1rms(historicalSets)))
+    ) {
       prs.push({ exerciseId, type: 'e1rm' })
     }
   }

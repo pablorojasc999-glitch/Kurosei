@@ -75,6 +75,10 @@ export interface PlannedSet extends SyncedEntity {
   targetReps: number
   targetRpe: number | null
   restSecondsTarget: number | null
+  /** Serie descendente. Las series de antes de que existiera el campo lo traen `undefined`, que cuenta igual que `false`. */
+  dropSet: boolean
+  /** Serie con pausas dentro de la misma serie. Igual que `dropSet`: `undefined` cuenta como `false`. */
+  restPause: boolean
 }
 
 export interface StrengthSession extends SyncedEntity {
@@ -101,6 +105,10 @@ export interface ExecutedSet extends SyncedEntity {
   notes: string
   performedAt: string
   restTakenSeconds: number | null
+  /** Serie descendente. Las series de antes de que existiera el campo lo traen `undefined`, que cuenta igual que `false`. */
+  dropSet: boolean
+  /** Serie con pausas dentro de la misma serie. Igual que `dropSet`: `undefined` cuenta como `false`. */
+  restPause: boolean
 }
 
 export interface CardioSession extends SyncedEntity {

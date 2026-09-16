@@ -108,8 +108,7 @@ describe('duplicateWeek', () => {
       targetWeightKg: 100,
       targetReps: 5,
       targetRpe: 8,
-      restSecondsTarget: 180,
-    })
+      restSecondsTarget: 180, dropSet: false, restPause: false })
 
     const newWeek = await duplicateWeek(week.id)
 
@@ -420,15 +419,13 @@ describe('updatePlannedSet', () => {
       targetWeightKg: 100,
       targetReps: 5,
       targetRpe: 8,
-      restSecondsTarget: 120,
-    })
+      restSecondsTarget: 120, dropSet: false, restPause: false })
 
     await updatePlannedSet(plannedSet.id, {
       targetWeightKg: 110,
       targetReps: 3,
       targetRpe: 9,
-      restSecondsTarget: 180,
-    })
+      restSecondsTarget: 180, dropSet: false, restPause: false })
 
     const updated = await db.training_planned_sets.get(plannedSet.id)
     expect(updated).toMatchObject({
@@ -467,8 +464,7 @@ describe('deleteDay', () => {
       targetWeightKg: 100,
       targetReps: 5,
       targetRpe: 8,
-      restSecondsTarget: 180,
-    })
+      restSecondsTarget: 180, dropSet: false, restPause: false })
 
     await deleteDay(day.id)
 
@@ -515,8 +511,7 @@ describe('deleteDay', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
     const cardioSession = await createCardioSession({
       dayId: day.id,
       exerciseId: cardioExercise.id,
@@ -586,8 +581,7 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
       targetWeightKg: 100,
       targetReps: 5,
       targetRpe: 8,
-      restSecondsTarget: 180,
-    })
+      restSecondsTarget: 180, dropSet: false, restPause: false })
 
     await deleteMacrocycle(macrocycle.id)
 
@@ -681,8 +675,7 @@ describe('copyPlannedExercisesToDay', () => {
       targetWeightKg: 100,
       targetReps: 5,
       targetRpe: 8,
-      restSecondsTarget: 180,
-    })
+      restSecondsTarget: 180, dropSet: false, restPause: false })
 
     const targetDay = await createDay({
       weekId: week.id,
@@ -875,8 +868,7 @@ describe('planilla del bloque', () => {
       targetWeightKg: 130,
       targetReps: 3,
       targetRpe: null,
-      restSecondsTarget: null,
-    })
+      restSecondsTarget: null, dropSet: false, restPause: false })
 
     // Otro bloque, que no debe colarse.
     const otro = await seedMesocycle()

@@ -54,6 +54,8 @@ const set = (
   targetReps,
   targetRpe,
   restSecondsTarget: null,
+  dropSet: false,
+  restPause: false,
   ...base,
 })
 const ex = (id: string, name: string): Exercise => ({ id, name, type: 'strength', category: null, ...base })
@@ -98,6 +100,8 @@ const done = (
   notes: '',
   performedAt: '2026-03-02T10:00:00.000Z',
   restTakenSeconds: null,
+  dropSet: false,
+  restPause: false,
   ...base,
 })
 

@@ -66,3 +66,26 @@ describe('rankRepHistory', () => {
     expect(rankRepHistory([], 'recientes')).toEqual([])
   })
 })
+
+describe('rankRepHistory con series sin peso', () => {
+  const sinPeso = (performedAt: string) => ({ performedAt, weightKg: null, reps: 5, rpe: 8 })
+
+  it('en "Mayor e1RM" las series sin peso van al final, no compiten con un cero', () => {
+    const r = rankRepHistory(
+      [sinPeso('2026-03-01'), serie('2026-01-05', 100), sinPeso('2026-02-01')],
+      'e1rm',
+    )
+    expect(r[0].weightKg).toBe(100)
+    expect(r.slice(1).every((s) => s.weightKg === null)).toBe(true)
+  })
+
+  it('entre dos sin peso manda la fecha', () => {
+    const r = rankRepHistory([sinPeso('2026-01-05'), sinPeso('2026-03-01')], 'e1rm')
+    expect(r[0].performedAt).toBe('2026-03-01')
+  })
+
+  it('"Recientes" no las trata distinto', () => {
+    const r = rankRepHistory([serie('2026-01-05', 100), sinPeso('2026-03-01')], 'recientes')
+    expect(r[0].performedAt).toBe('2026-03-01')
+  })
+})

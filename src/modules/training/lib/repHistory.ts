@@ -1,4 +1,4 @@
-import { calculateE1rm } from './e1rm'
+import { e1rmForSet } from './e1rm'
 
 /** Cómo se ordena el historial de un ejercicio a un número de reps dado. */
 export type RepHistoryMode = 'recientes' | 'e1rm'
@@ -22,12 +22,9 @@ export interface RepHistorySet {
   rpe: number | null
 }
 
-export function e1rmOfSet(set: RepHistorySet): number {
-  return calculateE1rm({
-    weightKg: set.weightKg ?? 0,
-    reps: set.reps,
-    rpe: set.rpe ?? undefined,
-  })
+/** Null cuando la serie no tiene peso anotado: no hay 1RM que estimar. */
+export function e1rmOfSet(set: RepHistorySet): number | null {
+  return e1rmForSet(set)
 }
 
 /**
@@ -44,10 +41,16 @@ export function rankRepHistory<T extends RepHistorySet>(
 ): T[] {
   const byDateDesc = (a: T, b: T) =>
     new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime()
-  const sorted = [...sets].sort(
-    mode === 'e1rm'
-      ? (a, b) => e1rmOfSet(b) - e1rmOfSet(a) || byDateDesc(a, b)
-      : byDateDesc,
-  )
+  // Las series sin peso no tienen e1RM, así que en ese orden van al final en
+  // vez de competir con un cero que no significa nada.
+  const byE1rmDesc = (a: T, b: T) => {
+    const ea = e1rmOfSet(a)
+    const eb = e1rmOfSet(b)
+    if (ea === null && eb === null) return byDateDesc(a, b)
+    if (ea === null) return 1
+    if (eb === null) return -1
+    return eb - ea || byDateDesc(a, b)
+  }
+  const sorted = [...sets].sort(mode === 'e1rm' ? byE1rmDesc : byDateDesc)
   return sorted.slice(0, Math.max(0, limit))
 }

@@ -1,3 +1,5 @@
+import { intensifiedFactor, type Intensifiable } from './setIntensifiers'
+
 export interface WeightedSet {
   weightKg: number
   reps: number
@@ -21,7 +23,7 @@ export interface SetWithExercise {
   exerciseId: string
 }
 
-export interface SetWithExerciseAndRpe extends SetWithExercise {
+export interface SetWithExerciseAndRpe extends SetWithExercise, Intensifiable {
   rpe: number | null
 }
 
@@ -34,6 +36,9 @@ export const MIN_RPE_FOR_VOLUME = 6
  * lift contributes partial credit to several groups instead of full credit
  * to each (e.g. a squat at factor 1 for cuádriceps, 1 for glúteos, 0.5 for
  * isquios). Only sets logged at RPE >= 6 count.
+ *
+ * Una serie marcada como drop set o rest pause aporta un 30% más a cada grupo
+ * que trabaja: se llevó más allá del fallo, así que cuesta más que una normal.
  */
 export function muscleGroupVolume(
   sets: SetWithExerciseAndRpe[],
@@ -45,7 +50,7 @@ export function muscleGroupVolume(
     const contributions = contributionsByExercise.get(set.exerciseId) ?? []
     for (const c of contributions) {
       const prior = volumeByGroup.get(c.muscleGroupId) ?? 0
-      volumeByGroup.set(c.muscleGroupId, prior + c.factor)
+      volumeByGroup.set(c.muscleGroupId, prior + intensifiedFactor(c.factor, set))
     }
   }
   return volumeByGroup
@@ -69,7 +74,7 @@ export function muscleGroupStressIndex(
     const contributions = contributionsByExercise.get(set.exerciseId) ?? []
     for (const c of contributions) {
       const prior = stressByGroup.get(c.muscleGroupId) ?? 0
-      stressByGroup.set(c.muscleGroupId, prior + setStress * c.factor)
+      stressByGroup.set(c.muscleGroupId, prior + setStress * intensifiedFactor(c.factor, set))
     }
   }
   return stressByGroup
@@ -77,6 +82,16 @@ export function muscleGroupStressIndex(
 
 export function isNewPR(candidate: number, priorBest: number | null): boolean {
   return priorBest === null || candidate > priorBest
+}
+
+/**
+ * El mayor de una lista, o null si está vacía.
+ *
+ * `Math.max()` sin argumentos da -Infinity, que como "mejor marca" es peor
+ * que no tener ninguna: se cuela en las comparaciones como si fuera un dato.
+ */
+export function maxOrNull(values: number[]): number | null {
+  return values.length === 0 ? null : Math.max(...values)
 }
 
 export interface E1rmTrendPoint {

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   calculateE1rm,
+  e1rmForSet,
   estimateWeightForTarget,
   placeholderE1rmFormula,
   rpeTableE1rmFormula,
@@ -96,5 +97,31 @@ describe('estimateWeightForTarget', () => {
   it('returns null for a non-positive e1RM or rep count', () => {
     expect(estimateWeightForTarget({ e1rm: 0, reps: 5, rpe: 8 })).toBeNull()
     expect(estimateWeightForTarget({ e1rm: 100, reps: 0, rpe: 8 })).toBeNull()
+  })
+})
+
+describe('e1rmForSet', () => {
+  // La fórmula activa es global y otros tests la cambian; se fija acá para
+  // que estas comprobaciones no dependan del orden en que corran.
+  beforeEach(() => {
+    setE1rmFormula(placeholderE1rmFormula)
+  })
+
+  it('una serie sin peso anotado no tiene e1RM', () => {
+    expect(e1rmForSet({ weightKg: null, reps: 10, rpe: 8 })).toBeNull()
+  })
+
+  it('con peso da el mismo número que calcularlo a mano', () => {
+    expect(e1rmForSet({ weightKg: 100, reps: 5, rpe: 8 })).toBe(
+      calculateE1rm({ weightKg: 100, reps: 5, rpe: 8 }),
+    )
+  })
+
+  it('un peso de 0 sí es un dato: se calcula, no se descarta', () => {
+    expect(e1rmForSet({ weightKg: 0, reps: 5, rpe: 8 })).toBe(0)
+  })
+
+  it('sin RPE también se puede estimar', () => {
+    expect(e1rmForSet({ weightKg: 100, reps: 5, rpe: null })).toBeGreaterThan(0)
   })
 })

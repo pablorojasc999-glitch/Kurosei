@@ -16,9 +16,9 @@ import { matchBodyRegion } from '../lib/bodyMap'
 import type { BodyRegionKey } from '../lib/bodyMap'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
-import { calculateE1rm } from '../lib/e1rm'
+import { e1rmForSet } from '../lib/e1rm'
 import { formatDate } from '../lib/format'
-import { buildE1rmTrend, muscleGroupStressIndex, muscleGroupVolume } from '../lib/metrics'
+import { buildE1rmTrend, maxOrNull, muscleGroupStressIndex, muscleGroupVolume } from '../lib/metrics'
 import { mergeMuscleGroupTotals } from '../lib/muscleGroupTotals'
 import { dayRange, inclusiveRange, isWithinRange } from '../lib/progressScope'
 import type { DateRange, ScopeKind } from '../lib/progressScope'
@@ -148,14 +148,8 @@ export function ProgressPage() {
     return muscleGroups?.find((g) => g.id === id)?.name ?? '?'
   }
 
-  const setsWithE1rm = setsWithContext.map((s) => ({
-    ...s,
-    e1rm: calculateE1rm({
-      weightKg: s.weightKg ?? 0,
-      reps: s.reps,
-      rpe: s.rpe ?? undefined,
-    }),
-  }))
+  // e1rm queda null en las series sin peso anotado: no hay 1RM que estimar.
+  const setsWithE1rm = setsWithContext.map((s) => ({ ...s, e1rm: e1rmForSet(s) }))
 
   const allExerciseIds = [...new Set(setsWithE1rm.map((s) => s.exerciseId))].sort((a, b) =>
     exerciseName(a).localeCompare(exerciseName(b)),
@@ -171,14 +165,18 @@ export function ProgressPage() {
 
   const personalRecords = scopedExerciseIds.map((exerciseId) => {
     const sets = scopedSets.filter((s) => s.exerciseId === exerciseId)
-    const maxWeight = Math.max(...sets.map((s) => s.weightKg ?? 0))
-    const maxWeightSet = sets.find((s) => (s.weightKg ?? 0) === maxWeight)
+    // Sólo las series con peso: un ejercicio a peso corporal no tiene "máximo".
+    const withWeight = sets.filter((s) => s.weightKg !== null)
+    const maxWeight = maxOrNull(withWeight.map((s) => s.weightKg as number))
+    const maxWeightSet = withWeight.find((s) => s.weightKg === maxWeight)
     return {
       exerciseId,
       maxWeight,
       maxWeightReps: maxWeightSet?.reps ?? null,
       maxWeightRpe: maxWeightSet?.rpe ?? null,
-      maxE1rm: Math.max(...sets.map((s) => s.e1rm)),
+      maxE1rm: maxOrNull(
+        sets.map((s) => s.e1rm).filter((v): v is number => v !== null),
+      ),
     }
   })
 
@@ -208,12 +206,19 @@ export function ProgressPage() {
     muscleGroupName,
   )
 
+  // Por defecto se abre en un ejercicio que tenga e1RM: los de peso corporal
+  // no lo tienen, y caer en uno alfabéticamente (Abs wheel) mostraba siempre
+  // "sin datos". La elección del selector manda por encima de esto.
+  const firstWithE1rm = allExerciseIds.find((id) =>
+    setsWithE1rm.some((s) => s.exerciseId === id && s.e1rm !== null),
+  )
   const trendExerciseId = allExerciseIds.includes(selectedExerciseId)
     ? selectedExerciseId
-    : allExerciseIds[0]
+    : (firstWithE1rm ?? allExerciseIds[0])
   const trendPoints = buildE1rmTrend(
     scopedSets
       .filter((s) => s.exerciseId === trendExerciseId)
+      .filter((s): s is typeof s & { e1rm: number } => s.e1rm !== null)
       .map((s) => ({ date: s.performedAt, e1rm: s.e1rm })),
   )
   const e1rmSeries: ChartSeries[] = [
@@ -451,11 +456,13 @@ export function ProgressPage() {
                 <span className="pr-row-name">{exerciseName(pr.exerciseId)}</span>
                 <span className="pr-row-stats">
                   <span className="numeric">
-                    {pr.maxWeight} kg
+                    {pr.maxWeight === null ? 'Sin peso anotado' : `${pr.maxWeight} kg`}
                     {pr.maxWeightReps !== null && ` × ${pr.maxWeightReps}`}
                     {pr.maxWeightRpe !== null && ` · RPE ${pr.maxWeightRpe}`}
                   </span>
-                  <span className="numeric pr-row-e1rm">e1RM {Math.round(pr.maxE1rm)}</span>
+                  {pr.maxE1rm !== null && (
+                    <span className="numeric pr-row-e1rm">e1RM {Math.round(pr.maxE1rm)}</span>
+                  )}
                 </span>
               </li>
             ))}
