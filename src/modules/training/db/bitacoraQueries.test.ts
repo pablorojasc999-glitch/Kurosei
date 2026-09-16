@@ -98,16 +98,14 @@ describe('listDailyMetricsInRange', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
     await createExecutedSet({
       sessionExerciseId: sessionExercise.id,
       weightKg: 100,
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
     await endSession(session.id)
 
     const range = inclusiveRange('2026-01-02T00:00:00.000Z', '2026-01-02T00:00:00.000Z')

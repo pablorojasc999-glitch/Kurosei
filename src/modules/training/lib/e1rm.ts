@@ -75,6 +75,30 @@ export function calculateE1rm(input: E1rmInput): number {
   return activeFormula(input)
 }
 
+export interface SetLoad {
+  weightKg: number | null
+  reps: number
+  rpe: number | null
+}
+
+/**
+ * El e1RM de una serie registrada, o null cuando no tiene peso anotado.
+ *
+ * Sin carga no hay 1RM que estimar: un abdominal a peso corporal no vale
+ * "0 kg estimados". Tratar la falta de peso como cero metía ceros en las
+ * tendencias —el eje del gráfico se iba al suelo— y hacía que cualquier
+ * ejercicio sin peso marcara récord en cada sesión, porque 0 siempre gana
+ * cuando no hay nada anterior con qué compararlo.
+ */
+export function e1rmForSet(set: SetLoad): number | null {
+  if (set.weightKg === null) return null
+  return calculateE1rm({
+    weightKg: set.weightKg,
+    reps: set.reps,
+    rpe: set.rpe ?? undefined,
+  })
+}
+
 export interface WeightForTargetInput {
   e1rm: number
   reps: number

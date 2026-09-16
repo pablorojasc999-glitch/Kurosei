@@ -56,6 +56,8 @@ interface SetFormState {
   rpe: string
   eva: string
   notes: string
+  dropSet: boolean
+  restPause: boolean
 }
 
 const EMPTY_SET_FORM: SetFormState = {
@@ -64,6 +66,8 @@ const EMPTY_SET_FORM: SetFormState = {
   rpe: '',
   eva: '',
   notes: '',
+  dropSet: false,
+  restPause: false,
 }
 
 interface SessionViewProps {
@@ -222,6 +226,8 @@ export function SessionView({ dayId }: SessionViewProps) {
         rpe: form.rpe ? Number(form.rpe) : null,
         eva: form.eva ? Number(form.eva) : null,
         notes: form.notes,
+        dropSet: form.dropSet,
+        restPause: form.restPause,
       }
       const editingId = editingSetId[sessionExerciseId]
       if (editingId) {
@@ -245,6 +251,8 @@ export function SessionView({ dayId }: SessionViewProps) {
         rpe: s.rpe !== null ? String(s.rpe) : '',
         eva: s.eva !== null ? String(s.eva) : '',
         notes: s.notes,
+        dropSet: s.dropSet === true,
+        restPause: s.restPause === true,
       },
     }))
     setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: s.id }))
@@ -626,6 +634,8 @@ export function SessionView({ dayId }: SessionViewProps) {
                         {s.weightKg ?? '-'} kg × {s.reps}
                         {s.rpe !== null && ` · RPE ${s.rpe}`}
                         {s.eva !== null && ` · EVA ${s.eva}`}
+                        {s.dropSet === true && <span className="set-tag">drop</span>}
+                        {s.restPause === true && <span className="set-tag">rest-pause</span>}
                         {s.notes && ` · ${s.notes}`}
                         {e1rmSuffix(s)}
                       </span>
@@ -757,6 +767,34 @@ export function SessionView({ dayId }: SessionViewProps) {
                       }
                     />
                   </label>
+                  <div className="set-techniques">
+                    <label className="set-technique">
+                      <input
+                        type="checkbox"
+                        checked={form.dropSet}
+                        onChange={(e) =>
+                          setSetForms((prev) => ({
+                            ...prev,
+                            [se.id]: { ...form, dropSet: e.target.checked },
+                          }))
+                        }
+                      />
+                      Drop set
+                    </label>
+                    <label className="set-technique">
+                      <input
+                        type="checkbox"
+                        checked={form.restPause}
+                        onChange={(e) =>
+                          setSetForms((prev) => ({
+                            ...prev,
+                            [se.id]: { ...form, restPause: e.target.checked },
+                          }))
+                        }
+                      />
+                      Rest pause
+                    </label>
+                  </div>
                   <button
                     type="button"
                     className="add-set-button"

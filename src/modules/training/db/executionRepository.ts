@@ -222,6 +222,8 @@ export interface CreateExecutedSetInput {
   rpe: number | null
   eva: number | null
   notes: string
+  dropSet: boolean
+  restPause: boolean
 }
 
 export async function createExecutedSet(
@@ -261,6 +263,8 @@ export interface UpdateExecutedSetInput {
   rpe: number | null
   eva: number | null
   notes: string
+  dropSet: boolean
+  restPause: boolean
 }
 
 export async function updateExecutedSet(

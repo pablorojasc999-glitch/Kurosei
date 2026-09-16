@@ -191,7 +191,10 @@ export function PeriodizationPage({
   const [newExerciseNotes, setNewExerciseNotes] = useState('')
 
   const [setForms, setSetForms] = useState<
-    Record<string, { weight: string; reps: string; rpe: string; rest: string }>
+    Record<
+      string,
+      { weight: string; reps: string; rpe: string; rest: string; dropSet: boolean; restPause: boolean }
+    >
   >({})
   const [editingSetId, setEditingSetId] = useState<Record<string, string | null>>({})
 
@@ -376,6 +379,8 @@ export function PeriodizationPage({
         targetReps: Number(form.reps),
         targetRpe: form.rpe ? Number(form.rpe) : null,
         restSecondsTarget: form.rest ? Math.round(Number(form.rest) * 60) : null,
+        dropSet: form.dropSet,
+        restPause: form.restPause,
       }
       const editingId = editingSetId[plannedExerciseId]
       if (editingId) {
@@ -385,7 +390,7 @@ export function PeriodizationPage({
       }
       setSetForms((prev) => ({
         ...prev,
-        [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '' },
+        [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '', dropSet: false, restPause: false },
       }))
       setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
     })
@@ -400,6 +405,8 @@ export function PeriodizationPage({
         rpe: s.targetRpe !== null ? String(s.targetRpe) : '',
         rest:
           s.restSecondsTarget !== null ? String(s.restSecondsTarget / 60) : '',
+        dropSet: s.dropSet === true,
+        restPause: s.restPause === true,
       },
     }))
     setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: s.id }))
@@ -408,7 +415,7 @@ export function PeriodizationPage({
   function cancelEditPlannedSet(plannedExerciseId: string) {
     setSetForms((prev) => ({
       ...prev,
-      [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '' },
+      [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '', dropSet: false, restPause: false },
     }))
     setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
   }
@@ -717,7 +724,7 @@ export function PeriodizationPage({
               const sets = (
                 plannedSets?.filter((ps) => ps.plannedExerciseId === pe.id) ?? []
               ).sort((a, b) => a.setNumber - b.setNumber)
-              const form = setForms[pe.id] ?? { weight: '', reps: '', rpe: '', rest: '' }
+              const form = setForms[pe.id] ?? { weight: '', reps: '', rpe: '', rest: '', dropSet: false, restPause: false }
               const exerciseClosed = pe.closedAt !== null
               const locked = dayLocked || exerciseClosed
               const editingId = editingSetId[pe.id]
@@ -780,6 +787,8 @@ export function PeriodizationPage({
                           {s.targetRpe !== null && ` · RPE ${s.targetRpe}`}
                           {s.restSecondsTarget !== null &&
                             ` · ${formatRestMinutes(s.restSecondsTarget)}`}
+                          {s.dropSet === true && <span className="set-tag">drop</span>}
+                          {s.restPause === true && <span className="set-tag">rest-pause</span>}
                         </span>
                         {!locked && (
                           <>
@@ -821,6 +830,24 @@ export function PeriodizationPage({
                         Descanso (min)
                         <input autoComplete="off" type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
                       </label>
+                      <div className="set-techniques">
+                        <label className="set-technique">
+                          <input
+                            type="checkbox"
+                            checked={form.dropSet}
+                            onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, dropSet: e.target.checked } }))}
+                          />
+                          Drop set
+                        </label>
+                        <label className="set-technique">
+                          <input
+                            type="checkbox"
+                            checked={form.restPause}
+                            onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, restPause: e.target.checked } }))}
+                          />
+                          Rest pause
+                        </label>
+                      </div>
                       <button
                         type="button"
                         className="add-set-button"

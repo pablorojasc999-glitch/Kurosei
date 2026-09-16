@@ -195,3 +195,45 @@ describe('needsDeloadAlert', () => {
     expect(needsDeloadAlert([])).toBe(false)
   })
 })
+
+describe('drop sets y rest pauses en el volumen', () => {
+  const contribuciones = new Map([['ex1', [{ muscleGroupId: 'pecho', factor: 0.8 }]]])
+
+  it('una serie normal aporta su factor tal cual', () => {
+    const v = muscleGroupVolume([{ exerciseId: 'ex1', rpe: 8 }], contribuciones)
+    expect(v.get('pecho')).toBeCloseTo(0.8)
+  })
+
+  it('un drop set aporta un 30% más: 0,8 pasa a 1,04', () => {
+    const v = muscleGroupVolume([{ exerciseId: 'ex1', rpe: 8, dropSet: true }], contribuciones)
+    expect(v.get('pecho')).toBeCloseTo(1.04)
+  })
+
+  it('un rest pause aporta lo mismo que un drop set', () => {
+    const v = muscleGroupVolume([{ exerciseId: 'ex1', rpe: 8, restPause: true }], contribuciones)
+    expect(v.get('pecho')).toBeCloseTo(1.04)
+  })
+
+  it('marcar las dos no encadena el bono', () => {
+    const v = muscleGroupVolume(
+      [{ exerciseId: 'ex1', rpe: 8, dropSet: true, restPause: true }],
+      contribuciones,
+    )
+    expect(v.get('pecho')).toBeCloseTo(1.04)
+  })
+
+  it('el estrés por grupo usa el mismo recargo', () => {
+    const normal = muscleGroupStressIndex([{ exerciseId: 'ex1', rpe: 8 }], contribuciones, () => 10)
+    const drop = muscleGroupStressIndex(
+      [{ exerciseId: 'ex1', rpe: 8, dropSet: true }],
+      contribuciones,
+      () => 10,
+    )
+    expect(drop.get('pecho') as number).toBeCloseTo((normal.get('pecho') as number) * 1.3)
+  })
+
+  it('un drop set por debajo del RPE mínimo sigue sin contar', () => {
+    const v = muscleGroupVolume([{ exerciseId: 'ex1', rpe: 4, dropSet: true }], contribuciones)
+    expect(v.get('pecho')).toBeUndefined()
+  })
+})

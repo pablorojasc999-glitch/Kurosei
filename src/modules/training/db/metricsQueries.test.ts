@@ -71,8 +71,7 @@ async function seedTrainingDay(
     targetWeightKg: 100,
     targetReps: 5,
     targetRpe: plannedRpe,
-    restSecondsTarget: 180,
-  })
+    restSecondsTarget: 180, dropSet: false, restPause: false })
 
   if (actualRpe !== undefined) {
     const session = await startSession(day.id)
@@ -87,8 +86,7 @@ async function seedTrainingDay(
       reps: 5,
       rpe: actualRpe,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
   }
 
   return day
@@ -147,8 +145,7 @@ describe('listAllExecutedSetsWithContext', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
 
     const sets = await listAllExecutedSetsWithContext()
     expect(sets).toHaveLength(1)
@@ -180,8 +177,7 @@ describe('listAllExecutedSetsWithContext', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
 
     const sets = await listAllExecutedSetsWithContext()
     expect(sets[0].weekId).toBeNull()

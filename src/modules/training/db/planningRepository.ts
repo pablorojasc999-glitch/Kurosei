@@ -373,6 +373,8 @@ export interface CreatePlannedSetInput {
   targetReps: number
   targetRpe: number | null
   restSecondsTarget: number | null
+  dropSet: boolean
+  restPause: boolean
 }
 
 export async function createPlannedSet(
@@ -400,6 +402,8 @@ export interface UpdatePlannedSetInput {
   targetReps: number
   targetRpe: number | null
   restSecondsTarget: number | null
+  dropSet: boolean
+  restPause: boolean
 }
 
 export async function updatePlannedSet(
@@ -489,6 +493,8 @@ export async function copyPlannedExercisesToDay(
             targetReps: s.targetReps,
             targetRpe: s.targetRpe,
             restSecondsTarget: s.restSecondsTarget,
+            dropSet: s.dropSet === true,
+            restPause: s.restPause === true,
             createdAt: timestamp,
             updatedAt: timestamp,
             deletedAt: null,
@@ -744,6 +750,13 @@ export interface PlannedSetInput {
   targetReps: number
   targetRpe: number | null
   restSecondsTarget: number | null
+  /**
+   * Opcionales a propósito: la planilla y la prescripción uniforme no ofrecen
+   * estos checks, así que omitirlos deja la marca que ya tuviera la serie en
+   * vez de borrarla sin que nadie la haya desmarcado.
+   */
+  dropSet?: boolean
+  restPause?: boolean
 }
 
 /**
@@ -767,13 +780,22 @@ export async function setPlannedSets(
 
   await db.transaction('rw', db.training_planned_sets, async () => {
     for (let i = 0; i < rows.length; i++) {
-      const fields = { ...rows[i], setNumber: i + 1, updatedAt: timestamp }
+      const { dropSet, restPause, ...rest } = rows[i]
+      const fields = {
+        ...rest,
+        setNumber: i + 1,
+        updatedAt: timestamp,
+        ...(dropSet === undefined ? {} : { dropSet }),
+        ...(restPause === undefined ? {} : { restPause }),
+      }
       const current = existing[i]
       if (current) await db.training_planned_sets.update(current.id, fields)
       else {
         await db.training_planned_sets.add({
           id: generateId(),
           plannedExerciseId,
+          dropSet: dropSet === true,
+          restPause: restPause === true,
           ...fields,
           createdAt: timestamp,
           deletedAt: null,
@@ -883,6 +905,8 @@ async function replaceSetsFrom(
       targetReps: s.targetReps,
       targetRpe: s.targetRpe,
       restSecondsTarget: s.restSecondsTarget,
+      dropSet: s.dropSet === true,
+      restPause: s.restPause === true,
     })),
   )
 }

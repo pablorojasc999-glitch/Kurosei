@@ -79,6 +79,20 @@ export function EntryRow({
       aria-expanded={canExpand ? showDetail : undefined}
       aria-label={canExpand ? (showDetail ? 'Cerrar edición' : 'Editar registro') : undefined}
     >
+      {onToggleChecked && (
+        <button
+          type="button"
+          className={`nutrition-entry-checkbox${checked ? ' nutrition-entry-checkbox--checked' : ''}`}
+          aria-pressed={checked}
+          aria-label={checked ? 'Desmarcar como consumido' : 'Marcar como consumido'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleChecked()
+          }}
+        >
+          {checked ? '✓' : ''}
+        </button>
+      )}
       <span className="nutrition-entry-drag-handle" aria-hidden="true">
         ⠿
       </span>
@@ -103,20 +117,6 @@ export function EntryRow({
           <span className="nutrition-entry-macro-item">G {formatNutrient(entry.fatG)}</span>
         </span>
       </span>
-      {onToggleChecked && (
-        <button
-          type="button"
-          className={`nutrition-entry-checkbox${checked ? ' nutrition-entry-checkbox--checked' : ''}`}
-          aria-pressed={checked}
-          aria-label={checked ? 'Desmarcar como consumido' : 'Marcar como consumido'}
-          onClick={(e) => {
-            e.stopPropagation()
-            onToggleChecked()
-          }}
-        >
-          {checked ? '✓' : ''}
-        </button>
-      )}
       <span onClick={(e) => e.stopPropagation()}>
         <ConfirmDeleteButton
           variant="icon"

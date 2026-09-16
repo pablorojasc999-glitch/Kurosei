@@ -139,16 +139,14 @@ describe('createExecutedSet', () => {
       reps: 5,
       rpe: 8,
       eva: 2,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
     const second = await createExecutedSet({
       sessionExerciseId: sessionExercise.id,
       weightKg: 102.5,
       reps: 4,
       rpe: 9,
       eva: 3,
-      notes: 'sensación pesada',
-    })
+      notes: 'sensación pesada', dropSet: false, restPause: false })
 
     expect(first.setNumber).toBe(1)
     expect(second.setNumber).toBe(2)
@@ -170,8 +168,7 @@ describe('createExecutedSet', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
     expect(first.restTakenSeconds).toBeNull()
 
     // simulate the first set having been logged 3 minutes ago
@@ -186,8 +183,7 @@ describe('createExecutedSet', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
     expect(second.restTakenSeconds).toBeGreaterThanOrEqual(179)
     expect(second.restTakenSeconds).toBeLessThanOrEqual(182)
   })
@@ -209,16 +205,14 @@ describe('updateExecutedSet', () => {
       reps: 5,
       rpe: 8,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
 
     await updateExecutedSet(set.id, {
       weightKg: 105,
       reps: 4,
       rpe: 9,
       eva: 3,
-      notes: 'ajustado',
-    })
+      notes: 'ajustado', dropSet: false, restPause: false })
 
     const updated = await db.training_executed_sets.get(set.id)
     expect(updated).toMatchObject({
@@ -334,8 +328,7 @@ describe('countExecutedSetsForSession', () => {
         reps: 5,
         rpe: 8,
         eva: null,
-        notes: '',
-      })
+        notes: '', dropSet: false, restPause: false })
     }
     await createExecutedSet({
       sessionExerciseId: seB.id,
@@ -343,8 +336,7 @@ describe('countExecutedSetsForSession', () => {
       reps: 8,
       rpe: 7,
       eva: null,
-      notes: '',
-    })
+      notes: '', dropSet: false, restPause: false })
 
     expect(await countExecutedSetsForSession(session.id)).toBe(4)
   })

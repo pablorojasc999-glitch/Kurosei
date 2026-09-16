@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { listExecutedSetsForExerciseByReps } from '../db/executionRepository'
 import {
-  e1rmOfSet,
+  e1rmOfSet as e1rmOf,
   rankRepHistory,
   REP_HISTORY_LIMIT,
   REP_HISTORY_MODE_LABELS,
@@ -66,7 +66,7 @@ export function RepHistory({ exerciseId, reps }: RepHistoryProps) {
               {s.weightKg ?? '-'} kg × {s.reps}
               {s.rpe !== null && ` · RPE ${s.rpe}`}
             </span>
-            <span>e1RM {Math.round(e1rmOfSet(s))}</span>
+            <span>{e1rmOf(s) === null ? '—' : `e1RM ${Math.round(e1rmOf(s) as number)}`}</span>
           </li>
         ))}
       </ul>
