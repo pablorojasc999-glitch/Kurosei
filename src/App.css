@@ -4609,7 +4609,7 @@ button.macro-cell {
    Vista de escritorio
    ---------------------------------------------------------------------------
    Todo lo de acá abajo vive dentro de una sola media query de ancho mínimo, y
-   el resto de la hoja no tiene ninguna: por debajo de 1024px no cambia nada,
+   el resto de la hoja no tiene ninguna: por debajo de 960px no cambia nada,
    la vista de teléfono es exactamente la que había.
 
    Tres movimientos, ningún cambio de marcado: el sidebar deja de ser un cajón
@@ -4618,7 +4618,7 @@ button.macro-cell {
    centra en vez de estirarse hasta el borde de la pantalla.
    =========================================================================== */
 
-@media (min-width: 1024px) {
+@media (min-width: 960px) {
   :root {
     --sidebar-w: 248px;
     --desktop-max: 1120px;
