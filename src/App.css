@@ -4604,3 +4604,139 @@ button.macro-cell {
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
+
+/* ===========================================================================
+   Vista de escritorio
+   ---------------------------------------------------------------------------
+   Todo lo de acá abajo vive dentro de una sola media query de ancho mínimo, y
+   el resto de la hoja no tiene ninguna: por debajo de 1024px no cambia nada,
+   la vista de teléfono es exactamente la que había.
+
+   Tres movimientos, ningún cambio de marcado: el sidebar deja de ser un cajón
+   y queda fijo a la izquierda; las pestañas suben de barra inferior a fila
+   superior; y el contenido, que en el teléfono va a 560px, se ensancha y se
+   centra en vez de estirarse hasta el borde de la pantalla.
+   =========================================================================== */
+
+@media (min-width: 1024px) {
+  :root {
+    --sidebar-w: 248px;
+    --desktop-max: 1120px;
+    --desktop-gutter: 32px;
+  }
+
+  /* --- El sidebar deja de ser un cajón ----------------------------------- */
+  .app-sidebar {
+    transform: none;
+    width: var(--sidebar-w);
+    max-width: none;
+    box-shadow: none;
+    padding-top: 16px;
+    transition: none;
+  }
+
+  /* Sin cajón no hay nada que oscurecer detrás. */
+  .sidebar-backdrop {
+    display: none;
+  }
+
+  .app-shell {
+    padding-left: var(--sidebar-w);
+  }
+
+  /* La marca ya la lleva el sidebar; repetirla en el header sobra. */
+  .app-logo-button {
+    display: none;
+  }
+
+  .app-header {
+    padding: 12px var(--desktop-gutter);
+  }
+
+  .app-header-inner {
+    max-width: var(--desktop-max);
+    justify-content: flex-end;
+  }
+
+  /* --- Las pestañas suben ------------------------------------------------
+     En el marcado van después del contenido, así que se reordenan con flex
+     en vez de mover el JSX. */
+  .app-header {
+    order: 0;
+  }
+
+  .tabs {
+    order: 1;
+    position: static;
+    width: 100%;
+    max-width: var(--desktop-max);
+    margin: 0 auto;
+    gap: 6px;
+    padding: 14px var(--desktop-gutter) 0;
+    background: transparent;
+    border-top: 0;
+    box-shadow: none;
+  }
+
+  .app-content {
+    order: 2;
+  }
+
+  /* Con espacio de sobra, el icono va al lado del texto y cada pestaña ocupa
+     lo que necesita en vez de repartirse el ancho completo. */
+  .tabs button {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 8px;
+    padding: 9px 16px;
+    font-size: 13px;
+  }
+
+  /* --- El contenido respira ---------------------------------------------- */
+  .page {
+    max-width: var(--desktop-max);
+    padding: 24px var(--desktop-gutter) 56px;
+  }
+
+  .app-content {
+    padding-bottom: 0;
+  }
+
+  /* --- Rejillas que ganan columnas --------------------------------------- */
+  /* La cabecera de escritorio mide 59px, no los 55 del teléfono: sin esto la
+     barra del día se mete por debajo al hacer scroll. */
+  .day-nav {
+    top: 59px;
+  }
+
+  /* Con `flex: 1` la etiqueta ocupa 936px y manda las flechas a los extremos
+     de la pantalla. Acá se agrupan las tres en el centro. */
+  .day-nav-label {
+    flex: 0 1 auto;
+  }
+
+  /* Con ancho de sobra, el nombre y los botones de cada tarjeta caben en la
+     misma línea; apilados dejaban un hueco raro a lo ancho. */
+  .list-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .list-card-main {
+    flex: 1;
+  }
+
+  .list-card-actions {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+
+  .finance-summary-row {
+    grid-template-columns: repeat(4, 1fr);
+  }
+
+  .finance-category-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
