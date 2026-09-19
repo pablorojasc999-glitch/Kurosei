@@ -1,4 +1,6 @@
 import type { ReactElement } from 'react'
+import { useMediaQuery } from '../hooks/useMediaQuery'
+import { DESKTOP_MEDIA_QUERY } from '../lib/breakpoints'
 
 export type AppModule = 'registro' | 'entrenamiento' | 'finanzas' | 'nutricion'
 
@@ -63,6 +65,11 @@ const MODULES: Array<{ id: AppModule; label: string; icon: () => ReactElement }>
 ]
 
 export function AppSidebar({ open, activeModule, onSelect, onClose }: AppSidebarProps) {
+  // En escritorio el sidebar está siempre a la vista, así que no puede
+  // seguir marcado como oculto para los lectores de pantalla. En teléfono
+  // esto es false y la expresión vale lo mismo que antes: `!open`.
+  const isDesktop = useMediaQuery(DESKTOP_MEDIA_QUERY)
+
   return (
     <>
       <div
@@ -72,7 +79,7 @@ export function AppSidebar({ open, activeModule, onSelect, onClose }: AppSidebar
       />
       <nav
         className={`app-sidebar${open ? ' app-sidebar--open' : ''}`}
-        aria-hidden={!open}
+        aria-hidden={!open && !isDesktop}
         aria-label="Módulos"
       >
         <div className="app-sidebar-header">
