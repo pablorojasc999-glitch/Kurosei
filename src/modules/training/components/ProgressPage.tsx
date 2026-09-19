@@ -522,134 +522,139 @@ export function ProgressPage() {
         )}
       </section>
 
-      <section className="elevated-section">
-        <h2>Tendencia de e1RM</h2>
-        {allExerciseIds.length === 0 ? (
-          <p className="empty-hint">
-            Todavía no registraste series ejecutadas — entrená alguna sesión
-            para ver tu tendencia acá.
-          </p>
-        ) : (
-          <>
-            <select
-              autoComplete="off"
-              value={trendExerciseId}
-              onChange={(e) => setSelectedExerciseId(e.target.value)}
-            >
-              {allExerciseIds.map((id) => (
-                <option key={id} value={id}>
-                  {exerciseName(id)}
-                </option>
-              ))}
-            </select>
-            <LineChart
-              domainDates={domainDates}
-              series={e1rmSeries}
-              unit=" e1RM"
-              tooltipExtra={(date) => {
-                const weight = bodyWeightByDate.get(date)
-                return weight != null ? { label: 'Peso corporal', value: `${weight} kg` } : null
-              }}
-            />
-          </>
-        )}
-      </section>
+      {/* Los diez gráficos van en su propio contenedor para poder ponerlos
+          de a dos por fila en escritorio. En teléfono el div no pinta nada:
+          sin estilos propios, las secciones se apilan exactamente igual. */}
+      <div className="progress-charts">
+        <section className="elevated-section">
+          <h2>Tendencia de e1RM</h2>
+          {allExerciseIds.length === 0 ? (
+            <p className="empty-hint">
+              Todavía no registraste series ejecutadas — entrená alguna sesión
+              para ver tu tendencia acá.
+            </p>
+          ) : (
+            <>
+              <select
+                autoComplete="off"
+                value={trendExerciseId}
+                onChange={(e) => setSelectedExerciseId(e.target.value)}
+              >
+                {allExerciseIds.map((id) => (
+                  <option key={id} value={id}>
+                    {exerciseName(id)}
+                  </option>
+                ))}
+              </select>
+              <LineChart
+                domainDates={domainDates}
+                series={e1rmSeries}
+                unit=" e1RM"
+                tooltipExtra={(date) => {
+                  const weight = bodyWeightByDate.get(date)
+                  return weight != null ? { label: 'Peso corporal', value: `${weight} kg` } : null
+                }}
+              />
+            </>
+          )}
+        </section>
 
-      <section className="elevated-section">
-        <h2>Peso corporal</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={bodyWeightSeries}
-          unit=" kg"
-          markedDates={trainingDayDates}
-        />
-      </section>
-
-      <section className="elevated-section">
-        <h2>Balance calórico</h2>
-        {!profileComplete ? (
-          <p className="empty-hint">
-            Completa tu perfil en Registro (estatura, fecha de nacimiento y
-            sexo) para ver el gasto calórico estimado.
-          </p>
-        ) : (
+        <section className="elevated-section">
+          <h2>Peso corporal</h2>
           <LineChart
             domainDates={domainDates}
-            series={expenditureSeries}
+            series={bodyWeightSeries}
+            unit=" kg"
+            markedDates={trainingDayDates}
+          />
+        </section>
+
+        <section className="elevated-section">
+          <h2>Balance calórico</h2>
+          {!profileComplete ? (
+            <p className="empty-hint">
+              Completa tu perfil en Registro (estatura, fecha de nacimiento y
+              sexo) para ver el gasto calórico estimado.
+            </p>
+          ) : (
+            <LineChart
+              domainDates={domainDates}
+              series={expenditureSeries}
+              unit=" kcal"
+              markedDates={trainingDayDates}
+            />
+          )}
+        </section>
+
+        <section className="elevated-section">
+          <h2>Cardio: calorías quemadas</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={cardioCaloriesSeries}
             unit=" kcal"
             markedDates={trainingDayDates}
           />
-        )}
-      </section>
+        </section>
 
-      <section className="elevated-section">
-        <h2>Cardio: calorías quemadas</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={cardioCaloriesSeries}
-          unit=" kcal"
-          markedDates={trainingDayDates}
-        />
-      </section>
+        <section className="elevated-section">
+          <h2>Cardio: distancia</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={cardioDistanceSeries}
+            unit=" km"
+            markedDates={trainingDayDates}
+          />
+        </section>
 
-      <section className="elevated-section">
-        <h2>Cardio: distancia</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={cardioDistanceSeries}
-          unit=" km"
-          markedDates={trainingDayDates}
-        />
-      </section>
+        <section className="elevated-section">
+          <h2>Macronutrientes</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={macroSeries}
+            unit=" g"
+            markedDates={trainingDayDates}
+          />
+        </section>
 
-      <section className="elevated-section">
-        <h2>Macronutrientes</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={macroSeries}
-          unit=" g"
-          markedDates={trainingDayDates}
-        />
-      </section>
+        <section className="elevated-section">
+          <h2>Sueño</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={sleepSeries}
+            unit=" h"
+            markedDates={trainingDayDates}
+          />
+        </section>
 
-      <section className="elevated-section">
-        <h2>Sueño</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={sleepSeries}
-          unit=" h"
-          markedDates={trainingDayDates}
-        />
-      </section>
+        <section className="elevated-section">
+          <h2>Estrés, estimulantes y fatiga</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={wellbeingSeries}
+            markedDates={trainingDayDates}
+          />
+        </section>
 
-      <section className="elevated-section">
-        <h2>Estrés, estimulantes y fatiga</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={wellbeingSeries}
-          markedDates={trainingDayDates}
-        />
-      </section>
+        <section className="elevated-section">
+          <h2>Pasos</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={stepsSeries}
+            unit=" pasos"
+            markedDates={trainingDayDates}
+          />
+        </section>
 
-      <section className="elevated-section">
-        <h2>Pasos</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={stepsSeries}
-          unit=" pasos"
-          markedDates={trainingDayDates}
-        />
-      </section>
-
-      <section className="elevated-section">
-        <h2>Agua</h2>
-        <LineChart
-          domainDates={domainDates}
-          series={waterSeries}
-          unit=" L"
-          markedDates={trainingDayDates}
-        />
-      </section>
+        <section className="elevated-section">
+          <h2>Agua</h2>
+          <LineChart
+            domainDates={domainDates}
+            series={waterSeries}
+            unit=" L"
+            markedDates={trainingDayDates}
+          />
+        </section>
+      </div>
 
       <section className="elevated-section">
         <h2>Suplementos</h2>

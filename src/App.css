@@ -4739,4 +4739,20 @@ button.macro-cell {
   .finance-category-grid {
     grid-template-columns: repeat(3, 1fr);
   }
+
+  /* Cada gráfico ocupaba una franja de 1120px de ancho y 200 de alto: se leían
+     estirados y obligaban a bajar diez veces. De a dos por fila quedan con una
+     proporción parecida a la del teléfono y entran tres pantallazos menos. */
+  .progress-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  /* El `margin-top: 24px` de cada sección se suma al `gap` de la rejilla y
+     descuadra las dos columnas entre sí. El espacio ya lo pone el gap. */
+  .progress-charts > section {
+    margin-top: 0;
+  }
 }
