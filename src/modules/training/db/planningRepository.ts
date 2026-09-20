@@ -401,7 +401,11 @@ export interface UpdatePlannedSetInput {
   targetWeightKg: number | null
   targetReps: number
   targetRpe: number | null
-  restSecondsTarget: number | null
+  /**
+   * Opcional a propósito: el plan del día ya no pide descanso, así que omitirlo
+   * deja el que la serie tuviera en vez de borrárselo por editarle el peso.
+   */
+  restSecondsTarget?: number | null
   dropSet: boolean
   restPause: boolean
 }
@@ -410,8 +414,13 @@ export async function updatePlannedSet(
   id: string,
   input: UpdatePlannedSetInput,
 ): Promise<void> {
+  // Mismo criterio que `setPlannedSets`: la clave que no viene no se toca.
+  // Pasarla como `undefined` en el update la dejaría en undefined, que no es
+  // lo mismo que no haberla pasado.
+  const { restSecondsTarget, ...rest } = input
   await db.training_planned_sets.update(id, {
-    ...input,
+    ...rest,
+    ...(restSecondsTarget === undefined ? {} : { restSecondsTarget }),
     updatedAt: nowIso(),
   })
 }

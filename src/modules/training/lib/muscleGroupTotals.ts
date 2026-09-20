@@ -1,18 +1,11 @@
 import { matchBodyRegion, BODY_REGION_LABELS } from './bodyMap'
+import { normalizeText } from './text'
 
 export interface MuscleGroupTotal {
   /** Clave estable para la lista: la región, o el nombre normalizado si no es una región conocida. */
   key: string
   name: string
   value: number
-}
-
-function normalizeName(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
 }
 
 /**
@@ -37,7 +30,7 @@ export function mergeMuscleGroupTotals(
     const region = matchBodyRegion(name)
     // Sin región conocida se agrupa por el nombre, que al menos junta dos
     // filas escritas igual; el nombre que se muestra es el primero que llegó.
-    const key = region ?? `nombre:${normalizeName(name)}`
+    const key = region ?? `nombre:${normalizeText(name)}`
     const existing = merged.get(key)
     if (existing) {
       existing.value += value

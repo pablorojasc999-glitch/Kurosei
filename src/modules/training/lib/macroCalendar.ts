@@ -14,7 +14,16 @@ import { addDays, parseDateInput, startOfDay, toDateKey } from './calendarGrid'
 /** Lunes a domingo, que es como se lee un plan de entrenamiento. */
 export const WEEKDAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 
-export type CellState = 'done' | 'planned' | 'empty'
+/**
+ * Lo que dice el puntito de un día, del hecho más fuerte al más débil:
+ *
+ * - `done`: se entrenó, haya quedado el plan cerrado o no. Entrenar es el
+ *   hecho más fuerte que puede tener un día, así que gana sobre el resto.
+ * - `planned`: el plan quedó cerrado y todavía no se entrena.
+ * - `draft`: hay día, pero el plan sigue abierto: falta terminar de armarlo.
+ * - `empty`: no hay día planificado.
+ */
+export type CellState = 'done' | 'planned' | 'draft' | 'empty'
 
 export interface CalendarCell {
   /** `YYYY-MM-DD`. */
@@ -41,9 +50,10 @@ export interface CalendarWeek {
   monthLabel: string | null
   containsToday: boolean
   /**
-   * Verde si se hizo todo lo planificado, ámbar si queda algo pendiente, gris
-   * si la semana no tenía nada planificado. Mismo criterio que el punto de
-   * cada día, para que el color signifique lo mismo en toda la vista.
+   * Verde si se hizo todo lo planificado, blanco si a algún día le falta
+   * terminar de planificarse, ámbar si queda algo por entrenar, gris si la
+   * semana no tenía nada planificado. Mismo criterio que el punto de cada día,
+   * para que el color signifique lo mismo en toda la vista.
    */
   state: CellState
   cells: CalendarCell[]
@@ -118,6 +128,7 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
     const cells: CalendarCell[] = []
     let plannedInWeek = 0
     let doneInWeek = 0
+    let draftInWeek = 0
     let containsToday = false
 
     for (let i = 0; i < 7; i++) {
@@ -136,6 +147,9 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
         if (finishedDayIds.has(day.id)) {
           state = 'done'
           doneInWeek += 1
+        } else if (day.planClosedAt === null) {
+          state = 'draft'
+          draftInWeek += 1
         } else {
           state = 'planned'
         }
@@ -168,7 +182,9 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
           ? 'empty'
           : doneInWeek === plannedInWeek
             ? 'done'
-            : 'planned',
+            : draftInWeek > 0
+              ? 'draft'
+              : 'planned',
       cells,
     })
 

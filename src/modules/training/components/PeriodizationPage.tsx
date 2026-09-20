@@ -31,6 +31,7 @@ import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { BlockGrid } from './BlockGrid'
+import { ExercisePicker } from './ExercisePicker'
 import { MacroCalendar } from './MacroCalendar'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
@@ -193,7 +194,7 @@ export function PeriodizationPage({
   const [setForms, setSetForms] = useState<
     Record<
       string,
-      { weight: string; reps: string; rpe: string; rest: string; dropSet: boolean; restPause: boolean }
+      { weight: string; reps: string; rpe: string; dropSet: boolean; restPause: boolean }
     >
   >({})
   const [editingSetId, setEditingSetId] = useState<Record<string, string | null>>({})
@@ -378,21 +379,45 @@ export function PeriodizationPage({
         targetWeightKg: form.weight ? Number(form.weight) : null,
         targetReps: Number(form.reps),
         targetRpe: form.rpe ? Number(form.rpe) : null,
-        restSecondsTarget: form.rest ? Math.round(Number(form.rest) * 60) : null,
         dropSet: form.dropSet,
         restPause: form.restPause,
       }
       const editingId = editingSetId[plannedExerciseId]
       if (editingId) {
+        // Sin `restSecondsTarget`: el descanso ya no se planifica, pero el que
+        // tengan las series viejas se respeta.
         await updatePlannedSet(editingId, input)
       } else {
-        await createPlannedSet({ plannedExerciseId, ...input })
+        await createPlannedSet({
+          plannedExerciseId,
+          ...input,
+          restSecondsTarget: null,
+        })
       }
       setSetForms((prev) => ({
         ...prev,
-        [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '', dropSet: false, restPause: false },
+        [plannedExerciseId]: { weight: '', reps: '', rpe: '', dropSet: false, restPause: false },
       }))
       setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+    })
+  }
+
+  /**
+   * Agrega una serie idéntica a la anterior. Va directo, sin pasar por el
+   * formulario: prescribir 3×5 iguales es lo normal, y obligar a rellenar los
+   * mismos tres campos otra vez es justo lo que se quería evitar.
+   */
+  async function handleRepeatPlannedSet(plannedExerciseId: string, previa: PlannedSet) {
+    await guardSet(async () => {
+      await createPlannedSet({
+        plannedExerciseId,
+        targetWeightKg: previa.targetWeightKg,
+        targetReps: previa.targetReps,
+        targetRpe: previa.targetRpe,
+        restSecondsTarget: previa.restSecondsTarget,
+        dropSet: previa.dropSet === true,
+        restPause: previa.restPause === true,
+      })
     })
   }
 
@@ -403,8 +428,6 @@ export function PeriodizationPage({
         weight: s.targetWeightKg !== null ? String(s.targetWeightKg) : '',
         reps: String(s.targetReps),
         rpe: s.targetRpe !== null ? String(s.targetRpe) : '',
-        rest:
-          s.restSecondsTarget !== null ? String(s.restSecondsTarget / 60) : '',
         dropSet: s.dropSet === true,
         restPause: s.restPause === true,
       },
@@ -415,7 +438,7 @@ export function PeriodizationPage({
   function cancelEditPlannedSet(plannedExerciseId: string) {
     setSetForms((prev) => ({
       ...prev,
-      [plannedExerciseId]: { weight: '', reps: '', rpe: '', rest: '', dropSet: false, restPause: false },
+      [plannedExerciseId]: { weight: '', reps: '', rpe: '', dropSet: false, restPause: false },
     }))
     setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
   }
@@ -724,7 +747,7 @@ export function PeriodizationPage({
               const sets = (
                 plannedSets?.filter((ps) => ps.plannedExerciseId === pe.id) ?? []
               ).sort((a, b) => a.setNumber - b.setNumber)
-              const form = setForms[pe.id] ?? { weight: '', reps: '', rpe: '', rest: '', dropSet: false, restPause: false }
+              const form = setForms[pe.id] ?? { weight: '', reps: '', rpe: '', dropSet: false, restPause: false }
               const exerciseClosed = pe.closedAt !== null
               const locked = dayLocked || exerciseClosed
               const editingId = editingSetId[pe.id]
@@ -732,7 +755,10 @@ export function PeriodizationPage({
                 <li key={pe.id} className="planned-exercise-item">
                   <div className="planned-exercise-card-head">
                     <div className="planned-exercise-info">
-                      <strong>{exerciseName(pe.exerciseId)}</strong>
+                      <strong>
+                        <span className="planned-exercise-order">{index + 1}.</span>{' '}
+                        {exerciseName(pe.exerciseId)}
+                      </strong>
                       {pe.notes && <span className="notes">{pe.notes}</span>}
                     </div>
                     <div className="planned-exercise-actions">
@@ -813,39 +839,54 @@ export function PeriodizationPage({
                   </ul>
 
                   {!locked && (
-                    <div className="set-form">
-                      <label>
-                        Peso (kg)
-                        <input autoComplete="off" type="number" inputMode="decimal" value={form.weight} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))} />
-                      </label>
-                      <label>
-                        Reps
-                        <input autoComplete="off" type="number" inputMode="numeric" value={form.reps} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))} />
-                      </label>
-                      <label>
-                        RPE
-                        <input autoComplete="off" type="number" inputMode="decimal" step="0.5" value={form.rpe} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))} />
-                      </label>
-                      <label>
-                        Descanso (min)
-                        <input autoComplete="off" type="number" inputMode="decimal" step="0.5" min={0} value={form.rest} onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rest: e.target.value } }))} />
-                      </label>
-                      <div className="set-techniques">
-                        <label className="set-technique">
+                    <div className="set-form set-form--plan">
+                      <div className="set-form-line">
+                        <input
+                          autoComplete="off"
+                          type="number"
+                          inputMode="decimal"
+                          className="set-form-field"
+                          placeholder="Peso"
+                          aria-label="Peso en kilos"
+                          value={form.weight}
+                          onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, weight: e.target.value } }))}
+                        />
+                        <input
+                          autoComplete="off"
+                          type="number"
+                          inputMode="numeric"
+                          className="set-form-field"
+                          placeholder="Reps"
+                          aria-label="Repeticiones"
+                          value={form.reps}
+                          onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, reps: e.target.value } }))}
+                        />
+                        <input
+                          autoComplete="off"
+                          type="number"
+                          inputMode="decimal"
+                          step="0.5"
+                          className="set-form-field"
+                          placeholder="RPE"
+                          aria-label="RPE"
+                          value={form.rpe}
+                          onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, rpe: e.target.value } }))}
+                        />
+                        <label className={form.dropSet ? 'set-chip set-chip--on' : 'set-chip'}>
                           <input
                             type="checkbox"
                             checked={form.dropSet}
                             onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, dropSet: e.target.checked } }))}
                           />
-                          Drop set
+                          drop
                         </label>
-                        <label className="set-technique">
+                        <label className={form.restPause ? 'set-chip set-chip--on' : 'set-chip'}>
                           <input
                             type="checkbox"
                             checked={form.restPause}
                             onChange={(e) => setSetForms((prev) => ({ ...prev, [pe.id]: { ...form, restPause: e.target.checked } }))}
                           />
-                          Rest pause
+                          rest-pause
                         </label>
                       </div>
                       <button
@@ -856,6 +897,19 @@ export function PeriodizationPage({
                       >
                         {editingId ? 'Guardar cambios' : `+ Agregar serie ${sets.length + 1}`}
                       </button>
+                      {/* Repetir es el caso normal en fuerza: 3×5 al mismo peso
+                          y RPE. Desde la segunda serie en adelante, claro: la
+                          primera no tiene anterior que copiar. */}
+                      {!editingId && sets.length > 0 && (
+                        <button
+                          type="button"
+                          className="repeat-set-button"
+                          onClick={() => handleRepeatPlannedSet(pe.id, sets[sets.length - 1])}
+                          disabled={isSubmittingSet}
+                        >
+                          ⟳ Repetir serie {sets.length}
+                        </button>
+                      )}
                       {editingId && (
                         <button
                           type="button"
@@ -879,14 +933,13 @@ export function PeriodizationPage({
             </p>
           ) : (
             <form onSubmit={handleAddPlannedExercise} className="entity-form" autoComplete="off">
-              <select autoComplete="off" value={newExerciseId} onChange={(e) => setNewExerciseId(e.target.value)} required>
-                <option value="">Elegir ejercicio</option>
-                {exercisesLibrary?.map((ex) => (
-                  <option key={ex.id} value={ex.id}>{ex.name}</option>
-                ))}
-              </select>
+              <ExercisePicker value={newExerciseId} onChange={setNewExerciseId} />
               <input autoComplete="off" value={newExerciseNotes} onChange={(e) => setNewExerciseNotes(e.target.value)} placeholder="Notas (opcional)" />
-              <button type="submit" disabled={isAddingExercise}>Agregar ejercicio al día</button>
+              <button type="submit" disabled={isAddingExercise || !newExerciseId}>
+                {newExerciseId
+                  ? `Agregar ${exerciseName(newExerciseId)} al día`
+                  : 'Elegí un ejercicio'}
+              </button>
             </form>
           )}
         </section>

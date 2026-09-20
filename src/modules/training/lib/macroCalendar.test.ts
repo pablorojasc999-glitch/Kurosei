@@ -31,12 +31,14 @@ const meso = (
   ...base,
 })
 
-const day = (id: string, date: string): Day => ({
+// Por defecto el día viene con el plan cerrado, que es el caso que miran casi
+// todas las pruebas; `planClosed: false` es el día que todavía se está armando.
+const day = (id: string, date: string, planClosed = true): Day => ({
   id,
   weekId: 'w1',
   date,
   label: '',
-  planClosedAt: null,
+  planClosedAt: planClosed ? '2026-08-30T10:00:00.000Z' : null,
   ...base,
 })
 
@@ -151,6 +153,42 @@ describe('buildMacroCalendar', () => {
       today: parseDateInput('2026-09-20'),
     })
     expect(aMedias.weeks[0].state).toBe('planned')
+  })
+
+  it('un día con el plan todavía abierto queda en borrador, no en plan listo', () => {
+    const cal = build({
+      days: [day('d1', '2026-09-07', false), day('d2', '2026-09-08')],
+    })
+    const semana = cal.weeks.find((w) => w.start === '2026-09-07')
+    expect(semana?.cells[0].state).toBe('draft')
+    expect(semana?.cells[1].state).toBe('planned')
+  })
+
+  it('haber entrenado gana sobre el plan abierto', () => {
+    // El día se entrenó aunque nunca se cerrara el plan: el punto tiene que
+    // decir que se entrenó, que es el hecho más fuerte.
+    const cal = build({
+      days: [day('d1', '2026-09-07', false)],
+      sessions: [session('d1', true)],
+    })
+    const semana = cal.weeks.find((w) => w.start === '2026-09-07')
+    expect(semana?.cells[0].state).toBe('done')
+  })
+
+  it('la semana queda en borrador si a algún día le falta cerrar el plan', () => {
+    const cal = build({
+      days: [day('d1', '2026-08-31', false), day('d2', '2026-09-01')],
+      today: parseDateInput('2026-09-20'),
+    })
+    expect(cal.weeks[0].state).toBe('draft')
+
+    // Con todos los planes cerrados vuelve a ámbar: ya no falta planificar,
+    // falta entrenar.
+    const cerrada = build({
+      days: [day('d1', '2026-08-31'), day('d2', '2026-09-01')],
+      today: parseDateInput('2026-09-20'),
+    })
+    expect(cerrada.weeks[0].state).toBe('planned')
   })
 
   it('una semana sin nada planificado queda en gris aunque sea la de hoy', () => {
