@@ -1,3 +1,5 @@
+import { normalizeText } from './text'
+
 export type BodyRegionKey =
   | 'pecho'
   | 'espalda'
@@ -85,15 +87,7 @@ const REGION_ALIASES: Record<string, BodyRegionKey> = {
   forearm: 'antebrazos',
 }
 
-function normalize(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-}
-
 /** Matches a free-text muscle group name to one of the tracked body-map regions. */
 export function matchBodyRegion(muscleGroupName: string): BodyRegionKey | null {
-  return REGION_ALIASES[normalize(muscleGroupName)] ?? null
+  return REGION_ALIASES[normalizeText(muscleGroupName)] ?? null
 }

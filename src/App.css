@@ -815,6 +815,161 @@ section {
   padding: 8px;
 }
 
+/* --- planificar una serie: todo en una línea ---------------------------- */
+/* Planificar es peso, reps y RPE y nada más. Con cuatro campos etiquetados en
+   dos filas, agregar tres series iguales eran doce toques; en una línea son
+   tres campos y un botón. */
+.set-form--plan {
+  grid-template-columns: 1fr;
+}
+
+.set-form-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  /* En pantallas angostas las marcas se van abajo en vez de desbordar: que los
+     números se lean manda sobre que sea una sola línea. Con el `min-width` de
+     los campos, lo que cede son las pastillas, no el ancho de los números. */
+  flex-wrap: wrap;
+}
+
+/* Ancho fijo: si los campos crecen se comen el espacio y las pastillas se van
+   a otra fila. 44px alcanzan para "100", "RPE" y tres dígitos de reps, y dejan
+   los 297px del ancho de teléfono para las cinco cosas de la línea. */
+.set-form-field {
+  flex: 0 0 44px;
+  padding: 8px 2px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Las flechitas del input numérico reservan ancho aunque no se vean, y en 44px
+   eso es la diferencia entre leer "Reps" y leer "Rej". Acá se escribe el número
+   a mano; para subir de a uno está el teclado. */
+.set-form-field::-webkit-outer-spin-button,
+.set-form-field::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* El check nativo ocupa 18px más su separación: son 40px que no sobran en un
+   teléfono. La pastilla encendida dice lo mismo y se toca igual de fácil. */
+.set-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.set-chip input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.set-chip--on {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+  color: var(--accent-2);
+}
+
+.set-chip input:focus-visible + *,
+.set-chip:focus-within {
+  outline: 2px solid var(--accent-border);
+  outline-offset: 1px;
+}
+
+.repeat-set-button {
+  grid-column: 1 / -1;
+  background: none;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  color: var(--accent-2);
+  font-size: 13px;
+  padding: 8px;
+}
+
+/* El número de orden del ejercicio dentro del día. */
+.planned-exercise-order {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- buscador de ejercicios --------------------------------------------- */
+.exercise-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exercise-picker-search {
+  width: 100%;
+}
+
+/* Con la biblioteca entera la lista mide media pantalla: acotarla deja el
+   botón de agregar siempre a la vista. */
+.exercise-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 232px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.exercise-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 40px;
+  padding: 6px 10px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+}
+
+.exercise-option--selected {
+  background: var(--accent-bg);
+  border-color: var(--accent-border);
+}
+
+.exercise-option-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Cuánto involucra al músculo buscado: es el criterio del orden, así que
+   conviene verlo y no tener que confiar en que la lista está bien ordenada. */
+.exercise-option-factor {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-2);
+}
+
 /* --- session execution --- */
 
 .sub-tabs {
@@ -4420,6 +4575,12 @@ button.macro-cell {
 
 .macro-dot--planned {
   background: var(--warning);
+}
+
+/* Blanco: el día existe pero el plan sigue abierto. Se lee como "todavía no
+   lo terminé", distinto del ámbar de "listo para entrenar". */
+.macro-dot--draft {
+  background: var(--text);
 }
 
 .macro-dot--empty {
