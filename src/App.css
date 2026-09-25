@@ -4286,7 +4286,7 @@ section {
 .set-editor-head,
 .set-editor-row {
   display: grid;
-  grid-template-columns: 18px 1fr 1fr 1fr 34px;
+  grid-template-columns: 18px 1fr 1fr 1fr 22px 34px;
   align-items: center;
   gap: 6px;
 }
@@ -4323,6 +4323,72 @@ section {
 .set-editor-row .icon-button {
   width: 34px;
   min-width: 34px;
+}
+
+/* La marca de "esta serie cuenta". Va en la fila de la serie y no en una lista
+   aparte: destildar la primera de las tres tiene que poder hacerse mirando sus
+   kilos, que es lo que hace obvio que era la de aproximación. */
+.set-editor-counts {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  margin: 0 auto;
+  accent-color: var(--accent);
+}
+
+.set-editor-counts-head {
+  text-align: center;
+}
+
+/* --- el desglose de un número de series efectivas ----------------------- */
+.effective-sets-open {
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--border);
+  text-underline-offset: 3px;
+}
+
+.effective-detail {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.effective-detail-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.effective-detail-name {
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.effective-detail-value {
+  flex: 0 0 auto;
+  color: var(--accent-2);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.effective-detail-meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 /* --- el panel de una celda: plan contra lo hecho --- */

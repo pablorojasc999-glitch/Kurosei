@@ -25,6 +25,11 @@ export interface GridSet {
   weightKg: number | null
   reps: number
   rpe: number | null
+  /**
+   * Si la serie cuenta para las series efectivas. Sólo lo traen las del plan:
+   * lo ejecutado no se marca, se marca lo que se prescribió.
+   */
+  counts?: boolean
 }
 
 export interface CellSummary {
@@ -51,8 +56,8 @@ export interface GridCell {
   executedSets: GridSet[]
   /** La sesión de ese día está finalizada, así que el plan ya no se toca. */
   sessionEnded: boolean
-  /** Si esta celda suma al conteo de series efectivas. */
-  counts: boolean
+  /** Cuántas de sus series cuentan para el conteo de series efectivas. */
+  countedSets: number
   executed: CellSummary
   setCount: number
 }
@@ -63,8 +68,8 @@ export interface GridRow {
   /** Una celda por semana, en orden de semana. */
   cells: GridCell[]
   /**
-   * Si la fila entera cuenta para las series efectivas, ninguna semana cuenta,
-   * o hay semanas de las dos clases (una descarga suelta dentro del bloque).
+   * Si cuentan todas las series de la fila, ninguna, o algunas sí y otras no
+   * (una aproximación suelta, o una semana de descarga).
    */
   countsState: 'all' | 'none' | 'mixed'
 }
@@ -318,7 +323,12 @@ export function buildBlockGrid({
         const plannedRows = pe ? (setsByPe.get(pe.id) ?? []) : []
         const plannedSetList: GridSet[] = [...plannedRows]
           .sort((a, b) => a.setNumber - b.setNumber)
-          .map((s) => ({ weightKg: s.targetWeightKg, reps: s.targetReps, rpe: s.targetRpe }))
+          .map((s) => ({
+            weightKg: s.targetWeightKg,
+            reps: s.targetReps,
+            rpe: s.targetRpe,
+            counts: pe ? countsAsEffective(s, pe) : true,
+          }))
 
         const sessionId = day ? sessionByDay.get(day.id) : undefined
         const seId = sessionId
@@ -338,7 +348,9 @@ export function buildBlockGrid({
           plannedSets: plannedSetList,
           executedSets: executedList,
           sessionEnded: sessionId !== undefined && endedSessions.has(sessionId),
-          counts: pe ? countsAsEffective(pe) : true,
+          countedSets: pe
+            ? plannedRows.filter((set) => countsAsEffective(set, pe)).length
+            : 0,
           executed: summarizeSets(executedList),
           setCount: plannedSetList.length,
         }
@@ -347,17 +359,13 @@ export function buildBlockGrid({
       // Sólo opinan las semanas que tienen el ejercicio: una semana sin esa
       // celda no es "no cuenta", es que no está.
       const presentes = cells.filter((c) => c.plannedExerciseId !== null)
-      const cuentan = presentes.filter((c) => c.counts).length
+      const todas = presentes.every((c) => c.countedSets === c.setCount)
+      const ninguna = presentes.every((c) => c.countedSets === 0)
       return {
         exerciseId,
         exerciseName: nameById.get(exerciseId) ?? 'Ejercicio',
         cells,
-        countsState:
-          cuentan === presentes.length
-            ? ('all' as const)
-            : cuentan === 0
-              ? ('none' as const)
-              : ('mixed' as const),
+        countsState: todas ? ('all' as const) : ninguna ? ('none' as const) : ('mixed' as const),
       }
     })
 

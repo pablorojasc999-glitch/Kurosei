@@ -67,12 +67,10 @@ export interface PlannedExercise extends SyncedEntity {
   notes: string
   closedAt: string | null
   /**
-   * Si este ejercicio suma al conteo de series efectivas del bloque.
-   *
-   * Opcional y por omisión sí: un día técnico al 50% no es trabajo efectivo,
-   * pero lo normal es que cuente, así que lo que se marca es la excepción.
-   * `undefined` es "cuenta", igual que en las filas que existían antes de que
-   * la marca existiera; sólo `false` la saca del conteo.
+   * @deprecated La marca vive ahora en cada serie: un ejercicio puede tener
+   * la primera al 50% y las otras dos de verdad, y a nivel de ejercicio eso no
+   * se podía decir. Se sigue leyendo como valor por omisión de sus series para
+   * no perder lo que ya estaba marcado, pero nada lo escribe.
    */
   countsAsEffective?: boolean
 }
@@ -80,6 +78,15 @@ export interface PlannedExercise extends SyncedEntity {
 export interface PlannedSet extends SyncedEntity {
   plannedExerciseId: string
   setNumber: number
+  /**
+   * Si esta serie suma al conteo de series efectivas del bloque.
+   *
+   * Por omisión sí: lo normal es que una serie cuente, así que lo que se marca
+   * es la excepción y `undefined` es "cuenta". Va por serie y no por ejercicio
+   * porque dentro del mismo ejercicio conviven la serie de aproximación y las
+   * que de verdad hay que recuperar.
+   */
+  countsAsEffective?: boolean
   targetWeightKg: number | null
   targetReps: number
   targetRpe: number | null

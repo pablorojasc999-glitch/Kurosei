@@ -10,13 +10,16 @@ import {
   pinExerciseAcrossBlock,
   removeSlotExercise,
   reorderSlotExercise,
-  setPlannedExerciseCounts,
   setPlannedSets,
   setSlotExerciseCounts,
 } from '../db/planningRepository'
 import { listExercises, listMuscleGroups } from '../db/trainingRepository'
 import { db } from '../../../shared/db/database'
-import { buildEffectiveSets, type EffectiveSetsRow } from '../lib/effectiveSets'
+import {
+  buildEffectiveSets,
+  type EffectiveSetsCell,
+  type EffectiveSetsRow,
+} from '../lib/effectiveSets'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { ExercisePicker } from './ExercisePicker'
 import { toDateKey } from '../lib/calendarGrid'
@@ -72,6 +75,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   >(null)
   const [adding, setAdding] = useState<{ slot: GridDaySlot; weekIndex: number } | null>(null)
   const [rowMenu, setRowMenu] = useState<{ slotIndex: number; exerciseId: string } | null>(null)
+  const [effectiveDetail, setEffectiveDetail] = useState<EffectiveDetail | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   if (!data || !exercises || !muscles) {
@@ -79,6 +83,13 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   }
 
   const grid = buildBlockGrid({ ...data, exercises })
+  // El "Día N" lo numera la planilla, así que sale de ella y no se recalcula.
+  const dayLabels = new Map<string, string>()
+  for (const slot of grid.slots) {
+    for (const dayId of slot.dayIds) {
+      if (dayId) dayLabels.set(dayId, slot.label)
+    }
+  }
   const effective = buildEffectiveSets({
     weeks: grid.weeks,
     days: data.days,
@@ -86,6 +97,8 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
     plannedSets: data.plannedSets,
     contributions: muscles.contributions,
     muscleGroupNames: muscles.names,
+    exerciseNames: new Map(exercises.map((e) => [e.id, e.name])),
+    dayLabels,
   })
 
   if (grid.weeks.length === 0) {
@@ -246,7 +259,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                             type="button"
                             className={`block-grid-cell${state}${
                               index === thisWeek ? ' block-grid-cell--current' : ''
-                            }${cell.counts ? '' : ' block-grid-cell--uncounted'}`}
+                            }${cell.countedSets === cell.setCount ? '' : ' block-grid-cell--uncounted'}`}
                             aria-label={`${row.exerciseName}, semana ${index + 1}: ${
                               cell.planned.volume || 'sin series'
                             }${done ? (asPlanned ? ', hecho tal cual' : `, hiciste ${cell.executed.volume}`) : ''}`}
@@ -309,7 +322,11 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
         </table>
       </div>
 
-      <EffectiveSets rows={effective} weekCount={grid.weeks.length} />
+      <EffectiveSets
+        rows={effective}
+        weekCount={grid.weeks.length}
+        onOpen={setEffectiveDetail}
+      />
 
       {adding && (
         <BottomSheet
@@ -333,6 +350,13 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
           mesocycleId={mesocycleId}
           onClose={() => setRowMenu(null)}
           onNotice={setNotice}
+        />
+      )}
+
+      {effectiveDetail && (
+        <EffectiveDetailSheet
+          detail={effectiveDetail}
+          onClose={() => setEffectiveDetail(null)}
         />
       )}
 
@@ -440,7 +464,15 @@ function formatEffective(value: number): string {
  * Va al pie de la planilla porque se lee después de armarla: primero se
  * prescribe y después se mira si el reparto quedó donde se quería.
  */
-function EffectiveSets({ rows, weekCount }: { rows: EffectiveSetsRow[]; weekCount: number }) {
+function EffectiveSets({
+  rows,
+  weekCount,
+  onOpen,
+}: {
+  rows: EffectiveSetsRow[]
+  weekCount: number
+  onOpen: (detail: EffectiveDetail) => void
+}) {
   return (
     <section className="effective-sets">
       <h3>Series efectivas por semana</h3>
@@ -471,9 +503,22 @@ function EffectiveSets({ rows, weekCount }: { rows: EffectiveSetsRow[]; weekCoun
                   <th className="block-grid-corner block-grid-name" scope="row">
                     <span className="block-grid-name-text">{row.name}</span>
                   </th>
-                  {row.perWeek.map((value, index) => (
+                  {row.perWeek.map((cell, index) => (
                     <td key={index} className="effective-sets-value">
-                      {formatEffective(value)}
+                      {cell.items.length === 0 ? (
+                        formatEffective(cell.value)
+                      ) : (
+                        <button
+                          type="button"
+                          className="effective-sets-open"
+                          aria-label={`Ver de dónde salen las ${formatEffective(cell.value)} series de ${row.name} en la semana ${index + 1}`}
+                          onClick={() =>
+                            onOpen({ muscle: row.name, weekIndex: index, cell })
+                          }
+                        >
+                          {formatEffective(cell.value)}
+                        </button>
+                      )}
                     </td>
                   ))}
                   <td className="effective-sets-value effective-sets-total">
@@ -486,6 +531,63 @@ function EffectiveSets({ rows, weekCount }: { rows: EffectiveSetsRow[]; weekCoun
         </div>
       )}
     </section>
+  )
+}
+
+interface EffectiveDetail {
+  muscle: string
+  weekIndex: number
+  cell: EffectiveSetsCell
+}
+
+/**
+ * De dónde sale un número de la tabla: qué ejercicio, de qué día, cuántas
+ * series suyas cuentan y con cuánta implicancia.
+ *
+ * Un total ponderado no se puede comprobar de cabeza —"6.8 series de glúteos"
+ * no dice de dónde salieron—, y sin poder abrirlo la tabla hay que creérsela.
+ */
+function EffectiveDetailSheet({
+  detail,
+  onClose,
+}: {
+  detail: EffectiveDetail
+  onClose: () => void
+}) {
+  const { muscle, weekIndex, cell } = detail
+  return (
+    <BottomSheet
+      title={muscle}
+      subtitle={`Semana ${weekIndex + 1} · ${formatEffective(cell.value)} series efectivas`}
+      onClose={onClose}
+    >
+      <ul className="effective-detail">
+        {cell.items.map((item) => (
+          <li key={item.plannedExerciseId}>
+            <div className="effective-detail-head">
+              <span className="effective-detail-name">{item.exerciseName}</span>
+              <span className="effective-detail-value">{formatEffective(item.value)}</span>
+            </div>
+            <span className="effective-detail-meta">
+              {item.dayLabel}
+              {item.date ? ` · ${shortDate(item.date)}` : ''} ·{' '}
+              {item.countedSets === item.totalSets
+                ? `${item.countedSets} serie${item.countedSets === 1 ? '' : 's'}`
+                : `${item.countedSets} de ${item.totalSets} series`}{' '}
+              · implicancia {item.factor.toFixed(1)}
+              {item.intensifiedSets > 0 &&
+                ` · ${item.intensifiedSets} con drop o rest-pause (+30%)`}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <div className="sheet-actions">
+        <button type="button" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
+    </BottomSheet>
   )
 }
 
@@ -611,12 +713,12 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
             })
           }
         />
-        Cuenta en todas las semanas
+        Cuentan todas sus series, en todas las semanas
       </label>
       {row.countsState === 'mixed' && (
         <p className="empty-hint">
-          Ahora cuenta sólo en algunas semanas. Marcar o desmarcar acá lo aplica a todas; para
-          una semana suelta, abrí su celda.
+          Ahora cuentan sólo algunas de sus series. Marcar o desmarcar acá lo aplica a todas; para
+          una serie suelta, abrí su celda.
         </p>
       )}
 
@@ -641,6 +743,7 @@ interface SetDraft {
   weight: string
   reps: string
   rpe: string
+  counts: boolean
 }
 
 function toDraft(set: GridSet): SetDraft {
@@ -648,6 +751,7 @@ function toDraft(set: GridSet): SetDraft {
     weight: set.weightKg !== null ? String(set.weightKg) : '',
     reps: String(set.reps),
     rpe: set.rpe !== null ? String(set.rpe) : '',
+    counts: set.counts !== false,
   }
 }
 
@@ -674,7 +778,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
   const [drafts, setDrafts] = useState<SetDraft[]>(() =>
     cell.plannedSets.length > 0
       ? cell.plannedSets.map(toDraft)
-      : [{ weight: '', reps: '5', rpe: '' }],
+      : [{ weight: '', reps: '5', rpe: '', counts: true }],
   )
 
   function updateSet(index: number, patch: Partial<SetDraft>) {
@@ -682,7 +786,10 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
   }
 
   function addSet() {
-    setDrafts((current) => [...current, { ...(current[current.length - 1] ?? { weight: '', reps: '5', rpe: '' }) }])
+    setDrafts((current) => [
+      ...current,
+      { ...(current[current.length - 1] ?? { weight: '', reps: '5', rpe: '', counts: true }) },
+    ])
   }
 
   function removeSet(index: number) {
@@ -708,6 +815,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
             targetReps: reps,
             targetRpe: parseOptional(d.rpe),
             restSecondsTarget: null,
+            countsAsEffective: d.counts,
           }
         })
         await setPlannedSets(plannedExerciseId, rows)
@@ -757,6 +865,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
             <span>Peso</span>
             <span>Reps</span>
             <span>RPE</span>
+            <span className="set-editor-counts-head">efec.</span>
             <span />
           </div>
           {drafts.map((draft, index) => (
@@ -789,6 +898,15 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
                 aria-label={`RPE de la serie ${index + 1}`}
                 onChange={(e) => updateSet(index, { rpe: e.target.value })}
               />
+              {/* Destildada, esa serie sola deja de sumar: la de aproximación
+                  mueve la barra pero no es trabajo que haya que recuperar. */}
+              <input
+                type="checkbox"
+                className="set-editor-counts"
+                checked={draft.counts}
+                aria-label={`La serie ${index + 1} cuenta para las series efectivas`}
+                onChange={(e) => updateSet(index, { counts: e.target.checked })}
+              />
               <button
                 type="button"
                 className="icon-button"
@@ -812,22 +930,6 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
         </div>
         </>
       )}
-
-      {/* La marca no es parte del plan sino de cómo se lee: se guarda al
-          tocarla, y sigue disponible aunque el día ya esté cerrado. */}
-      <label className="set-technique">
-        <input
-          type="checkbox"
-          checked={cell.counts}
-          onChange={(e) =>
-            void setPlannedExerciseCounts(
-              cell.plannedExerciseId as string,
-              e.target.checked,
-            )
-          }
-        />
-        Cuenta para las series efectivas de esta semana
-      </label>
 
         {cell.executedSets.length > 0 && (
           <PlanVsDone planned={cell.plannedSets} executed={cell.executedSets} />

@@ -135,6 +135,7 @@ create table if not exists "training_planned_sets" (
   "restSecondsTarget" integer,
   "dropSet" boolean,
   "restPause" boolean,
+  "countsAsEffective" boolean,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz
