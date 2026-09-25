@@ -9,6 +9,24 @@ export interface MuscleGroupTotal {
 }
 
 /**
+ * La clave con la que se junta un grupo muscular, y el nombre con el que se
+ * muestra.
+ *
+ * Se agrupa por región del mapa corporal y no por id porque un mismo músculo
+ * puede tener más de una fila en la biblioteca. Vive acá, exportado, para que
+ * todo lo que agrupe por músculo —los totales, las series efectivas del
+ * bloque— use el mismo criterio y no se separen con el tiempo.
+ */
+export function muscleGroupKey(name: string): { key: string; name: string } {
+  const region = matchBodyRegion(name)
+  // Sin región conocida se agrupa por el nombre, que al menos junta dos filas
+  // escritas igual; el nombre que se muestra es el que venía.
+  return region
+    ? { key: region, name: BODY_REGION_LABELS[region] }
+    : { key: `nombre:${normalizeText(name)}`, name }
+}
+
+/**
  * Junta los totales por grupo muscular en una fila por músculo.
  *
  * Se agrupa por región del mapa corporal y no por id porque un mismo músculo
@@ -26,16 +44,12 @@ export function mergeMuscleGroupTotals(
 ): MuscleGroupTotal[] {
   const merged = new Map<string, MuscleGroupTotal>()
   for (const [id, value] of totalsById) {
-    const name = nameOf(id)
-    const region = matchBodyRegion(name)
-    // Sin región conocida se agrupa por el nombre, que al menos junta dos
-    // filas escritas igual; el nombre que se muestra es el primero que llegó.
-    const key = region ?? `nombre:${normalizeText(name)}`
+    const { key, name } = muscleGroupKey(nameOf(id))
     const existing = merged.get(key)
     if (existing) {
       existing.value += value
     } else {
-      merged.set(key, { key, name: region ? BODY_REGION_LABELS[region] : name, value })
+      merged.set(key, { key, name, value })
     }
   }
   return [...merged.values()].sort(

@@ -7,6 +7,10 @@ import type { MuscleInvolvement } from '../lib/exerciseSearch'
 interface ExercisePickerProps {
   value: string
   onChange: (exerciseId: string) => void
+  /** Deja fuera el cardio, para las vistas que sólo planifican fuerza. */
+  onlyStrength?: boolean
+  /** Texto del campo de búsqueda; el de por defecto sirve para casi todo. */
+  placeholder?: string
 }
 
 /**
@@ -20,12 +24,17 @@ interface ExercisePickerProps {
  * día se suelen agregar varios ejercicios del mismo grupo, y volver a escribir
  * "hombro" cada vez sería peor que dejarlo.
  */
-export function ExercisePicker({ value, onChange }: ExercisePickerProps) {
+export function ExercisePicker({
+  value,
+  onChange,
+  onlyStrength = false,
+  placeholder = 'Buscar por nombre o músculo',
+}: ExercisePickerProps) {
   const [query, setQuery] = useState('')
 
   const data = useLiveQuery(async () => {
     const exercises = await db.training_exercises
-      .filter((e) => e.deletedAt === null)
+      .filter((e) => e.deletedAt === null && (!onlyStrength || e.type === 'strength'))
       .toArray()
     const groups = await db.training_muscle_groups
       .filter((g) => g.deletedAt === null)
@@ -40,7 +49,7 @@ export function ExercisePicker({ value, onChange }: ExercisePickerProps) {
       return groupName ? [{ exerciseId: c.exerciseId, groupName, factor: c.factor }] : []
     })
     return { exercises, involvements }
-  }, [])
+  }, [onlyStrength])
 
   const results = useMemo(
     () => (data ? searchExercises(query, data.exercises, data.involvements) : []),
@@ -55,7 +64,7 @@ export function ExercisePicker({ value, onChange }: ExercisePickerProps) {
         className="exercise-picker-search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar por nombre o músculo"
+        placeholder={placeholder}
         aria-label="Buscar ejercicio por nombre o grupo muscular"
       />
       {results.length === 0 ? (

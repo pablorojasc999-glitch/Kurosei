@@ -8,6 +8,7 @@ import type {
   StrengthSession,
   Week,
 } from '../domain/types'
+import { countsAsEffective } from './effectiveSets'
 
 /**
  * La planilla del bloque: una fila por ejercicio, una columna por semana, y
@@ -50,6 +51,8 @@ export interface GridCell {
   executedSets: GridSet[]
   /** La sesión de ese día está finalizada, así que el plan ya no se toca. */
   sessionEnded: boolean
+  /** Si esta celda suma al conteo de series efectivas. */
+  counts: boolean
   executed: CellSummary
   setCount: number
 }
@@ -59,6 +62,11 @@ export interface GridRow {
   exerciseName: string
   /** Una celda por semana, en orden de semana. */
   cells: GridCell[]
+  /**
+   * Si la fila entera cuenta para las series efectivas, ninguna semana cuenta,
+   * o hay semanas de las dos clases (una descarga suelta dentro del bloque).
+   */
+  countsState: 'all' | 'none' | 'mixed'
 }
 
 export interface GridDaySlot {
@@ -301,10 +309,8 @@ export function buildBlockGrid({
       })
       .map(([id]) => id)
 
-    const rows: GridRow[] = exerciseIds.map((exerciseId) => ({
-      exerciseId,
-      exerciseName: nameById.get(exerciseId) ?? 'Ejercicio',
-      cells: orderedWeeks.map((week, weekIndex) => {
+    const rows: GridRow[] = exerciseIds.map((exerciseId) => {
+      const cells = orderedWeeks.map((week, weekIndex) => {
         const day = slotDays[weekIndex]
         const pe = day
           ? (peByDay.get(day.id) ?? []).find((p) => p.exerciseId === exerciseId)
@@ -332,11 +338,28 @@ export function buildBlockGrid({
           plannedSets: plannedSetList,
           executedSets: executedList,
           sessionEnded: sessionId !== undefined && endedSessions.has(sessionId),
+          counts: pe ? countsAsEffective(pe) : true,
           executed: summarizeSets(executedList),
           setCount: plannedSetList.length,
         }
-      }),
-    }))
+      })
+
+      // Sólo opinan las semanas que tienen el ejercicio: una semana sin esa
+      // celda no es "no cuenta", es que no está.
+      const presentes = cells.filter((c) => c.plannedExerciseId !== null)
+      const cuentan = presentes.filter((c) => c.counts).length
+      return {
+        exerciseId,
+        exerciseName: nameById.get(exerciseId) ?? 'Ejercicio',
+        cells,
+        countsState:
+          cuentan === presentes.length
+            ? ('all' as const)
+            : cuentan === 0
+              ? ('none' as const)
+              : ('mixed' as const),
+      }
+    })
 
     slots.push({
       slotIndex,

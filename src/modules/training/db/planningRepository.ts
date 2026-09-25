@@ -3,6 +3,7 @@ import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import { deleteCardioSession, listCardioSessions } from './cardioRepository'
 import { deleteSession, getSessionForDay } from './executionRepository'
+import { moveInOrder } from '../lib/blockGridOrder'
 import type {
   Day,
   ExecutedSet,
@@ -937,4 +938,161 @@ export async function addExerciseToSlot(
   )
   if (existing) return existing
   return createPlannedExercise({ dayId: target.id, exerciseId, notes: '' })
+}
+
+/**
+ * Los días de un bloque por posición: `[semana][posición]`, ordenados por
+ * fecha dentro de cada semana.
+ *
+ * Es el mismo emparejamiento que hace la planilla —el "día 1" es posicional, no
+ * el lunes—, y lo necesitan todas las operaciones que trabajan sobre una fila
+ * entera en vez de sobre un día suelto.
+ */
+async function slotDaysOfBlock(mesocycleId: string): Promise<Day[][]> {
+  const weeks = await listWeeks(mesocycleId)
+  const perWeek: Day[][] = []
+  for (const week of weeks) {
+    const days = await listDays(week.id)
+    perWeek.push([...days].sort((a, b) => a.date.localeCompare(b.date)))
+  }
+  return perWeek
+}
+
+/**
+ * Mueve una fila de la planilla dentro de su día, en todas las semanas del
+ * bloque a la vez.
+ *
+ * Una fila no es un ejercicio planificado sino el mismo ejercicio repetido en
+ * cada semana, así que moverlo en una sola dejaría la planilla descuadrada: la
+ * fila saldría en un lugar distinto según la columna.
+ */
+export async function reorderSlotExercise(
+  mesocycleId: string,
+  slotIndex: number,
+  exerciseId: string,
+  direction: 'up' | 'down',
+): Promise<void> {
+  const slotDays = await slotDaysOfBlock(mesocycleId)
+  const days = slotDays.map((week) => week[slotIndex]).filter((d): d is Day => d !== undefined)
+  if (days.length === 0) return
+
+  // El orden de las filas lo fija el `order` más bajo que tenga el ejercicio en
+  // cualquiera de las semanas, que es como lo lee la planilla.
+  const peByDay = new Map<string, PlannedExercise[]>()
+  const lowestOrder = new Map<string, number>()
+  for (const day of days) {
+    const list = await listPlannedExercises(day.id)
+    peByDay.set(day.id, list)
+    for (const pe of list) {
+      const current = lowestOrder.get(pe.exerciseId)
+      if (current === undefined || pe.order < current) lowestOrder.set(pe.exerciseId, pe.order)
+    }
+  }
+  const ordered = [...lowestOrder.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id)
+  const next = moveInOrder(ordered, exerciseId, direction)
+  if (next === ordered) return
+
+  const rank = new Map(next.map((id, index) => [id, index]))
+  const timestamp = nowIso()
+  await db.transaction('rw', db.training_planned_exercises, async () => {
+    for (const list of peByDay.values()) {
+      for (const pe of list) {
+        const order = rank.get(pe.exerciseId)
+        if (order === undefined || order === pe.order) continue
+        await db.training_planned_exercises.update(pe.id, { order, updatedAt: timestamp })
+      }
+    }
+  })
+}
+
+export interface MoveExerciseResult {
+  /** En cuántas semanas se movió de verdad. */
+  moved: number
+  /** Semanas que no tienen el día de destino, o que ya tenían ese ejercicio allí. */
+  skipped: number
+}
+
+/**
+ * Mueve una fila entera de una posición de día a otra, en todas las semanas.
+ *
+ * Las series se van con el ejercicio sin tocarlas: cuelgan del ejercicio
+ * planificado, y lo que cambia es a qué día apunta.
+ */
+export async function moveSlotExerciseToSlot(
+  mesocycleId: string,
+  fromSlotIndex: number,
+  toSlotIndex: number,
+  exerciseId: string,
+): Promise<MoveExerciseResult> {
+  if (fromSlotIndex === toSlotIndex) return { moved: 0, skipped: 0 }
+  const slotDays = await slotDaysOfBlock(mesocycleId)
+  const timestamp = nowIso()
+  let moved = 0
+  let skipped = 0
+
+  for (const week of slotDays) {
+    const from = week[fromSlotIndex]
+    const to = week[toSlotIndex]
+    if (!from || !to) {
+      if (from) skipped += 1
+      continue
+    }
+    const source = (await listPlannedExercises(from.id)).find(
+      (pe) => pe.exerciseId === exerciseId,
+    )
+    if (!source) continue
+    const targets = await listPlannedExercises(to.id)
+    // Ya está en el día de destino: moverlo dejaría dos filas del mismo
+    // ejercicio en el mismo día, que la planilla no sabe distinguir.
+    if (targets.some((pe) => pe.exerciseId === exerciseId)) {
+      skipped += 1
+      continue
+    }
+    const nextOrder = targets.length
+      ? Math.max(...targets.map((pe) => pe.order)) + 1
+      : 0
+    await db.training_planned_exercises.update(source.id, {
+      dayId: to.id,
+      order: nextOrder,
+      updatedAt: timestamp,
+    })
+    moved += 1
+  }
+
+  return { moved, skipped }
+}
+
+/** Marca si un ejercicio planificado suma al conteo de series efectivas. */
+export async function setPlannedExerciseCounts(
+  id: string,
+  counts: boolean,
+): Promise<void> {
+  await db.training_planned_exercises.update(id, {
+    countsAsEffective: counts,
+    updatedAt: nowIso(),
+  })
+}
+
+/** Lo mismo para toda una fila de la planilla: el ejercicio en todas las semanas. */
+export async function setSlotExerciseCounts(
+  mesocycleId: string,
+  slotIndex: number,
+  exerciseId: string,
+  counts: boolean,
+): Promise<void> {
+  const slotDays = await slotDaysOfBlock(mesocycleId)
+  const timestamp = nowIso()
+  await db.transaction('rw', db.training_planned_exercises, async () => {
+    for (const week of slotDays) {
+      const day = week[slotIndex]
+      if (!day) continue
+      for (const pe of await listPlannedExercises(day.id)) {
+        if (pe.exerciseId !== exerciseId) continue
+        await db.training_planned_exercises.update(pe.id, {
+          countsAsEffective: counts,
+          updatedAt: timestamp,
+        })
+      }
+    }
+  })
 }
