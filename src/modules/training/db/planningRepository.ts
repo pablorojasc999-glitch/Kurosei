@@ -1096,3 +1096,46 @@ export async function setSlotExerciseCounts(
     }
   })
 }
+
+export interface RemoveExerciseResult {
+  /** En cuántas semanas se quitó. */
+  removed: number
+  /** Semanas que se dejaron como estaban por tener la sesión ya finalizada. */
+  skipped: number
+}
+
+/**
+ * Quita una fila entera de la planilla: el ejercicio en todas las semanas de
+ * esa posición de día.
+ *
+ * Un día con la sesión finalizada se salta. Borrarle el plan a algo que ya se
+ * entrenó no arregla nada y sí pierde con qué se comparó lo que se hizo, que
+ * es justo lo que la planilla enseña en esa celda.
+ */
+export async function removeSlotExercise(
+  mesocycleId: string,
+  slotIndex: number,
+  exerciseId: string,
+): Promise<RemoveExerciseResult> {
+  const slotDays = await slotDaysOfBlock(mesocycleId)
+  let removed = 0
+  let skipped = 0
+
+  for (const week of slotDays) {
+    const day = week[slotIndex]
+    if (!day) continue
+    const target = (await listPlannedExercises(day.id)).find(
+      (pe) => pe.exerciseId === exerciseId,
+    )
+    if (!target) continue
+    const session = await getSessionForDay(day.id)
+    if (session && session.endedAt !== null) {
+      skipped += 1
+      continue
+    }
+    await deletePlannedExercise(target.id)
+    removed += 1
+  }
+
+  return { removed, skipped }
+}
