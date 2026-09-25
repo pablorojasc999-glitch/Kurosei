@@ -5,11 +5,17 @@ import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addExerciseToSlot,
   getBlockGridData,
+  moveSlotExerciseToSlot,
   pinExerciseAcrossBlock,
+  reorderSlotExercise,
+  setPlannedExerciseCounts,
   setPlannedSets,
+  setSlotExerciseCounts,
 } from '../db/planningRepository'
-import { listExercises } from '../db/trainingRepository'
-import type { Exercise } from '../domain/types'
+import { listExercises, listMuscleGroups } from '../db/trainingRepository'
+import { db } from '../../../shared/db/database'
+import { buildEffectiveSets, type EffectiveSetsRow } from '../lib/effectiveSets'
+import { ExercisePicker } from './ExercisePicker'
 import { toDateKey } from '../lib/calendarGrid'
 import {
   buildBlockGrid,
@@ -47,13 +53,32 @@ interface BlockGridProps {
 export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   const data = useLiveQuery(() => getBlockGridData(mesocycleId), [mesocycleId])
   const exercises = useLiveQuery(() => listExercises(), [])
+  // Para el resumen del pie: qué músculo toca cada ejercicio y cuánto.
+  const muscles = useLiveQuery(async () => {
+    const groups = await listMuscleGroups()
+    const contributions = await db.training_exercise_muscle_contributions
+      .filter((c) => c.deletedAt === null)
+      .toArray()
+    return { names: new Map(groups.map((g) => [g.id, g.name])), contributions }
+  }, [])
   const [editing, setEditing] = useState<CellRef | null>(null)
   const [adding, setAdding] = useState<{ slot: GridDaySlot; weekIndex: number } | null>(null)
+  const [rowMenu, setRowMenu] = useState<{ slot: GridDaySlot; row: GridRow } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
-  if (!data || !exercises) return <p className="empty-hint">Cargando la planilla…</p>
+  if (!data || !exercises || !muscles) {
+    return <p className="empty-hint">Cargando la planilla…</p>
+  }
 
   const grid = buildBlockGrid({ ...data, exercises })
+  const effective = buildEffectiveSets({
+    weeks: grid.weeks,
+    days: data.days,
+    plannedExercises: data.plannedExercises,
+    plannedSets: data.plannedSets,
+    contributions: muscles.contributions,
+    muscleGroupNames: muscles.names,
+  })
 
   if (grid.weeks.length === 0) {
     return (
@@ -155,9 +180,28 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                 return (
                   <tr key={row.exerciseId}>
                     <th className="block-grid-corner block-grid-name" scope="row">
-                      <span className="block-grid-name-text" title={row.exerciseName}>
-                        {row.exerciseName}
-                      </span>
+                      <button
+                        type="button"
+                        className="block-grid-name-button"
+                        aria-label={`Opciones de ${row.exerciseName} en ${slot.label}`}
+                        onClick={() => setRowMenu({ slot, row })}
+                      >
+                        <span className="block-grid-name-text" title={row.exerciseName}>
+                          {row.exerciseName}
+                        </span>
+                        {row.countsState !== 'all' && (
+                          <span
+                            className="block-grid-name-flag"
+                            title={
+                              row.countsState === 'none'
+                                ? 'No cuenta para las series efectivas'
+                                : 'Cuenta sólo en algunas semanas'
+                            }
+                          >
+                            {row.countsState === 'none' ? 'no cuenta' : 'parcial'}
+                          </span>
+                        )}
+                      </button>
                     </th>
                     {row.cells.map((cell, index) => {
                       const done = cell.executedSets.length > 0
@@ -177,7 +221,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                             type="button"
                             className={`block-grid-cell${state}${
                               index === thisWeek ? ' block-grid-cell--current' : ''
-                            }`}
+                            }${cell.counts ? '' : ' block-grid-cell--uncounted'}`}
                             aria-label={`${row.exerciseName}, semana ${index + 1}: ${
                               cell.planned.volume || 'sin series'
                             }${done ? (asPlanned ? ', hecho tal cual' : `, hiciste ${cell.executed.volume}`) : ''}`}
@@ -234,13 +278,30 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
         </table>
       </div>
 
+      <EffectiveSets rows={effective} weekCount={grid.weeks.length} />
+
       {adding && (
-        <ExercisePicker
-          exercises={exercises}
-          slotLabel={adding.slot.label}
-          weekNumber={adding.weekIndex + 1}
-          onPick={(id) => void handleAddExercise(id)}
-          onCancel={() => setAdding(null)}
+        <BottomSheet
+          title="Añadir ejercicio"
+          subtitle={`${adding.slot.label} · Semana ${adding.weekIndex + 1}`}
+          onClose={() => setAdding(null)}
+        >
+          <ExercisePicker
+            value=""
+            onlyStrength
+            onChange={(id) => void handleAddExercise(id)}
+          />
+        </BottomSheet>
+      )}
+
+      {rowMenu && (
+        <RowMenu
+          slot={rowMenu.slot}
+          row={rowMenu.row}
+          slots={grid.slots}
+          mesocycleId={mesocycleId}
+          onClose={() => setRowMenu(null)}
+          onNotice={setNotice}
         />
       )}
 
@@ -336,47 +397,184 @@ function PlanVsDone({ planned, executed }: { planned: GridSet[]; executed: GridS
   )
 }
 
-interface ExercisePickerProps {
-  exercises: Exercise[]
-  slotLabel: string
-  weekNumber: number
-  onPick: (exerciseId: string) => void
-  onCancel: () => void
+/** Una cifra de series efectivas: un decimal, sin el `.0` de relleno. */
+function formatEffective(value: number): string {
+  if (value === 0) return '—'
+  return `${Math.round(value * 10) / 10}`
 }
 
-function ExercisePicker({
-  exercises,
-  slotLabel,
-  weekNumber,
-  onPick,
-  onCancel,
-}: ExercisePickerProps) {
-  const [query, setQuery] = useState('')
-  const matches = exercises
-    .filter((e) => e.type === 'strength')
-    .filter((e) => e.name.toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+/**
+ * Las series efectivas programadas del bloque, por músculo y por semana.
+ *
+ * Va al pie de la planilla porque se lee después de armarla: primero se
+ * prescribe y después se mira si el reparto quedó donde se quería.
+ */
+function EffectiveSets({ rows, weekCount }: { rows: EffectiveSetsRow[]; weekCount: number }) {
+  return (
+    <section className="effective-sets">
+      <h3>Series efectivas por semana</h3>
+      {rows.length === 0 ? (
+        <p className="empty-hint">
+          Todavía no hay series que contar. Se cuentan las de los ejercicios marcados como
+          efectivos, ponderadas por cuánto involucran a cada músculo.
+        </p>
+      ) : (
+        <div className="block-grid-scroll">
+          <table className="block-grid effective-sets-table">
+            <thead>
+              <tr>
+                <th className="block-grid-corner" scope="col">
+                  <span className="sr-only">Músculo</span>
+                </th>
+                {Array.from({ length: weekCount }, (_, index) => (
+                  <th key={index} scope="col">
+                    S{index + 1}
+                  </th>
+                ))}
+                <th scope="col">Tot.</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <tr key={row.key}>
+                  <th className="block-grid-corner block-grid-name" scope="row">
+                    <span className="block-grid-name-text">{row.name}</span>
+                  </th>
+                  {row.perWeek.map((value, index) => (
+                    <td key={index} className="effective-sets-value">
+                      {formatEffective(value)}
+                    </td>
+                  ))}
+                  <td className="effective-sets-value effective-sets-total">
+                    {formatEffective(row.total)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
+interface RowMenuProps {
+  slot: GridDaySlot
+  row: GridRow
+  slots: GridDaySlot[]
+  mesocycleId: string
+  onClose: () => void
+  onNotice: (message: string) => void
+}
+
+/**
+ * Lo que se puede hacer con una fila entera: moverla dentro del día, mandarla
+ * a otro día, o sacarla del conteo de series efectivas.
+ *
+ * Todo va sobre la fila y no sobre una celda porque una fila es el mismo
+ * ejercicio en las cuatro semanas: moverlo en una sola descuadraría la
+ * planilla. Para una semana suelta está la propia celda.
+ */
+function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuProps) {
+  const { isSubmitting: isBusy, guard } = useSubmitGuard()
+  const index = slot.rows.findIndex((r) => r.exerciseId === row.exerciseId)
+  const cuenta = row.countsState !== 'none'
+
+  async function mover(direction: 'up' | 'down') {
+    await guard(async () => {
+      await reorderSlotExercise(mesocycleId, slot.slotIndex, row.exerciseId, direction)
+    })
+    onClose()
+  }
+
+  async function aOtroDia(toSlotIndex: number) {
+    await guard(async () => {
+      const { moved, skipped } = await moveSlotExerciseToSlot(
+        mesocycleId,
+        slot.slotIndex,
+        toSlotIndex,
+        row.exerciseId,
+      )
+      if (moved === 0) {
+        onNotice('No se pudo mover: ese día ya tenía el ejercicio, o no existe en esas semanas.')
+      } else if (skipped > 0) {
+        onNotice(
+          `Movido en ${moved} semana${moved === 1 ? '' : 's'}; ${skipped} quedaron como estaban.`,
+        )
+      }
+    })
+    onClose()
+  }
 
   return (
-    <BottomSheet
-      title="Añadir ejercicio"
-      subtitle={`${slotLabel} · Semana ${weekNumber}`}
-      onClose={onCancel}
-    >
-      <input
-        autoComplete="off"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Buscar ejercicio…"
-        aria-label="Buscar ejercicio"
-      />
+    <BottomSheet title={row.exerciseName} subtitle={slot.label} onClose={onClose}>
       <div className="sheet-list">
-        {matches.length === 0 && <p className="empty-hint">Nada coincide con esa búsqueda.</p>}
-        {matches.map((exercise) => (
-          <button key={exercise.id} type="button" onClick={() => onPick(exercise.id)}>
-            {exercise.name}
-          </button>
-        ))}
+        <button
+          type="button"
+          disabled={isBusy || index <= 0}
+          onClick={() => void mover('up')}
+        >
+          ↑ Subir en {slot.label}
+        </button>
+        <button
+          type="button"
+          disabled={isBusy || index === -1 || index >= slot.rows.length - 1}
+          onClick={() => void mover('down')}
+        >
+          ↓ Bajar en {slot.label}
+        </button>
+      </div>
+
+      {slots.length > 1 && (
+        <>
+          <p className="sheet-hint">Mover a otro día</p>
+          <div className="sheet-list">
+            {slots
+              .filter((s) => s.slotIndex !== slot.slotIndex)
+              .map((s) => (
+                <button
+                  key={s.slotIndex}
+                  type="button"
+                  disabled={isBusy}
+                  onClick={() => void aOtroDia(s.slotIndex)}
+                >
+                  → {s.label}
+                </button>
+              ))}
+          </div>
+        </>
+      )}
+
+      <p className="sheet-hint">Series efectivas</p>
+      <label className="set-technique">
+        <input
+          type="checkbox"
+          checked={cuenta}
+          disabled={isBusy}
+          onChange={(e) =>
+            void guard(async () => {
+              await setSlotExerciseCounts(
+                mesocycleId,
+                slot.slotIndex,
+                row.exerciseId,
+                e.target.checked,
+              )
+            })
+          }
+        />
+        Cuenta en todas las semanas
+      </label>
+      {row.countsState === 'mixed' && (
+        <p className="empty-hint">
+          Ahora cuenta sólo en algunas semanas. Marcar o desmarcar acá lo aplica a todas; para
+          una semana suelta, abrí su celda.
+        </p>
+      )}
+
+      <div className="sheet-actions">
+        <button type="button" onClick={onClose}>
+          Cerrar
+        </button>
       </div>
     </BottomSheet>
   )
@@ -558,6 +756,22 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
         </div>
         </>
       )}
+
+      {/* La marca no es parte del plan sino de cómo se lee: se guarda al
+          tocarla, y sigue disponible aunque el día ya esté cerrado. */}
+      <label className="set-technique">
+        <input
+          type="checkbox"
+          checked={cell.counts}
+          onChange={(e) =>
+            void setPlannedExerciseCounts(
+              cell.plannedExerciseId as string,
+              e.target.checked,
+            )
+          }
+        />
+        Cuenta para las series efectivas de esta semana
+      </label>
 
         {cell.executedSets.length > 0 && (
           <PlanVsDone planned={cell.plannedSets} executed={cell.executedSets} />

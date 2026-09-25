@@ -4088,6 +4088,68 @@ section {
   text-align: center;
 }
 
+/* El nombre de la fila abre sus opciones: mover dentro del día, mandarla a
+   otro, o sacarla del conteo. No caben como botones en una columna de 120px. */
+.block-grid-name-button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+/* Una fila fuera del conteo tiene que decirlo donde se la lee, no sólo al
+   abrirla: si no, el total del pie no cuadra con lo que se ve arriba. */
+.block-grid-name-flag {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.block-grid-cell--uncounted {
+  opacity: 0.55;
+}
+
+/* --- series efectivas del bloque ---------------------------------------- */
+.effective-sets {
+  margin-top: 20px;
+}
+
+.effective-sets h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.effective-sets-value {
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.effective-sets-total {
+  color: var(--accent-2);
+  font-weight: 600;
+}
+
+/* Un rótulo dentro de una hoja, para separar grupos de botones. */
+.sheet-hint {
+  margin: 14px 0 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .block-grid-add-row th {
   padding: 4px 0 2px;
 }

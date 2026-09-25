@@ -118,6 +118,7 @@ create table if not exists "training_planned_exercises" (
   "order" integer not null,
   "notes" text not null,
   "closedAt" timestamptz,
+  "countsAsEffective" boolean,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz
@@ -132,6 +133,8 @@ create table if not exists "training_planned_sets" (
   "targetReps" integer not null,
   "targetRpe" double precision,
   "restSecondsTarget" integer,
+  "dropSet" boolean,
+  "restPause" boolean,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz
@@ -177,6 +180,8 @@ create table if not exists "training_executed_sets" (
   "notes" text not null,
   "performedAt" timestamptz not null,
   "restTakenSeconds" integer,
+  "dropSet" boolean,
+  "restPause" boolean,
   "createdAt" timestamptz not null,
   "updatedAt" timestamptz not null,
   "deletedAt" timestamptz

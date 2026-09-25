@@ -66,6 +66,15 @@ export interface PlannedExercise extends SyncedEntity {
   order: number
   notes: string
   closedAt: string | null
+  /**
+   * Si este ejercicio suma al conteo de series efectivas del bloque.
+   *
+   * Opcional y por omisión sí: un día técnico al 50% no es trabajo efectivo,
+   * pero lo normal es que cuente, así que lo que se marca es la excepción.
+   * `undefined` es "cuenta", igual que en las filas que existían antes de que
+   * la marca existiera; sólo `false` la saca del conteo.
+   */
+  countsAsEffective?: boolean
 }
 
 export interface PlannedSet extends SyncedEntity {
