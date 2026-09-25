@@ -761,12 +761,13 @@ export interface PlannedSetInput {
   targetRpe: number | null
   restSecondsTarget: number | null
   /**
-   * Opcionales a propósito: la planilla y la prescripción uniforme no ofrecen
-   * estos checks, así que omitirlos deja la marca que ya tuviera la serie en
-   * vez de borrarla sin que nadie la haya desmarcado.
+   * Opcionales a propósito: la prescripción uniforme no ofrece estas marcas,
+   * así que omitirlas deja la que ya tuviera la serie en vez de borrarla sin
+   * que nadie la haya desmarcado.
    */
   dropSet?: boolean
   restPause?: boolean
+  countsAsEffective?: boolean
 }
 
 /**
@@ -790,13 +791,14 @@ export async function setPlannedSets(
 
   await db.transaction('rw', db.training_planned_sets, async () => {
     for (let i = 0; i < rows.length; i++) {
-      const { dropSet, restPause, ...rest } = rows[i]
+      const { dropSet, restPause, countsAsEffective, ...rest } = rows[i]
       const fields = {
         ...rest,
         setNumber: i + 1,
         updatedAt: timestamp,
         ...(dropSet === undefined ? {} : { dropSet }),
         ...(restPause === undefined ? {} : { restPause }),
+        ...(countsAsEffective === undefined ? {} : { countsAsEffective }),
       }
       const current = existing[i]
       if (current) await db.training_planned_sets.update(current.id, fields)
@@ -1062,18 +1064,14 @@ export async function moveSlotExerciseToSlot(
   return { moved, skipped }
 }
 
-/** Marca si un ejercicio planificado suma al conteo de series efectivas. */
-export async function setPlannedExerciseCounts(
-  id: string,
-  counts: boolean,
-): Promise<void> {
-  await db.training_planned_exercises.update(id, {
-    countsAsEffective: counts,
-    updatedAt: nowIso(),
-  })
-}
-
-/** Lo mismo para toda una fila de la planilla: el ejercicio en todas las semanas. */
+/**
+ * Marca de un tirón todas las series de una fila de la planilla: el mismo
+ * ejercicio en todas las semanas del bloque.
+ *
+ * Es un atajo, no otro nivel de marca: escribe en cada serie, que es donde
+ * vive el dato. Sirve para un día técnico entero, donde ir serie por serie
+ * serían doce toques para decir una sola cosa.
+ */
 export async function setSlotExerciseCounts(
   mesocycleId: string,
   slotIndex: number,
@@ -1082,19 +1080,19 @@ export async function setSlotExerciseCounts(
 ): Promise<void> {
   const slotDays = await slotDaysOfBlock(mesocycleId)
   const timestamp = nowIso()
-  await db.transaction('rw', db.training_planned_exercises, async () => {
-    for (const week of slotDays) {
-      const day = week[slotIndex]
-      if (!day) continue
-      for (const pe of await listPlannedExercises(day.id)) {
-        if (pe.exerciseId !== exerciseId) continue
-        await db.training_planned_exercises.update(pe.id, {
+  for (const week of slotDays) {
+    const day = week[slotIndex]
+    if (!day) continue
+    for (const pe of await listPlannedExercises(day.id)) {
+      if (pe.exerciseId !== exerciseId) continue
+      for (const set of await listPlannedSets(pe.id)) {
+        await db.training_planned_sets.update(set.id, {
           countsAsEffective: counts,
           updatedAt: timestamp,
         })
       }
     }
-  })
+  }
 }
 
 export interface RemoveExerciseResult {

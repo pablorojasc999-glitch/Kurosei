@@ -86,17 +86,35 @@ const build = (over: Partial<Parameters<typeof buildEffectiveSets>[0]> = {}) =>
     plannedSets: [],
     contributions: [],
     muscleGroupNames: nombres,
+    exerciseNames: new Map([
+      ['banca', 'Press banca'],
+      ['squat', 'Sentadilla'],
+    ]),
+    dayLabels: new Map([
+      ['d1', 'Día 1'],
+      ['d2', 'Día 1'],
+    ]),
     ...over,
   })
 
+/** El total de cada semana, que es lo que enseña la tabla. */
+const porSemana = (fila: { perWeek: { value: number }[] }) => fila.perWeek.map((c) => c.value)
+
 describe('countsAsEffective', () => {
   it('lo que nunca se marcó, cuenta', () => {
-    expect(countsAsEffective(pe('p', 'd1', 'banca'))).toBe(true)
+    expect(countsAsEffective(set('s', 'p'))).toBe(true)
   })
 
-  it('sólo false lo saca del conteo', () => {
-    expect(countsAsEffective(pe('p', 'd1', 'banca', { countsAsEffective: false }))).toBe(false)
-    expect(countsAsEffective(pe('p', 'd1', 'banca', { countsAsEffective: true }))).toBe(true)
+  it('sólo false saca la serie del conteo', () => {
+    expect(countsAsEffective(set('s', 'p', { countsAsEffective: false }))).toBe(false)
+    expect(countsAsEffective(set('s', 'p', { countsAsEffective: true }))).toBe(true)
+  })
+
+  it('sin marca propia manda la marca vieja del ejercicio', () => {
+    const excluido = pe('p', 'd1', 'banca', { countsAsEffective: false })
+    expect(countsAsEffective(set('s', 'p'), excluido)).toBe(false)
+    // La marca de la serie gana: es la que se escribe hoy.
+    expect(countsAsEffective(set('s', 'p', { countsAsEffective: true }), excluido)).toBe(true)
   })
 })
 
@@ -128,20 +146,20 @@ describe('buildEffectiveSets', () => {
       ],
       contributions: [contribution('banca', 'g-pec', 1)],
     })
-    expect(filas[0].perWeek).toEqual([1, 3])
+    expect(porSemana(filas[0])).toEqual([1, 3])
     expect(filas[0].total).toBe(4)
   })
 
-  it('un ejercicio marcado como no efectivo no suma', () => {
+  it('una serie marcada como no efectiva no suma', () => {
     const filas = build({
-      plannedExercises: [
-        pe('p1', 'd1', 'banca'),
-        pe('p2', 'd2', 'banca', { countsAsEffective: false }),
+      plannedExercises: [pe('p1', 'd1', 'banca'), pe('p2', 'd2', 'banca')],
+      plannedSets: [
+        set('s1', 'p1'),
+        set('s2', 'p2', { countsAsEffective: false }),
       ],
-      plannedSets: [set('s1', 'p1'), set('s2', 'p2')],
       contributions: [contribution('banca', 'g-pec', 1)],
     })
-    expect(filas[0].perWeek).toEqual([1, 0])
+    expect(porSemana(filas[0])).toEqual([1, 0])
   })
 
   it('un drop set pesa un 30% más, igual que en el resto de la app', () => {
@@ -150,7 +168,7 @@ describe('buildEffectiveSets', () => {
       plannedSets: [set('s1', 'p1', { dropSet: true })],
       contributions: [contribution('banca', 'g-pec', 0.8)],
     })
-    expect(filas[0].perWeek[0]).toBeCloseTo(1.04, 5)
+    expect(filas[0].perWeek[0].value).toBeCloseTo(1.04, 5)
   })
 
   it('junta en una fila los músculos que son el mismo', () => {
@@ -176,6 +194,48 @@ describe('buildEffectiveSets', () => {
       contributions: [contribution('banca', 'g-pec', 1), contribution('squat', 'g-cua', 1)],
     })
     expect(filas.map((f) => f.name)).toEqual(['Cuádriceps', 'Pecho'])
+  })
+
+  it('dentro del mismo ejercicio, sólo se saltan las series marcadas', () => {
+    // La primera es de aproximación; las otras dos cuentan.
+    const filas = build({
+      plannedExercises: [pe('p1', 'd1', 'banca')],
+      plannedSets: [
+        set('s1', 'p1', { countsAsEffective: false }),
+        set('s2', 'p1', { setNumber: 2 }),
+        set('s3', 'p1', { setNumber: 3 }),
+      ],
+      contributions: [contribution('banca', 'g-pec', 1)],
+    })
+    expect(porSemana(filas[0])).toEqual([2, 0])
+    expect(filas[0].perWeek[0].items[0]).toMatchObject({
+      exerciseName: 'Press banca',
+      dayLabel: 'Día 1',
+      countedSets: 2,
+      totalSets: 3,
+      factor: 1,
+    })
+  })
+
+  it('el desglose dice de dónde sale cada número', () => {
+    const filas = build({
+      plannedExercises: [pe('p1', 'd1', 'banca'), pe('p2', 'd1', 'squat')],
+      plannedSets: [
+        set('s1', 'p1'),
+        set('s2', 'p1', { setNumber: 2 }),
+        set('s3', 'p2', { dropSet: true }),
+      ],
+      contributions: [contribution('banca', 'g-pec', 0.5), contribution('squat', 'g-pec', 1)],
+    })
+    const celda = filas[0].perWeek[0]
+    expect(celda.value).toBeCloseTo(2.3, 5)
+    // De mayor a menor aporte: la sentadilla con drop set pesa 1.3.
+    expect(celda.items.map((i) => [i.exerciseName, Math.round(i.value * 100) / 100])).toEqual([
+      ['Sentadilla', 1.3],
+      ['Press banca', 1],
+    ])
+    expect(celda.items[0].intensifiedSets).toBe(1)
+    expect(celda.items[1].intensifiedSets).toBe(0)
   })
 
   it('un ejercicio sin series o sin implicancias no crea filas vacías', () => {
