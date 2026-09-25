@@ -220,6 +220,45 @@ describe('buildMacroCalendar', () => {
     expect(cal.weeks[0].mesocycleIndex).toBe(-1)
   })
 
+  it('el bloque se pinta desde su primer día, aunque empiece a mitad de semana', () => {
+    // El macrociclo va del lunes 31/08 al domingo 27/09; el bloque arranca el
+    // domingo 13/09, último día de la segunda semana.
+    const cal = build({ mesocycles: [meso('m1', 0, '2026-09-13', '2026-09-27')] })
+    const semana = cal.weeks.find((w) => w.start === '2026-09-07')
+    expect(semana?.cells.map((c) => c.mesocycleIndex)).toEqual([-1, -1, -1, -1, -1, -1, 0])
+  })
+
+  it('el bloque deja de pintarse en su último día, no al terminar la semana', () => {
+    // Termina el martes 15/09: el resto de esa semana ya no es del bloque.
+    const cal = build({ mesocycles: [meso('m1', 0, '2026-08-31', '2026-09-15')] })
+    const semana = cal.weeks.find((w) => w.start === '2026-09-14')
+    expect(semana?.cells.map((c) => c.mesocycleIndex)).toEqual([0, 0, -1, -1, -1, -1, -1])
+  })
+
+  it('en la semana en que se cambia de bloque, cada día lleva el suyo', () => {
+    const cal = build({
+      mesocycles: [
+        meso('m1', 0, '2026-08-31', '2026-09-09'),
+        meso('m2', 1, '2026-09-10', '2026-09-27'),
+      ],
+    })
+    const semana = cal.weeks.find((w) => w.start === '2026-09-07')
+    expect(semana?.cells.map((c) => c.mesocycleIndex)).toEqual([0, 0, 0, 1, 1, 1, 1])
+    // La cabecera elige uno solo: el que cubre más días de la semana.
+    expect(semana?.mesocycleIndex).toBe(1)
+  })
+
+  it('un día fuera del macrociclo no lleva bloque aunque caiga en su rango', () => {
+    // La primera columna empieza el lunes 31/08, que es el inicio del macro;
+    // la última se estira hasta el 03/10, más allá del 27/09 en que termina.
+    const cal = build({ mesocycles: [meso('m1', 0, '2026-08-31', '2026-10-03')] })
+    const ultima = cal.weeks[cal.weeks.length - 1]
+    expect(ultima.cells.map((c) => c.outside)).toEqual([
+      false, false, false, false, false, false, false,
+    ])
+    expect(ultima.cells.every((c) => c.mesocycleIndex === 0)).toBe(true)
+  })
+
   it('resume cada mesociclo con el estado de sus semanas', () => {
     const cal = build({
       mesocycles: [
