@@ -658,3 +658,187 @@ alter table "training_weeks" enable row level security;
 drop policy if exists "owner_all" on "training_weeks";
 create policy "owner_all" on "training_weeks" for all
   using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+-- ---------------------------------------------------------------------
+-- Sync: server-side arrival stamp
+--
+-- `updatedAt` lo pone el dispositivo que escribe la fila; `syncedAt` lo pone
+-- el servidor cuando la recibe. Bajar por `updatedAt` se saltaba para siempre
+-- una fila anotada en el teléfono y subida más tarde, si otro dispositivo
+-- había sincronizado entremedio. El filtro de bajada va por `syncedAt`.
+-- ---------------------------------------------------------------------
+
+create or replace function public.set_synced_at()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  new."syncedAt" = now();
+  return new;
+end;
+$$;
+
+
+alter table "training_muscle_groups" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_muscle_groups_synced_at" on "training_muscle_groups";
+create trigger "training_muscle_groups_synced_at" before insert or update on "training_muscle_groups"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_muscle_groups_pull_idx" on "training_muscle_groups" ("userId", "syncedAt");
+
+alter table "training_exercises" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_exercises_synced_at" on "training_exercises";
+create trigger "training_exercises_synced_at" before insert or update on "training_exercises"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_exercises_pull_idx" on "training_exercises" ("userId", "syncedAt");
+
+alter table "training_exercise_muscle_contributions" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_exercise_muscle_contributions_synced_at" on "training_exercise_muscle_contributions";
+create trigger "training_exercise_muscle_contributions_synced_at" before insert or update on "training_exercise_muscle_contributions"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_exercise_muscle_contributions_pull_idx" on "training_exercise_muscle_contributions" ("userId", "syncedAt");
+
+alter table "training_macrocycles" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_macrocycles_synced_at" on "training_macrocycles";
+create trigger "training_macrocycles_synced_at" before insert or update on "training_macrocycles"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_macrocycles_pull_idx" on "training_macrocycles" ("userId", "syncedAt");
+
+alter table "training_mesocycles" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_mesocycles_synced_at" on "training_mesocycles";
+create trigger "training_mesocycles_synced_at" before insert or update on "training_mesocycles"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_mesocycles_pull_idx" on "training_mesocycles" ("userId", "syncedAt");
+
+alter table "training_weeks" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_weeks_synced_at" on "training_weeks";
+create trigger "training_weeks_synced_at" before insert or update on "training_weeks"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_weeks_pull_idx" on "training_weeks" ("userId", "syncedAt");
+
+alter table "training_days" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_days_synced_at" on "training_days";
+create trigger "training_days_synced_at" before insert or update on "training_days"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_days_pull_idx" on "training_days" ("userId", "syncedAt");
+
+alter table "training_planned_exercises" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_planned_exercises_synced_at" on "training_planned_exercises";
+create trigger "training_planned_exercises_synced_at" before insert or update on "training_planned_exercises"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_planned_exercises_pull_idx" on "training_planned_exercises" ("userId", "syncedAt");
+
+alter table "training_planned_sets" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_planned_sets_synced_at" on "training_planned_sets";
+create trigger "training_planned_sets_synced_at" before insert or update on "training_planned_sets"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_planned_sets_pull_idx" on "training_planned_sets" ("userId", "syncedAt");
+
+alter table "training_sessions" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_sessions_synced_at" on "training_sessions";
+create trigger "training_sessions_synced_at" before insert or update on "training_sessions"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_sessions_pull_idx" on "training_sessions" ("userId", "syncedAt");
+
+alter table "training_session_exercises" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_session_exercises_synced_at" on "training_session_exercises";
+create trigger "training_session_exercises_synced_at" before insert or update on "training_session_exercises"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_session_exercises_pull_idx" on "training_session_exercises" ("userId", "syncedAt");
+
+alter table "training_executed_sets" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_executed_sets_synced_at" on "training_executed_sets";
+create trigger "training_executed_sets_synced_at" before insert or update on "training_executed_sets"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_executed_sets_pull_idx" on "training_executed_sets" ("userId", "syncedAt");
+
+alter table "training_cardio_sessions" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_cardio_sessions_synced_at" on "training_cardio_sessions";
+create trigger "training_cardio_sessions_synced_at" before insert or update on "training_cardio_sessions"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_cardio_sessions_pull_idx" on "training_cardio_sessions" ("userId", "syncedAt");
+
+alter table "training_user_profile" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_user_profile_synced_at" on "training_user_profile";
+create trigger "training_user_profile_synced_at" before insert or update on "training_user_profile"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_user_profile_pull_idx" on "training_user_profile" ("userId", "syncedAt");
+
+alter table "training_daily_logs" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "training_daily_logs_synced_at" on "training_daily_logs";
+create trigger "training_daily_logs_synced_at" before insert or update on "training_daily_logs"
+  for each row execute function public.set_synced_at();
+create index if not exists "training_daily_logs_pull_idx" on "training_daily_logs" ("userId", "syncedAt");
+
+alter table "finance_accounts" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "finance_accounts_synced_at" on "finance_accounts";
+create trigger "finance_accounts_synced_at" before insert or update on "finance_accounts"
+  for each row execute function public.set_synced_at();
+create index if not exists "finance_accounts_pull_idx" on "finance_accounts" ("userId", "syncedAt");
+
+alter table "finance_categories" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "finance_categories_synced_at" on "finance_categories";
+create trigger "finance_categories_synced_at" before insert or update on "finance_categories"
+  for each row execute function public.set_synced_at();
+create index if not exists "finance_categories_pull_idx" on "finance_categories" ("userId", "syncedAt");
+
+alter table "finance_category_budgets" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "finance_category_budgets_synced_at" on "finance_category_budgets";
+create trigger "finance_category_budgets_synced_at" before insert or update on "finance_category_budgets"
+  for each row execute function public.set_synced_at();
+create index if not exists "finance_category_budgets_pull_idx" on "finance_category_budgets" ("userId", "syncedAt");
+
+alter table "finance_transactions" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "finance_transactions_synced_at" on "finance_transactions";
+create trigger "finance_transactions_synced_at" before insert or update on "finance_transactions"
+  for each row execute function public.set_synced_at();
+create index if not exists "finance_transactions_pull_idx" on "finance_transactions" ("userId", "syncedAt");
+
+alter table "nutrition_foods" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_foods_synced_at" on "nutrition_foods";
+create trigger "nutrition_foods_synced_at" before insert or update on "nutrition_foods"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_foods_pull_idx" on "nutrition_foods" ("userId", "syncedAt");
+
+alter table "nutrition_meal_sections" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_meal_sections_synced_at" on "nutrition_meal_sections";
+create trigger "nutrition_meal_sections_synced_at" before insert or update on "nutrition_meal_sections"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_meal_sections_pull_idx" on "nutrition_meal_sections" ("userId", "syncedAt");
+
+alter table "nutrition_entries" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_entries_synced_at" on "nutrition_entries";
+create trigger "nutrition_entries_synced_at" before insert or update on "nutrition_entries"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_entries_pull_idx" on "nutrition_entries" ("userId", "syncedAt");
+
+alter table "nutrition_water_entries" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_water_entries_synced_at" on "nutrition_water_entries";
+create trigger "nutrition_water_entries_synced_at" before insert or update on "nutrition_water_entries"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_water_entries_pull_idx" on "nutrition_water_entries" ("userId", "syncedAt");
+
+alter table "nutrition_meal_templates" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_meal_templates_synced_at" on "nutrition_meal_templates";
+create trigger "nutrition_meal_templates_synced_at" before insert or update on "nutrition_meal_templates"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_meal_templates_pull_idx" on "nutrition_meal_templates" ("userId", "syncedAt");
+
+alter table "nutrition_meal_template_entries" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_meal_template_entries_synced_at" on "nutrition_meal_template_entries";
+create trigger "nutrition_meal_template_entries_synced_at" before insert or update on "nutrition_meal_template_entries"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_meal_template_entries_pull_idx" on "nutrition_meal_template_entries" ("userId", "syncedAt");
+
+alter table "nutrition_goal_plans" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "nutrition_goal_plans_synced_at" on "nutrition_goal_plans";
+create trigger "nutrition_goal_plans_synced_at" before insert or update on "nutrition_goal_plans"
+  for each row execute function public.set_synced_at();
+create index if not exists "nutrition_goal_plans_pull_idx" on "nutrition_goal_plans" ("userId", "syncedAt");
+
+alter table "grocery_items" add column if not exists "syncedAt" timestamptz not null default now();
+drop trigger if exists "grocery_items_synced_at" on "grocery_items";
+create trigger "grocery_items_synced_at" before insert or update on "grocery_items"
+  for each row execute function public.set_synced_at();
+create index if not exists "grocery_items_pull_idx" on "grocery_items" ("userId", "syncedAt");
