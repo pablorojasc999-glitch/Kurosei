@@ -38,6 +38,14 @@ export const SYNC_TABLE_NAMES = [
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]
 
 const LAST_SYNCED_KEY = 'kurosei_last_synced_at'
+/**
+ * Hasta dónde se ha bajado, medido con el reloj del servidor.
+ *
+ * Va aparte del corte de subida porque son dos relojes distintos: lo que se
+ * sube se compara contra las fechas que escribió este dispositivo, y lo que se
+ * baja contra las que puso el servidor al recibir cada fila.
+ */
+const LAST_PULLED_KEY = 'kurosei_last_pulled_at'
 const EPOCH = '1970-01-01T00:00:00.000Z'
 
 export function getLastSyncedAt(): string | null {
@@ -46,6 +54,25 @@ export function getLastSyncedAt(): string | null {
 
 function setLastSyncedAt(value: string): void {
   localStorage.setItem(LAST_SYNCED_KEY, value)
+}
+
+export function getLastPulledAt(): string | null {
+  return localStorage.getItem(LAST_PULLED_KEY)
+}
+
+function setLastPulledAt(value: string): void {
+  localStorage.setItem(LAST_PULLED_KEY, value)
+}
+
+/**
+ * Compara dos fechas por el instante que representan, no por el texto.
+ *
+ * Postgres devuelve `2026-09-25T13:55:47.26+00:00` y `toISOString()` produce
+ * `2026-09-25T13:55:47.260Z`: el mismo instante escrito de dos formas, que
+ * comparadas como texto no dan lo que uno espera.
+ */
+function isAfter(a: string, b: string): boolean {
+  return Date.parse(a) > Date.parse(b)
 }
 
 function localTable(tableName: SyncTableName): EntityTable<SyncedEntity, 'id'> {
@@ -60,7 +87,7 @@ export async function pushTable(
   since: string,
 ): Promise<void> {
   const changed = await localTable(tableName)
-    .filter((row) => row.updatedAt > since)
+    .filter((row) => isAfter(row.updatedAt, since))
     .toArray()
   if (changed.length === 0) return
 
@@ -70,32 +97,52 @@ export async function pushTable(
 }
 
 /**
- * Pulls every remote row changed since `since` and merges it into Dexie,
- * last-write-wins by updatedAt — a remote row only overwrites the local one
- * when it's strictly newer (or the local row doesn't exist yet).
+ * Baja las filas que el servidor recibió después de `since` y las mezcla en
+ * Dexie, gana la más nueva por `updatedAt` — una fila remota sólo pisa a la
+ * local si es estrictamente más nueva, o si la local no existe.
+ *
+ * El filtro va por `syncedAt`, que pone el servidor al recibir cada fila, y no
+ * por `updatedAt`, que lo pone el dispositivo que la escribió. Son dos cosas
+ * distintas: una fila anotada en el teléfono a las 13:42 y subida a las 14:10
+ * aparece en el servidor recién a las 14:10, y cualquier otro dispositivo que
+ * haya sincronizado entremedio ya tendría su corte pasadas las 13:42. Con el
+ * filtro por `updatedAt` esa fila no se bajaba nunca más, y la sincronización
+ * terminaba sin error porque la consulta no devolvía nada.
+ *
+ * Devuelve el `syncedAt` más alto que vio, que es hasta dónde se bajó de
+ * verdad.
  */
 export async function pullTable(
   client: SupabaseClient,
   tableName: SyncTableName,
   userId: string,
   since: string,
-): Promise<void> {
+): Promise<string | null> {
   const { data, error } = await client
     .from(tableName)
     .select('*')
     .eq('userId', userId)
-    .gt('updatedAt', since)
+    .gt('syncedAt', since)
   if (error) throw new Error(`${tableName}: ${error.message}`)
-  if (!data || data.length === 0) return
+  if (!data || data.length === 0) return null
 
   const table = localTable(tableName)
-  for (const remoteRow of data as Array<SyncedEntity & { userId: string }>) {
-    const { userId: _userId, ...localRow } = remoteRow
+  let highest: string | null = null
+  for (const remoteRow of data as Array<
+    SyncedEntity & { userId: string; syncedAt?: string }
+  >) {
+    const { userId: _userId, syncedAt, ...localRow } = remoteRow
+    // `syncedAt` es del servidor: no se guarda ni se devuelve al subir, o se
+    // estaría mandando de vuelta una marca que sólo el servidor puede poner.
+    if (syncedAt !== undefined && (highest === null || isAfter(syncedAt, highest))) {
+      highest = syncedAt
+    }
     const existing = await table.get(localRow.id)
-    if (!existing || existing.updatedAt < localRow.updatedAt) {
+    if (!existing || isAfter(localRow.updatedAt, existing.updatedAt)) {
       await table.put(localRow as SyncedEntity)
     }
   }
+  return highest
 }
 
 export type SyncStatus =
@@ -126,28 +173,41 @@ export function subscribeSyncStatus(
 }
 
 /**
- * Runs one full sync cycle for `userId`: pushes local changes since the
- * last sync, then pulls remote changes since the same cutoff, merging
- * last-write-wins by updatedAt. The cutoff only advances once every table
- * has synced cleanly, so a failed sync safely retries from where it left
- * off next time.
+ * Corre un ciclo completo para `userId`: sube lo que cambió acá desde la
+ * última vez y baja lo que el servidor recibió desde la última vez, mezclando
+ * con gana-la-más-nueva por `updatedAt`.
+ *
+ * Son dos cortes y no uno porque cada uno vive en un reloj distinto: el de
+ * subida compara fechas de este dispositivo contra un momento de este
+ * dispositivo, y el de bajada compara fechas del servidor contra un momento
+ * del servidor. Mezclarlos era el motivo de que un teléfono y un computador
+ * dijeran los dos "sincronizado" con datos distintos.
+ *
+ * Ninguno de los dos avanza hasta que todas las tablas pasaron sin error, así
+ * que un fallo reintenta desde donde quedó.
  */
 export async function syncNow(userId: string): Promise<void> {
   if (!supabase) {
     throw new Error('La sincronización no está configurada.')
   }
-  const since = getLastSyncedAt() ?? EPOCH
+  const pushedSince = getLastSyncedAt() ?? EPOCH
+  const pulledSince = getLastPulledAt() ?? EPOCH
   const syncStartedAt = new Date().toISOString()
 
   setStatus({ kind: 'syncing' })
   try {
     for (const tableName of SYNC_TABLE_NAMES) {
-      await pushTable(supabase, tableName, userId, since)
+      await pushTable(supabase, tableName, userId, pushedSince)
     }
+    let highestPulled: string | null = null
     for (const tableName of SYNC_TABLE_NAMES) {
-      await pullTable(supabase, tableName, userId, since)
+      const seen = await pullTable(supabase, tableName, userId, pulledSince)
+      if (seen !== null && (highestPulled === null || isAfter(seen, highestPulled))) {
+        highestPulled = seen
+      }
     }
     setLastSyncedAt(syncStartedAt)
+    if (highestPulled !== null) setLastPulledAt(highestPulled)
     setStatus({ kind: 'idle', lastSyncedAt: syncStartedAt })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Error desconocido'
