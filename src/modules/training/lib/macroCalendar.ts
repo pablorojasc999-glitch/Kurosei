@@ -36,6 +36,15 @@ export interface CalendarCell {
   dayId: string | null
   /** `D1`, `D2`… según el orden del día dentro de su semana. Null si no hay plan. */
   slot: string | null
+  /**
+   * Índice del mesociclo al que pertenece **este día**, o -1 si ninguno.
+   *
+   * Es por día y no por semana porque un bloque puede empezar o terminar a
+   * mitad de semana: con el color decidido por el lunes, un bloque que arranca
+   * un domingo dejaba su primer día sin pintar, y uno que termina un martes
+   * pintaba hasta el domingo.
+   */
+  mesocycleIndex: number
   state: CellState
 }
 
@@ -44,7 +53,13 @@ export interface CalendarWeek {
   start: string
   /** Número de semana dentro del macrociclo, desde 1. */
   number: number
-  /** Índice del mesociclo que manda en esta semana, o -1 si ninguno. */
+  /**
+   * Índice del mesociclo que manda en esta semana, o -1 si ninguno: el que
+   * cubre más días de la semana, y a igualdad el primero.
+   *
+   * Sirve para la cabecera de la columna y para la tira de mesociclos, donde
+   * hay que elegir uno solo. El relleno de cada día usa el suyo propio.
+   */
   mesocycleIndex: number
   /** Abreviatura del mes cuando la semana estrena mes; si no, null. */
   monthLabel: string | null
@@ -90,6 +105,15 @@ export function startOfWeek(date: Date): Date {
 
 const MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
 
+/** El mesociclo con más días en la semana; a igualdad, el primero. */
+function dominantMesoIndex(daysPerMeso: number[]): number {
+  let best = -1
+  for (let i = 0; i < daysPerMeso.length; i++) {
+    if (daysPerMeso[i] > 0 && (best === -1 || daysPerMeso[i] > daysPerMeso[best])) best = i
+  }
+  return best
+}
+
 export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
   const { macrocycle, mesocycles, days, sessions, today } = input
 
@@ -130,6 +154,7 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
     let doneInWeek = 0
     let draftInWeek = 0
     let containsToday = false
+    const daysPerMeso = mesoRanges.map(() => 0)
 
     for (let i = 0; i < 7; i++) {
       const date = addDays(cursor, i)
@@ -138,6 +163,9 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
       const day = outside ? undefined : dayByDate.get(key)
       const isToday = key === todayKey
       if (isToday) containsToday = true
+
+      const cellMesoIndex = outside ? -1 : mesoIndexOf(key)
+      if (cellMesoIndex >= 0) daysPerMeso[cellMesoIndex] += 1
 
       let slot: string | null = null
       let state: CellState = 'empty'
@@ -162,6 +190,7 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
         isToday,
         dayId: day?.id ?? null,
         slot,
+        mesocycleIndex: cellMesoIndex,
         state,
       })
     }
@@ -174,7 +203,7 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
     weeks.push({
       start: toDateKey(cursor),
       number,
-      mesocycleIndex: mesoIndexOf(toDateKey(cursor)),
+      mesocycleIndex: dominantMesoIndex(daysPerMeso),
       monthLabel,
       containsToday,
       state:

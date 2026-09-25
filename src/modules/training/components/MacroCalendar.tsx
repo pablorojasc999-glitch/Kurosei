@@ -107,7 +107,11 @@ export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroC
 
           {calendar.weeks.map((week, col) =>
             week.cells.map((cell, row) => {
-              const hue = hueOf(week.mesocycleIndex)
+              // El tono sale del mesociclo del día, no del de la semana: un
+              // bloque que empieza o termina a mitad de semana tiene que
+              // pintarse desde su primer día y hasta el último, no de lunes a
+              // domingo.
+              const hue = hueOf(cell.mesocycleIndex)
               const className = [
                 'macro-cell',
                 cell.outside ? 'macro-cell--outside' : '',
