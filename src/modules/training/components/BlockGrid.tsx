@@ -5,8 +5,10 @@ import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addExerciseToSlot,
   getBlockGridData,
+  deletePlannedExercise,
   moveSlotExerciseToSlot,
   pinExerciseAcrossBlock,
+  removeSlotExercise,
   reorderSlotExercise,
   setPlannedExerciseCounts,
   setPlannedSets,
@@ -15,6 +17,7 @@ import {
 import { listExercises, listMuscleGroups } from '../db/trainingRepository'
 import { db } from '../../../shared/db/database'
 import { buildEffectiveSets, type EffectiveSetsRow } from '../lib/effectiveSets'
+import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { ExercisePicker } from './ExercisePicker'
 import { toDateKey } from '../lib/calendarGrid'
 import {
@@ -61,9 +64,14 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
       .toArray()
     return { names: new Map(groups.map((g) => [g.id, g.name])), contributions }
   }, [])
-  const [editing, setEditing] = useState<CellRef | null>(null)
+  // Se guarda a qué fila apunta la hoja, no una copia de la fila: con la copia,
+  // marcar algo dentro de la hoja cambiaba la base pero la hoja seguía
+  // enseñando el dato de cuando se abrió, y había que cerrarla para verlo.
+  const [editing, setEditing] = useState<
+    { slotIndex: number; exerciseId: string; weekIndex: number } | null
+  >(null)
   const [adding, setAdding] = useState<{ slot: GridDaySlot; weekIndex: number } | null>(null)
-  const [rowMenu, setRowMenu] = useState<{ slot: GridDaySlot; row: GridRow } | null>(null)
+  const [rowMenu, setRowMenu] = useState<{ slotIndex: number; exerciseId: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   if (!data || !exercises || !muscles) {
@@ -89,6 +97,21 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   }
 
   const thisWeek = currentWeekIndex(grid.slots, toDateKey(new Date()))
+
+  function findRow(slotIndex: number, exerciseId: string) {
+    const slot = grid.slots.find((s) => s.slotIndex === slotIndex)
+    const row = slot?.rows.find((r) => r.exerciseId === exerciseId)
+    return slot && row ? { slot, row } : null
+  }
+
+  const rowMenuTarget = rowMenu ? findRow(rowMenu.slotIndex, rowMenu.exerciseId) : null
+  const found = editing ? findRow(editing.slotIndex, editing.exerciseId) : null
+  const editingCell = found?.row.cells[editing?.weekIndex ?? 0]
+  // Si la fila desapareció —la acaban de quitar— la hoja se va con ella.
+  const editingTarget: CellRef | null =
+    found && editing && editingCell?.plannedExerciseId
+      ? { slot: found.slot, row: found.row, cell: editingCell, weekIndex: editing.weekIndex }
+      : null
 
   async function handleAddExercise(exerciseId: string) {
     if (!adding) return
@@ -184,7 +207,9 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                         type="button"
                         className="block-grid-name-button"
                         aria-label={`Opciones de ${row.exerciseName} en ${slot.label}`}
-                        onClick={() => setRowMenu({ slot, row })}
+                        onClick={() =>
+                          setRowMenu({ slotIndex: slot.slotIndex, exerciseId: row.exerciseId })
+                        }
                       >
                         <span className="block-grid-name-text" title={row.exerciseName}>
                           {row.exerciseName}
@@ -225,7 +250,13 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                             aria-label={`${row.exerciseName}, semana ${index + 1}: ${
                               cell.planned.volume || 'sin series'
                             }${done ? (asPlanned ? ', hecho tal cual' : `, hiciste ${cell.executed.volume}`) : ''}`}
-                            onClick={() => setEditing({ slot, row, cell, weekIndex: index })}
+                            onClick={() =>
+                              setEditing({
+                                slotIndex: slot.slotIndex,
+                                exerciseId: row.exerciseId,
+                                weekIndex: index,
+                              })
+                            }
                           >
                             <span className="block-grid-volume">{shown.volume || '—'}</span>
                             {footnote && (
@@ -294,10 +325,10 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
         </BottomSheet>
       )}
 
-      {rowMenu && (
+      {rowMenuTarget && (
         <RowMenu
-          slot={rowMenu.slot}
-          row={rowMenu.row}
+          slot={rowMenuTarget.slot}
+          row={rowMenuTarget.row}
           slots={grid.slots}
           mesocycleId={mesocycleId}
           onClose={() => setRowMenu(null)}
@@ -305,10 +336,10 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
         />
       )}
 
-      {editing && (
+      {editingTarget && (
         <CellEditor
-          key={editing.cell.plannedExerciseId as string}
-          target={editing}
+          key={editingTarget.cell.plannedExerciseId as string}
+          target={editingTarget}
           mesocycleId={mesocycleId}
           onClose={() => setEditing(null)}
           onNotice={setNotice}
@@ -487,6 +518,24 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
     onClose()
   }
 
+  async function quitar() {
+    await guard(async () => {
+      const { removed, skipped } = await removeSlotExercise(
+        mesocycleId,
+        slot.slotIndex,
+        row.exerciseId,
+      )
+      if (removed === 0) {
+        onNotice('No se quitó nada: esas semanas ya tienen la sesión finalizada.')
+      } else if (skipped > 0) {
+        onNotice(
+          `Quitado de ${removed} semana${removed === 1 ? '' : 's'}; ${skipped} con la sesión ya finalizada quedaron como estaban.`,
+        )
+      }
+    })
+    onClose()
+  }
+
   async function aOtroDia(toSlotIndex: number) {
     await guard(async () => {
       const { moved, skipped } = await moveSlotExerciseToSlot(
@@ -570,6 +619,13 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
           una semana suelta, abrí su celda.
         </p>
       )}
+
+      <p className="sheet-hint">Quitar del bloque</p>
+      <ConfirmDeleteButton
+        label="Quitar de todas las semanas"
+        confirmMessage={`¿Quitar ${row.exerciseName} de ${slot.label} en todo el bloque?`}
+        onConfirm={quitar}
+      />
 
       <div className="sheet-actions">
         <button type="button" onClick={onClose}>
@@ -778,6 +834,17 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
         )}
 
       {error && <p className="error">{error}</p>}
+
+      {!cell.sessionEnded && (
+        <ConfirmDeleteButton
+          label="Quitar de esta semana"
+          confirmMessage={`¿Quitar ${row.exerciseName} de la semana ${weekIndex + 1}?`}
+          onConfirm={async () => {
+            await deletePlannedExercise(cell.plannedExerciseId as string)
+            onClose()
+          }}
+        />
+      )}
 
       <div className="sheet-actions">
         <button type="button" onClick={onClose}>
