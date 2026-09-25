@@ -28,6 +28,7 @@ import {
   updatePlannedSet,
 } from '../db/planningRepository'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
+import { parseReps } from '../lib/reps'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { BlockGrid } from './BlockGrid'
@@ -377,7 +378,7 @@ export function PeriodizationPage({
     await guardSet(async () => {
       const input = {
         targetWeightKg: form.weight ? Number(form.weight) : null,
-        targetReps: Number(form.reps),
+        targetReps: parseReps(form.reps),
         targetRpe: form.rpe ? Number(form.rpe) : null,
         dropSet: form.dropSet,
         restPause: form.restPause,
@@ -855,6 +856,7 @@ export function PeriodizationPage({
                           autoComplete="off"
                           type="number"
                           inputMode="numeric"
+                          step="1"
                           className="set-form-field"
                           placeholder="Reps"
                           aria-label="Repeticiones"
