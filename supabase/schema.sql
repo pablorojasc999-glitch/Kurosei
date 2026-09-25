@@ -198,7 +198,7 @@ create table if not exists "training_cardio_sessions" (
   "dayId" uuid not null,
   "exerciseId" uuid not null,
   "startedAt" timestamptz not null,
-  "durationMinutes" integer not null,
+  "durationMinutes" double precision not null,
   "distanceKm" double precision,
   "caloriesBurned" double precision,
   "notes" text not null,

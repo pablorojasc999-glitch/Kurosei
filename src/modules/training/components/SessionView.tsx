@@ -26,6 +26,7 @@ import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
 import { RestTimer } from './RestTimer'
 import { SessionSummary } from './SessionSummary'
+import { parseReps } from '../lib/reps'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate, formatRestMinutes } from '../lib/format'
 import {
@@ -222,7 +223,7 @@ export function SessionView({ dayId }: SessionViewProps) {
     await guardSet(async () => {
       const input = {
         weightKg: form.weight ? Number(form.weight) : null,
-        reps: Number(form.reps),
+        reps: parseReps(form.reps),
         rpe: form.rpe ? Number(form.rpe) : null,
         eva: form.eva ? Number(form.eva) : null,
         notes: form.notes,
@@ -602,6 +603,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                         autoComplete="off"
                         type="number"
                         inputMode="numeric"
+                        step="1"
                         value={historyRepsValue}
                         onChange={(e) =>
                           setHistoryReps((prev) => ({
@@ -705,6 +707,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                       autoComplete="off"
                       type="number"
                       inputMode="numeric"
+                      step="1"
                       value={form.reps}
                       onChange={(e) =>
                         setSetForms((prev) => ({

@@ -137,10 +137,14 @@ export function CardioView({ dayId }: CardioViewProps) {
           </label>
           <label>
             Duración (min)
+            {/* Con decimales: un reloj devuelve 28.6 min, y redondear a 29
+                falsea el gasto calórico que sale de acá. */}
             <input
               autoComplete="off"
               type="number"
-              inputMode="numeric"
+              inputMode="decimal"
+              step="0.1"
+              min={0}
               value={duration}
               onChange={(e) => setDuration(e.target.value)}
               required
