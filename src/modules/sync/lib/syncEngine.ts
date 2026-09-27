@@ -33,6 +33,7 @@ export const SYNC_TABLE_NAMES = [
   'nutrition_meal_template_entries',
   'nutrition_goal_plans',
   'grocery_items',
+  'day_closures',
 ] as const
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]

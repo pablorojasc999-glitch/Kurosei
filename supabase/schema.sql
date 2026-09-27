@@ -842,3 +842,36 @@ drop trigger if exists "grocery_items_synced_at" on "grocery_items";
 create trigger "grocery_items_synced_at" before insert or update on "grocery_items"
   for each row execute function public.set_synced_at();
 create index if not exists "grocery_items_pull_idx" on "grocery_items" ("userId", "syncedAt");
+
+-- ---------------------------------------------------------------------
+-- Cierre del día
+--
+-- "No hay datos" y "no había nada que registrar" se ven igual desde la base:
+-- un día de descanso o un día sin gastos son días completos que no dejan
+-- ninguna fila. Esta tabla es la que los distingue.
+-- ---------------------------------------------------------------------
+
+create table if not exists "day_closures" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "date" text not null,
+  "module" text not null,
+  "kind" text not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz,
+  "syncedAt" timestamptz not null default now()
+);
+
+create index if not exists "day_closures_sync_idx" on "day_closures" ("userId", "updatedAt");
+create index if not exists "day_closures_pull_idx" on "day_closures" ("userId", "syncedAt");
+create index if not exists "day_closures_day_idx" on "day_closures" ("userId", "date");
+
+alter table "day_closures" enable row level security;
+drop policy if exists "owner_all" on "day_closures";
+create policy "owner_all" on "day_closures" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+drop trigger if exists "day_closures_synced_at" on "day_closures";
+create trigger "day_closures_synced_at" before insert or update on "day_closures"
+  for each row execute function public.set_synced_at();
