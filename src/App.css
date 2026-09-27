@@ -4907,6 +4907,328 @@ button.macro-cell {
    centra en vez de estirarse hasta el borde de la pantalla.
    =========================================================================== */
 
+/* --- cierre del día y constancia ------------------------------------- */
+/* Un color por módulo, el mismo en el anillo y en la leyenda: es lo que
+   permite leer un hueco del anillo sin tener que abrir el día. */
+:root {
+  --mod-training: #a78bfa;
+  --mod-nutrition: #4ade80;
+  --mod-finance: #fbbf24;
+  --mod-bitacora: #38bdf8;
+}
+
+.completion-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.completion-ring svg {
+  position: absolute;
+  inset: 0;
+}
+
+.completion-ring-label {
+  position: relative;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* Pendiente: el arco se ve, apagado. Un arco ausente se confundiría con el
+   borde de la celda y el anillo dejaría de leerse como un círculo. */
+.completion-arc--pending {
+  stroke: var(--border);
+}
+
+.completion-ring svg g > .completion-arc:nth-child(1):not(.completion-arc--pending) {
+  stroke: var(--mod-training);
+}
+.completion-ring svg g > .completion-arc:nth-child(2):not(.completion-arc--pending) {
+  stroke: var(--mod-nutrition);
+}
+.completion-ring svg g > .completion-arc:nth-child(3):not(.completion-arc--pending) {
+  stroke: var(--mod-finance);
+}
+.completion-ring svg g > .completion-arc:nth-child(4):not(.completion-arc--pending) {
+  stroke: var(--mod-bitacora);
+}
+
+/* Cerrado diciendo "no hubo nada": cuenta como completo, pero se distingue de
+   haber registrado algo. */
+.completion-arc--empty {
+  opacity: 0.45;
+}
+
+/* --- la tarjeta de cierre -------------------------------------------- */
+.day-close {
+  margin-top: 20px;
+  padding: 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: 14px;
+  background: var(--accent-bg);
+}
+
+.day-close-prompt {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.day-close-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.day-close-primary,
+.day-close-secondary {
+  flex: 1 1 0;
+  min-height: 44px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.day-close-primary {
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  color: #fff;
+}
+
+.day-close-secondary {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* Ya cerrado: una línea discreta. Lo que importaba era la decisión, y
+   repetir la tarjeta entera después de tomarla sólo ocupa pantalla. */
+.day-close--done {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.day-close-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--success);
+  color: #0b1120;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.day-close-state {
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.day-close-reopen {
+  min-height: auto;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* --- el calendario de constancia -------------------------------------- */
+.constancia-score {
+  display: block;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.constancia-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  justify-items: center;
+}
+
+.constancia-weekday {
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding-bottom: 2px;
+}
+
+.constancia-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 42px;
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: 10px;
+  color: var(--text);
+}
+
+.constancia-cell--outside {
+  opacity: 0.35;
+}
+
+.constancia-cell--future .constancia-plain {
+  color: var(--text-muted);
+}
+
+.constancia-cell--today {
+  background: var(--accent-bg);
+  outline: 1px solid var(--accent-border);
+  outline-offset: -1px;
+}
+
+.constancia-plain {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.constancia-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  list-style: none;
+  margin: 14px 0 8px;
+  padding: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.constancia-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.legend-dot--training {
+  background: var(--mod-training);
+}
+.legend-dot--nutrition {
+  background: var(--mod-nutrition);
+}
+.legend-dot--finance {
+  background: var(--mod-finance);
+}
+.legend-dot--bitacora {
+  background: var(--mod-bitacora);
+}
+
+/* --- el detalle de un día --------------------------------------------- */
+.day-detail-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 4px;
+}
+
+.day-detail-summary {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.day-detail-module {
+  margin-top: 18px;
+}
+
+.day-detail-module h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.day-detail-module .day-close {
+  margin-top: 8px;
+}
+
+/* --- la lista de pendientes ------------------------------------------- */
+.pendientes-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pendiente-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 60px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--text);
+  text-align: left;
+}
+
+.pendiente-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pendiente-date {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pendiente-missing {
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.pendiente-count {
+  flex: 0 0 auto;
+  color: var(--accent-2);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pendientes-clear {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--success);
+}
+
 @media (min-width: 960px) {
   :root {
     --sidebar-w: 248px;

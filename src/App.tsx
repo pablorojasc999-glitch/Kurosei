@@ -23,6 +23,8 @@ import {
 import { MetasPage } from './modules/nutrition/components/MetasPage'
 import { PlantillasPage } from './modules/nutrition/components/PlantillasPage'
 import { RegistroPage as NutritionRegistroPage } from './modules/nutrition/components/RegistroPage'
+import { CalendarioPage } from './modules/closing/components/CalendarioPage'
+import { PendientesPage } from './modules/closing/components/PendientesPage'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { E1rmCalculatorPage } from './modules/training/components/E1rmCalculatorPage'
 import { ExerciseLibraryPage } from './modules/training/components/ExerciseLibraryPage'
@@ -51,6 +53,8 @@ type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
 
 type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas' | 'supermercado'
 
+type ConstanciaTab = 'calendario' | 'pendientes'
+
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('registro')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -58,6 +62,7 @@ function App() {
   const [tab, setTab] = useState<Tab>('periodizacion')
   const [financeTab, setFinanceTab] = useState<FinanceTab>('cuentas')
   const [nutritionTab, setNutritionTab] = useState<NutritionTab>('plantillas')
+  const [constanciaTab, setConstanciaTab] = useState<ConstanciaTab>('calendario')
   const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
 
@@ -102,6 +107,15 @@ function App() {
             </div>
             <div hidden={registroTab !== 'supermercado'}>
               <SupermercadoPage />
+            </div>
+          </>
+        ) : appModule === 'constancia' ? (
+          <>
+            <div hidden={constanciaTab !== 'calendario'}>
+              <CalendarioPage onOpenDay={handleOpenDay} />
+            </div>
+            <div hidden={constanciaTab !== 'pendientes'}>
+              <PendientesPage onOpenDay={handleOpenDay} />
             </div>
           </>
         ) : appModule === 'finanzas' ? (
@@ -187,6 +201,25 @@ function App() {
           >
             <IconGrocery />
             Súper
+          </button>
+        </nav>
+      ) : appModule === 'constancia' ? (
+        <nav className="tabs">
+          <button
+            type="button"
+            className={constanciaTab === 'calendario' ? 'active' : ''}
+            onClick={() => setConstanciaTab('calendario')}
+          >
+            <IconCalendar />
+            Calendario
+          </button>
+          <button
+            type="button"
+            className={constanciaTab === 'pendientes' ? 'active' : ''}
+            onClick={() => setConstanciaTab('pendientes')}
+          >
+            <IconRegistro />
+            Pendientes
           </button>
         </nav>
       ) : appModule === 'finanzas' ? (

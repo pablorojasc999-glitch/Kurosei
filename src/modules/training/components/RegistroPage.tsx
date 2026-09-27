@@ -7,7 +7,8 @@ import {
   getOrCreateDayForDate,
   listPlannedExercises,
 } from '../db/planningRepository'
-import { addDays, formatDayHeader, startOfDay } from '../lib/calendarGrid'
+import { addDays, formatDayHeader, startOfDay, toDateKey } from '../lib/calendarGrid'
+import { DayCloseCard } from '../../closing/components/DayCloseCard'
 import { BitacoraSection } from './BitacoraSection'
 import { CardioView } from './CardioView'
 import { DayHeaderLabel } from './DayHeaderLabel'
@@ -132,6 +133,14 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
           </section>
         </>
       )}
+
+      {/* Al final del día, no arriba: cerrar es lo último que se hace, y con
+          el botón arriba se cerraba antes de terminar de anotar. */}
+      <DayCloseCard
+        date={toDateKey(selectedDate)}
+        module="training"
+        prompt="¿Listo con el entrenamiento de este día?"
+      />
     </div>
   )
 }

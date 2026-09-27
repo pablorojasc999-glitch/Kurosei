@@ -27,6 +27,7 @@ import type { MacroTotals } from '../lib/macros'
 import { formatNutrient, formatSummaryAmount } from '../lib/nutrients'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { weekDates } from '../lib/weekStrip'
+import { DayCloseCard } from '../../closing/components/DayCloseCard'
 import { AddEntryForm } from './AddEntryForm'
 import { EntryEditor } from './EntryEditor'
 import { EntryRow } from './EntryRow'
@@ -350,6 +351,13 @@ export function RegistroPage() {
           Cargar plantilla
         </button>
       )}
+
+      {/* Al final del día, no arriba: cerrar es lo último que se hace. */}
+      <DayCloseCard
+        date={toDateKey(selectedDate)}
+        module="nutrition"
+        prompt="¿Listo con la comida de este día?"
+      />
     </div>
   )
 }

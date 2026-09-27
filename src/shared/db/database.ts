@@ -1,6 +1,8 @@
 import Dexie, { type EntityTable } from 'dexie'
 import { generateId } from '../lib/id'
 import { FINANCE_STORES_V4, FINANCE_STORES_V10 } from '../../modules/finance/db/schema'
+import { CLOSING_STORES_V11 } from '../../modules/closing/db/schema'
+import type { DayClosure } from '../../modules/closing/domain/types'
 import { GROCERY_STORES_V8 } from '../../modules/grocery/db/schema'
 import type { GroceryItem } from '../../modules/grocery/domain/types'
 import type {
@@ -84,6 +86,7 @@ export class KuroseiDatabase extends Dexie {
   nutrition_meal_template_entries!: EntityTable<MealTemplateEntry, 'id'>
   nutrition_goal_plans!: EntityTable<NutritionGoalPlan, 'id'>
   grocery_items!: EntityTable<GroceryItem, 'id'>
+  day_closures!: EntityTable<DayClosure, 'id'>
 
   constructor() {
     super('kurosei')
@@ -156,6 +159,10 @@ export class KuroseiDatabase extends Dexie {
             delete c.monthlyBudget
           })
       })
+    // El cierre del día: hasta ahora "no hay datos" y "no había nada que
+    // registrar" se veían igual, así que un día de descanso o sin gastos
+    // quedaba pendiente para siempre.
+    this.version(11).stores({ ...CLOSING_STORES_V11 })
   }
 }
 
