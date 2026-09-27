@@ -4492,8 +4492,11 @@ section {
   color: var(--text-muted);
 }
 
+/* Envuelve porque son tres atajos: con "Traer de la S2" los tres no caben en
+   una línea de teléfono, y recortar la etiqueta dejaba "Trae…". */
 .set-editor-tools {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
 }
@@ -5373,4 +5376,29 @@ button.macro-cell {
   .progress-charts > section {
     margin-top: 0;
   }
+}
+
+/* La cabecera de semana de la planilla es un botón: trae lo planificado en la
+   anterior. El glifo va aparte y más pequeño para que "S2" siga leyéndose
+   como la etiqueta de la columna y no como parte de un botón. */
+.block-grid-week-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: auto;
+  padding: 2px 4px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.block-grid-week-button:hover {
+  color: var(--accent);
+}
+
+.block-grid-week-glyph {
+  color: var(--accent);
+  font-size: 10px;
 }

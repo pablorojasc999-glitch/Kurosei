@@ -4,6 +4,7 @@ import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addExerciseToSlot,
+  copyPreviousWeekPlan,
   getBlockGridData,
   deletePlannedExercise,
   moveSlotExerciseToSlot,
@@ -20,6 +21,7 @@ import {
   type EffectiveSetsCell,
   type EffectiveSetsRow,
 } from '../lib/effectiveSets'
+import { describePreviousWeekCopy } from '../lib/copyWeekNotice'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { ExercisePicker } from './ExercisePicker'
 import { toDateKey } from '../lib/calendarGrid'
@@ -75,6 +77,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
   >(null)
   const [adding, setAdding] = useState<{ slot: GridDaySlot; weekIndex: number } | null>(null)
   const [rowMenu, setRowMenu] = useState<{ slotIndex: number; exerciseId: string } | null>(null)
+  const [weekMenu, setWeekMenu] = useState<number | null>(null)
   const [effectiveDetail, setEffectiveDetail] = useState<EffectiveDetail | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
@@ -158,7 +161,23 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                   scope="col"
                   className={index === thisWeek ? 'block-grid-week--current' : undefined}
                 >
-                  S{index + 1}
+                  {/* La primera semana no tiene anterior de la que traer, así
+                      que es la única que no se toca. */}
+                  {index > 0 ? (
+                    <button
+                      type="button"
+                      className="block-grid-week-button"
+                      aria-label={`Semana ${index + 1}: traer lo planificado de la semana ${index}`}
+                      onClick={() => setWeekMenu(index)}
+                    >
+                      S{index + 1}
+                      <span className="block-grid-week-glyph" aria-hidden="true">
+                        ⟳
+                      </span>
+                    </button>
+                  ) : (
+                    `S${index + 1}`
+                  )}
                   {index === thisWeek && <span className="sr-only"> (semana en curso)</span>}
                 </th>
               ))}
@@ -322,6 +341,12 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
         </table>
       </div>
 
+      {grid.weeks.length > 1 && (
+        <p className="empty-hint">
+          Tocá S2 ⟳, S3 ⟳… para traer a esa semana lo planificado en la anterior.
+        </p>
+      )}
+
       <EffectiveSets
         rows={effective}
         weekCount={grid.weeks.length}
@@ -349,6 +374,16 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
           slots={grid.slots}
           mesocycleId={mesocycleId}
           onClose={() => setRowMenu(null)}
+          onNotice={setNotice}
+        />
+      )}
+
+      {weekMenu !== null && (
+        <WeekMenu
+          weekIndex={weekMenu}
+          slots={grid.slots}
+          mesocycleId={mesocycleId}
+          onClose={() => setWeekMenu(null)}
           onNotice={setNotice}
         />
       )}
@@ -591,6 +626,83 @@ function EffectiveDetailSheet({
   )
 }
 
+interface WeekMenuProps {
+  /** La semana de destino, 0-based: siempre la 2ª o posterior. */
+  weekIndex: number
+  slots: GridDaySlot[]
+  mesocycleId: string
+  onClose: () => void
+  onNotice: (message: string) => void
+}
+
+/**
+ * Traer a una semana lo planificado en la anterior del mismo bloque.
+ *
+ * Es como se planifica de verdad un mesociclo: la semana 3 es la 2 con un poco
+ * más de peso. Escribirla de nuevo a mano es reescribir algo que ya estaba
+ * decidido, y es donde se cuelan los errores.
+ *
+ * Se ofrece la semana entera y también un día suelto, porque el bloque no se
+ * planifica de una sentada: hoy el día 1, mañana el 2.
+ */
+function WeekMenu({ weekIndex, slots, mesocycleId, onClose, onNotice }: WeekMenuProps) {
+  const { isSubmitting: isBusy, guard } = useSubmitGuard()
+  const from = weekIndex
+
+  async function traer(slotIndex?: number) {
+    await guard(async () => {
+      const result = await copyPreviousWeekPlan(mesocycleId, weekIndex, slotIndex)
+      onNotice(describePreviousWeekCopy(result, from))
+    })
+    onClose()
+  }
+
+  return (
+    <BottomSheet
+      title={`Semana ${weekIndex + 1}`}
+      subtitle={`Traer lo planificado en la Semana ${from}`}
+      onClose={onClose}
+    >
+      <div className="sheet-list">
+        <button type="button" disabled={isBusy} onClick={() => void traer()}>
+          ⟳ Traer la Semana {from} entera
+        </button>
+      </div>
+
+      {slots.length > 1 && (
+        <>
+          <p className="sheet-hint">Sólo un día</p>
+          <div className="sheet-list">
+            {slots.map((slot) => (
+              <button
+                key={slot.slotIndex}
+                type="button"
+                disabled={isBusy}
+                onClick={() => void traer(slot.slotIndex)}
+              >
+                ⟳ {slot.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Que no pise nada es lo que hace seguro tocar el botón dos veces, y no
+          se adivina mirándolo. */}
+      <p className="empty-hint">
+        Lo que esta semana ya tenga planificado queda como está: sólo vienen los
+        ejercicios que le faltan, con sus series.
+      </p>
+
+      <div className="sheet-actions">
+        <button type="button" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
+    </BottomSheet>
+  )
+}
+
 interface RowMenuProps {
   slot: GridDaySlot
   row: GridRow
@@ -773,6 +885,9 @@ interface CellEditorProps {
 function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellEditorProps) {
   const { slot, row, cell, weekIndex } = target
   const plannedExerciseId = cell.plannedExerciseId as string
+  // La fila ya trae las celdas de todas las semanas, así que la anterior está
+  // acá y no hace falta ir a buscarla a la base.
+  const previous = weekIndex > 0 ? row.cells[weekIndex - 1] : undefined
   const { isSubmitting, guard } = useSubmitGuard()
   const [error, setError] = useState<string | null>(null)
   const [drafts, setDrafts] = useState<SetDraft[]>(() =>
@@ -799,6 +914,19 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
   /** Iguala todas las series a la primera — el atajo para la prescripción uniforme. */
   function levelAll() {
     setDrafts((current) => current.map(() => ({ ...current[0] })))
+  }
+
+  /**
+   * Trae al formulario lo que este mismo ejercicio tenía planificado la semana
+   * anterior, para ajustarle el peso y guardar.
+   *
+   * Sólo llena el formulario: nada se escribe hasta que se toca Guardar. Así se
+   * ve lo que va a quedar antes de que quede, que es justo lo que se quiere de
+   * un atajo que copia números.
+   */
+  function bringPreviousWeek() {
+    if (!previous) return
+    setDrafts(previous.plannedSets.map(toDraft))
   }
 
   async function handleSave(pin: boolean) {
@@ -927,6 +1055,11 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
           <button type="button" onClick={levelAll} disabled={drafts.length < 2}>
             Igualar a la 1ª
           </button>
+          {previous && previous.plannedSets.length > 0 && (
+            <button type="button" onClick={bringPreviousWeek}>
+              ⟳ Traer de la S{weekIndex}
+            </button>
+          )}
         </div>
         </>
       )}
