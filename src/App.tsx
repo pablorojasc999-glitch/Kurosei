@@ -24,7 +24,6 @@ import { MetasPage } from './modules/nutrition/components/MetasPage'
 import { PlantillasPage } from './modules/nutrition/components/PlantillasPage'
 import { RegistroPage as NutritionRegistroPage } from './modules/nutrition/components/RegistroPage'
 import { CalendarioPage } from './modules/closing/components/CalendarioPage'
-import { PendientesPage } from './modules/closing/components/PendientesPage'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { E1rmCalculatorPage } from './modules/training/components/E1rmCalculatorPage'
 import { ExerciseLibraryPage } from './modules/training/components/ExerciseLibraryPage'
@@ -51,18 +50,22 @@ type FinanceTab = 'cuentas' | 'categorias' | 'estadisticas'
 
 type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
 
-type RegistroTab = 'entrenamiento' | 'nutricion' | 'finanzas' | 'supermercado'
-
-type ConstanciaTab = 'calendario' | 'pendientes'
+type RegistroTab =
+  | 'constancia'
+  | 'entrenamiento'
+  | 'nutricion'
+  | 'finanzas'
+  | 'supermercado'
 
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('registro')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [registroTab, setRegistroTab] = useState<RegistroTab>('entrenamiento')
+  // El calendario es la pantalla de inicio: lo primero que conviene ver al
+  // abrir la app es qué días quedaron a medias.
+  const [registroTab, setRegistroTab] = useState<RegistroTab>('constancia')
   const [tab, setTab] = useState<Tab>('periodizacion')
   const [financeTab, setFinanceTab] = useState<FinanceTab>('cuentas')
   const [nutritionTab, setNutritionTab] = useState<NutritionTab>('plantillas')
-  const [constanciaTab, setConstanciaTab] = useState<ConstanciaTab>('calendario')
   const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
 
@@ -96,6 +99,9 @@ function App() {
       <main className="app-content">
         {appModule === 'registro' ? (
           <>
+            <div hidden={registroTab !== 'constancia'}>
+              <CalendarioPage onOpenDay={handleOpenDay} />
+            </div>
             <div hidden={registroTab !== 'entrenamiento'}>
               <RegistroPage jumpToDate={jumpToDate} onEditPlan={handleEditPlan} />
             </div>
@@ -107,15 +113,6 @@ function App() {
             </div>
             <div hidden={registroTab !== 'supermercado'}>
               <SupermercadoPage />
-            </div>
-          </>
-        ) : appModule === 'constancia' ? (
-          <>
-            <div hidden={constanciaTab !== 'calendario'}>
-              <CalendarioPage onOpenDay={handleOpenDay} />
-            </div>
-            <div hidden={constanciaTab !== 'pendientes'}>
-              <PendientesPage onOpenDay={handleOpenDay} />
             </div>
           </>
         ) : appModule === 'finanzas' ? (
@@ -172,11 +169,19 @@ function App() {
         <nav className="tabs">
           <button
             type="button"
+            className={registroTab === 'constancia' ? 'active' : ''}
+            onClick={() => setRegistroTab('constancia')}
+          >
+            <IconCalendar />
+            Constancia
+          </button>
+          <button
+            type="button"
             className={registroTab === 'entrenamiento' ? 'active' : ''}
             onClick={() => setRegistroTab('entrenamiento')}
           >
             <IconRegistro />
-            Entrenamiento
+            Entreno
           </button>
           <button
             type="button"
@@ -201,25 +206,6 @@ function App() {
           >
             <IconGrocery />
             Súper
-          </button>
-        </nav>
-      ) : appModule === 'constancia' ? (
-        <nav className="tabs">
-          <button
-            type="button"
-            className={constanciaTab === 'calendario' ? 'active' : ''}
-            onClick={() => setConstanciaTab('calendario')}
-          >
-            <IconCalendar />
-            Calendario
-          </button>
-          <button
-            type="button"
-            className={constanciaTab === 'pendientes' ? 'active' : ''}
-            onClick={() => setConstanciaTab('pendientes')}
-          >
-            <IconRegistro />
-            Pendientes
           </button>
         </nav>
       ) : appModule === 'finanzas' ? (

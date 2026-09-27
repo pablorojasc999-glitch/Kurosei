@@ -46,7 +46,8 @@ export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
     (d) =>
       d.date.slice(0, 7) === toDateKey(monthStart).slice(0, 7) &&
       d.date <= todayKey &&
-      (startedAt == null || d.date >= startedAt),
+      startedAt != null &&
+      d.date >= startedAt,
   )
   const completos = delMes.filter((d) => d.complete).length
 
@@ -66,8 +67,10 @@ export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
           <strong>{monthLabel}</strong>
           <span className="constancia-score">
             {delMes.length === 0
-              ? 'Sin días que contar todavía'
-              : `${completos} de ${delMes.length} días completos`}
+              ? 'La cuenta arranca el primer día que cierres'
+              : `${completos} de ${delMes.length} día${delMes.length === 1 ? '' : 's'} completo${
+                  delMes.length === 1 ? '' : 's'
+                }`}
           </span>
         </span>
         <button
@@ -94,7 +97,7 @@ export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
             // Antes del primer cierre no hay nada que reclamar: se dibuja
             // liso, igual que el futuro, para que el calendario no muestre
             // dieciocho días pendientes que el contador no cuenta.
-            const beforeStart = startedAt != null && key < startedAt
+            const beforeStart = startedAt == null || key < startedAt
             return (
               <button
                 key={key}

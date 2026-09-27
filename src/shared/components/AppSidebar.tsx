@@ -2,12 +2,7 @@ import type { ReactElement } from 'react'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { DESKTOP_MEDIA_QUERY } from '../lib/breakpoints'
 
-export type AppModule =
-  | 'registro'
-  | 'constancia'
-  | 'entrenamiento'
-  | 'finanzas'
-  | 'nutricion'
+export type AppModule = 'registro' | 'entrenamiento' | 'finanzas' | 'nutricion'
 
 interface AppSidebarProps {
   open: boolean
@@ -62,18 +57,8 @@ function IconNutrition() {
   )
 }
 
-function IconConstancia(): ReactElement {
-  return (
-    <svg {...ICON_PROPS}>
-      <circle cx="12" cy="12" r="8" />
-      <path d="M12 4a8 8 0 0 1 8 8" strokeWidth={3} />
-    </svg>
-  )
-}
-
 const MODULES: Array<{ id: AppModule; label: string; icon: () => ReactElement }> = [
   { id: 'registro', label: 'Registro', icon: IconRegistroModule },
-  { id: 'constancia', label: 'Constancia', icon: IconConstancia },
   { id: 'entrenamiento', label: 'Entrenamiento', icon: IconDumbbell },
   { id: 'finanzas', label: 'Finanzas', icon: IconFinance },
   { id: 'nutricion', label: 'Nutrición', icon: IconNutrition },
