@@ -80,37 +80,56 @@ describe('hasQuantity', () => {
 })
 
 describe('needsBuying', () => {
-  it('sin cantidad no hay que llevarlo, por mucho que le toque por ciclo', () => {
+  it('hay que llevarlo si venció el ciclo, aunque no tenga cantidad anotada', () => {
+    // Al cerrar la compra se borra la cantidad: si además hiciera falta para
+    // contar, el aviso por ciclo no volvería a salir nunca.
     const sinCantidad = item({ cadence: 'quincenal', lastBoughtAt: '2026-01-01' })
     expect(isDue(sinCantidad, '2026-03-01')).toBe(true)
-    expect(needsBuying(sinCantidad, '2026-03-01')).toBe(false)
+    expect(needsBuying(sinCantidad, '2026-03-01')).toBe(true)
   })
 
-  it('con cantidad, hay que llevarlo justo cuando le toca', () => {
-    const conCantidad = item({
+  it('hay que llevarlo si tiene cantidad, aunque el ciclo esté fresco', () => {
+    // Anotar "2 L" de algo comprado anteayer es decir que hace falta igual.
+    const reciente = item({
       cadence: 'quincenal',
       quantity: '2 L',
       lastBoughtAt: '2026-03-01',
     })
-    expect(needsBuying(conCantidad, '2026-03-14')).toBe(false)
-    expect(needsBuying(conCantidad, '2026-03-15')).toBe(true)
+    expect(isDue(reciente, '2026-03-03')).toBe(false)
+    expect(needsBuying(reciente, '2026-03-03')).toBe(true)
   })
 
-  it('lo esporádico con cantidad tampoco toca solo: no tiene ciclo', () => {
-    const esporadico = item({ cadence: 'esporadico', quantity: '1' })
-    expect(needsBuying(esporadico, '2026-03-01')).toBe(false)
+  it('en casa y con el ciclo fresco, no hay nada que llevar', () => {
+    const enCasa = item({ cadence: 'quincenal', lastBoughtAt: '2026-03-01' })
+    expect(needsBuying(enCasa, '2026-03-03')).toBe(false)
+  })
+
+  it('lo esporádico sólo sale si se le anota cantidad: no tiene ciclo', () => {
+    const sinNada = item({ cadence: 'esporadico', lastBoughtAt: '2020-01-01' })
+    expect(needsBuying(sinNada, '2026-03-01')).toBe(false)
+    const conCantidad = item({ cadence: 'esporadico', quantity: '1' })
+    expect(needsBuying(conCantidad, '2026-03-01')).toBe(true)
+  })
+
+  it('el ciclo vuelve a sacarlo después de comprarlo', () => {
+    // El recorrido completo: se compra (cantidad vacía, fecha de hoy), baja de
+    // la lista, y a los 14 días vuelve a salir solo.
+    const recienComprado = item({ cadence: 'quincenal', lastBoughtAt: '2026-03-01' })
+    expect(needsBuying(recienComprado, '2026-03-02')).toBe(false)
+    expect(needsBuying(recienComprado, '2026-03-15')).toBe(true)
   })
 })
 
 describe('sortForDisplay', () => {
   it('primero lo que hay que comprar, luego lo que ya está en casa, alfabético en cada bloque', () => {
+    // Acelga y Betarraga están en casa y con el ciclo fresco.
     const items = [
       item({ id: '1', name: 'Zanahoria', cadence: 'quincenal', quantity: '1 kg' }),
-      item({ id: '2', name: 'Acelga', cadence: 'quincenal' }),
+      item({ id: '2', name: 'Acelga', cadence: 'quincenal', lastBoughtAt: '2026-03-01' }),
       item({ id: '3', name: 'Manzana', cadence: 'quincenal', quantity: '4' }),
-      item({ id: '4', name: 'Betarraga', cadence: 'quincenal' }),
+      item({ id: '4', name: 'Betarraga', cadence: 'quincenal', lastBoughtAt: '2026-03-01' }),
     ]
-    expect(sortForDisplay(items).map((i) => i.name)).toEqual([
+    expect(sortForDisplay(items, '2026-03-01').map((i) => i.name)).toEqual([
       'Manzana',
       'Zanahoria',
       'Acelga',
@@ -122,7 +141,7 @@ describe('sortForDisplay', () => {
     const items = ['Ñoquis', 'Nuez', 'Ajo', 'Ácido', 'Zapallo'].map((name, index) =>
       item({ id: String(index), name, cadence: 'mensual', quantity: '1' }),
     )
-    expect(sortForDisplay(items).map((i) => i.name)).toEqual([
+    expect(sortForDisplay(items, '2026-03-01').map((i) => i.name)).toEqual([
       'Ácido',
       'Ajo',
       'Nuez',
@@ -136,31 +155,33 @@ describe('sortForDisplay', () => {
       item({ id: '1', name: 'Zanahoria', cadence: 'quincenal', quantity: '1' }),
       item({ id: '2', name: 'Acelga', cadence: 'quincenal', quantity: '1' }),
     ]
-    sortForDisplay(items)
+    sortForDisplay(items, '2026-03-01')
     expect(items.map((i) => i.name)).toEqual(['Zanahoria', 'Acelga'])
   })
 })
 
 describe('lastBoughtLabel', () => {
-  it('sólo marca "toca" lo que además hay que comprar', () => {
+  it('marca "toca" lo que hay que llevar, por cualquiera de los dos caminos', () => {
     expect(
       lastBoughtLabel(item({ cadence: 'quincenal', quantity: '2 L' }), '2026-03-01'),
     ).toBe('Nunca comprado · toca')
-    // Sin cantidad está en casa: se informa la fecha, pero no se pide comprarlo.
+    // Nunca comprado y con ciclo: ya toca, aunque no se le haya puesto cantidad.
     expect(lastBoughtLabel(item({ cadence: 'quincenal' }), '2026-03-01')).toBe(
-      'Nunca comprado',
+      'Nunca comprado · toca',
     )
+    // Lo esporádico no tiene ciclo: sin cantidad, no se pide.
     expect(lastBoughtLabel(item({ cadence: 'esporadico' }), '2026-03-01')).toBe(
       'Nunca comprado',
     )
   })
 
   it('dice cuánto hace y si ya toca', () => {
+    // Con cantidad anotada siempre toca; lo que cambia es el "hace cuánto".
     const i = (last: string) =>
       item({ cadence: 'quincenal', quantity: '2 L', lastBoughtAt: last })
-    expect(lastBoughtLabel(i('2026-03-01'), '2026-03-01')).toBe('Comprado hoy')
-    expect(lastBoughtLabel(i('2026-03-01'), '2026-03-02')).toBe('Hace 1 día')
-    expect(lastBoughtLabel(i('2026-03-01'), '2026-03-10')).toBe('Hace 9 días')
+    expect(lastBoughtLabel(i('2026-03-01'), '2026-03-01')).toBe('Comprado hoy · toca')
+    expect(lastBoughtLabel(i('2026-03-01'), '2026-03-02')).toBe('Hace 1 día · toca')
+    expect(lastBoughtLabel(i('2026-03-01'), '2026-03-10')).toBe('Hace 9 días · toca')
     expect(lastBoughtLabel(i('2026-03-01'), '2026-03-16')).toBe('Hace 15 días · toca')
   })
 })
@@ -176,8 +197,8 @@ describe('groupByCadence', () => {
 
   it('reparte por cadencia, deja lo que hay que comprar arriba y cuenta ambos bloques', () => {
     const items = [
-      // Sin cantidad: está en casa, así que baja aunque alfabéticamente vaya antes.
-      item({ id: 'a', name: 'Acelga', cadence: 'quincenal' }),
+      // En casa y recién comprada: baja aunque alfabéticamente vaya antes.
+      item({ id: 'a', name: 'Acelga', cadence: 'quincenal', lastBoughtAt: '2026-03-15' }),
       item({ id: 'z', name: 'Zanahoria', cadence: 'quincenal', quantity: '1 kg' }),
       item({ id: 'm', name: 'Manzana', cadence: 'quincenal', quantity: '4' }),
       item({ id: 'c', name: 'Arroz', cadence: 'mensual', quantity: '2 kg', lastBoughtAt: '2026-03-10' }),
@@ -190,11 +211,11 @@ describe('groupByCadence', () => {
     expect(quincenal.dueCount).toBe(2)
     expect(quincenal.stockedCount).toBe(1)
 
-    // Arroz lleva 6 días de 30: todavía no toca.
-    expect(mensual.dueCount).toBe(0)
+    // Arroz lleva 6 días de 30, pero tiene cantidad anotada: se lleva igual.
+    expect(mensual.dueCount).toBe(1)
     expect(mensual.stockedCount).toBe(0)
 
-    // Lo esporádico nunca toca solo, tenga cantidad o no.
-    expect(esporadico.dueCount).toBe(0)
+    // Lo esporádico no tiene ciclo, pero éste lleva cantidad.
+    expect(esporadico.dueCount).toBe(1)
   })
 })

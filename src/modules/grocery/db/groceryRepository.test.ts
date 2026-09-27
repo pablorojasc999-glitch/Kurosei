@@ -1,3 +1,5 @@
+import { needsBuying } from '../lib/groceryCadence'
+import type { GroceryItem } from '../domain/types'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { db } from '../../../shared/db/database'
 import {
@@ -120,9 +122,13 @@ describe('marcar y cerrar la compra', () => {
     expect((await listItems())[0].checked).toBe(false)
   })
 
-  it('cerrar la compra sella la fecha de lo marcado y lo desmarca', async () => {
-    const marcado = await createItem({ name: 'Leche', cadence: 'quincenal' })
-    await createItem({ name: 'Sal', cadence: 'esporadico' })
+  it('cerrar la compra sella la fecha de lo marcado, lo desmarca y le borra la cantidad', async () => {
+    const marcado = await createItem({
+      name: 'Leche',
+      cadence: 'quincenal',
+      quantity: '2 L',
+    })
+    const otro = await createItem({ name: 'Sal', cadence: 'esporadico', quantity: '1' })
     await toggleItemChecked(marcado.id)
 
     expect(await completeShoppingRun('2026-03-16')).toBe(1)
@@ -130,9 +136,26 @@ describe('marcar y cerrar la compra', () => {
     expect(items.find((i) => i.id === marcado.id)).toMatchObject({
       checked: false,
       lastBoughtAt: '2026-03-16',
+      // La cantidad era la nota de cuánto comprar, y ya se compró.
+      quantity: '',
     })
-    // Lo que no estaba marcado no se compró: su ciclo sigue igual.
-    expect(items.find((i) => i.name === 'Sal')?.lastBoughtAt).toBeNull()
+    // Lo que no estaba marcado no se compró: su ciclo y su cantidad siguen igual.
+    expect(items.find((i) => i.id === otro.id)).toMatchObject({
+      lastBoughtAt: null,
+      quantity: '1',
+    })
+  })
+
+  it('comprado vuelve a tocar cuando se cumple el ciclo, sin cantidad de por medio', async () => {
+    // El recorrido entero: anotar cuánto, comprar, y que el ciclo lo devuelva.
+    const leche = await createItem({ name: 'Leche', cadence: 'quincenal', quantity: '2 L' })
+    await toggleItemChecked(leche.id)
+    await completeShoppingRun('2026-03-01')
+
+    const comprada = (await listItems()).find((i) => i.id === leche.id) as GroceryItem
+    expect(comprada.quantity).toBe('')
+    expect(needsBuying(comprada, '2026-03-02')).toBe(false)
+    expect(needsBuying(comprada, '2026-03-15')).toBe(true)
   })
 
   it('cerrar sin nada marcado no cambia nada', async () => {

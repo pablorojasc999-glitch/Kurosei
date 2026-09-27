@@ -116,8 +116,15 @@ export function SupermercadoPage() {
         {groups.map((group) => (
           <div key={group.cadence} className={`grocery-summary-card grocery-summary-card--${group.cadence}`}>
             <span>{CADENCE_SHORT[group.cadence]}</span>
-            <strong>{group.items.length}</strong>
-            {group.dueCount > 0 && <em>{group.dueCount} toca{group.dueCount === 1 ? '' : 'n'}</em>}
+            {/* Lo que hay que llevar, no cuántos artículos hay catalogados: el
+                número grande tiene que contestar "¿cuánto me falta comprar?",
+                que es lo único que se pregunta parado en el súper. */}
+            <strong>{group.dueCount}</strong>
+            <em>
+              {group.dueCount === 0
+                ? `${group.items.length} en casa`
+                : `por llevar · ${group.items.length} en total`}
+            </em>
           </div>
         ))}
       </div>
@@ -183,8 +190,11 @@ export function SupermercadoPage() {
             )}
 
             {group.items.map((item) => {
-              const stocked = !hasQuantity(item)
               const due = needsBuying(item, today)
+              // "En casa" es no tener que llevarlo. Antes era no tener cantidad,
+              // y así un artículo vencido por ciclo salía marcado como en casa
+              // y con un "· toca" debajo, diciendo las dos cosas a la vez.
+              const stocked = !due
               return (
                 <div key={item.id}>
                   <div
@@ -234,8 +244,14 @@ export function SupermercadoPage() {
                     >
                       <span className="grocery-row-name">
                         {item.name}
-                        {item.quantity ? (
+                        {hasQuantity(item) ? (
                           <span className="grocery-row-qty">{item.quantity}</span>
+                        ) : due ? (
+                          // Toca por ciclo pero no se anotó cuánto: decirlo
+                          // acá es la invitación a ponerle cantidad.
+                          <span className="grocery-row-tag grocery-row-tag--due">
+                            ¿cuánto?
+                          </span>
                         ) : (
                           <span className="grocery-row-tag">ya tengo</span>
                         )}
