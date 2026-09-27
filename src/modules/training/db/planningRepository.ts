@@ -4,6 +4,7 @@ import { nowIso } from '../../../shared/lib/timestamps'
 import { deleteCardioSession, listCardioSessions } from './cardioRepository'
 import { deleteSession, getSessionForDay } from './executionRepository'
 import { moveInOrder } from '../lib/blockGridOrder'
+import { countsAsEffective } from '../lib/effectiveSets'
 import type {
   Day,
   ExecutedSet,
@@ -459,10 +460,59 @@ export async function deletePlannedExercise(id: string): Promise<void> {
 }
 
 /**
- * Duplicates a week as a starting point for the next one: new week appended
- * to the same mesocycle, its days shifted +7 days, with all planned
- * exercises/sets copied 1:1 so they can be edited independently.
+ * Las series de un ejercicio planificado, listas para copiarlas a otro.
+ *
+ * La marca de serie efectiva se resuelve en vez de copiarse cruda: una serie
+ * sin marca propia hereda la del ejercicio de origen, y al pegarla en un
+ * ejercicio nuevo —que no tiene esa herencia— la marca se perdería. Sin esto,
+ * copiar un día convertía cada aproximación en trabajo efectivo.
  */
+function setsToCopy(sets: PlannedSet[], source: PlannedExercise): PlannedSetInput[] {
+  return [...sets]
+    .sort((a, b) => a.setNumber - b.setNumber)
+    .map((s) => ({
+      targetWeightKg: s.targetWeightKg,
+      targetReps: s.targetReps,
+      targetRpe: s.targetRpe,
+      restSecondsTarget: s.restSecondsTarget,
+      dropSet: s.dropSet === true,
+      restPause: s.restPause === true,
+      countsAsEffective: countsAsEffective(s, source),
+    }))
+}
+
+/**
+ * Copia un ejercicio planificado a otro día, con sus notas y sus series, como
+ * filas nuevas e independientes.
+ *
+ * Se conserva el `order` de origen en vez de recalcularlo: la planilla ordena
+ * las filas por él, así que renumerar dejaría el día copiado con los
+ * ejercicios en otro orden que el original.
+ */
+async function copyPlannedExerciseTo(
+  source: PlannedExercise,
+  targetDayId: string,
+): Promise<PlannedExercise> {
+  const timestamp = nowIso()
+  const copy: PlannedExercise = {
+    id: generateId(),
+    dayId: targetDayId,
+    exerciseId: source.exerciseId,
+    order: source.order,
+    notes: source.notes,
+    closedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+  }
+  await db.training_planned_exercises.add(copy)
+  const sourceSets = await listPlannedSets(source.id)
+  if (sourceSets.length > 0) {
+    await setPlannedSets(copy.id, setsToCopy(sourceSets, source))
+  }
+  return copy
+}
+
 /**
  * Copies every planned exercise (and its planned sets) from `sourceDayId`
  * into `targetDayId`, as independent new records — editing one day
@@ -472,7 +522,6 @@ export async function copyPlannedExercisesToDay(
   sourceDayId: string,
   targetDayId: string,
 ): Promise<void> {
-  const timestamp = nowIso()
   const sourcePlannedExercises = await listPlannedExercises(sourceDayId)
   await db.transaction(
     'rw',
@@ -480,41 +529,17 @@ export async function copyPlannedExercisesToDay(
     db.training_planned_sets,
     async () => {
       for (const sourcePe of sourcePlannedExercises) {
-        const newPe: PlannedExercise = {
-          id: generateId(),
-          dayId: targetDayId,
-          exerciseId: sourcePe.exerciseId,
-          order: sourcePe.order,
-          notes: sourcePe.notes,
-          closedAt: null,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-          deletedAt: null,
-        }
-        await db.training_planned_exercises.add(newPe)
-
-        const sourceSets = await listPlannedSets(sourcePe.id)
-        await db.training_planned_sets.bulkAdd(
-          sourceSets.map((s) => ({
-            id: generateId(),
-            plannedExerciseId: newPe.id,
-            setNumber: s.setNumber,
-            targetWeightKg: s.targetWeightKg,
-            targetReps: s.targetReps,
-            targetRpe: s.targetRpe,
-            restSecondsTarget: s.restSecondsTarget,
-            dropSet: s.dropSet === true,
-            restPause: s.restPause === true,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-            deletedAt: null,
-          })),
-        )
+        await copyPlannedExerciseTo(sourcePe, targetDayId)
       }
     },
   )
 }
 
+/**
+ * Duplicates a week as a starting point for the next one: new week appended
+ * to the same mesocycle, its days shifted +7 days, with all planned
+ * exercises/sets copied 1:1 so they can be edited independently.
+ */
 export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
   const sourceWeek = await db.training_weeks.get(sourceWeekId)
   if (!sourceWeek) {
@@ -896,7 +921,7 @@ export async function pinExerciseAcrossBlock(
       }))
 
     if (plannedExercise.id !== sourcePlannedExerciseId) {
-      await replaceSetsFrom(plannedExercise.id, sourceSets)
+      await replaceSetsFrom(plannedExercise.id, sourceSets, source)
     }
     applied += 1
   }
@@ -904,23 +929,14 @@ export async function pinExerciseAcrossBlock(
   return { applied, skipped }
 }
 
-/** Deja las series de `plannedExerciseId` idénticas a `sourceSets`. */
+/** Deja las series de `plannedExerciseId` idénticas a las del ejercicio de origen. */
 async function replaceSetsFrom(
   plannedExerciseId: string,
   sourceSets: PlannedSet[],
+  source: PlannedExercise,
 ): Promise<void> {
   if (sourceSets.length === 0) return
-  await setPlannedSets(
-    plannedExerciseId,
-    sourceSets.map((s) => ({
-      targetWeightKg: s.targetWeightKg,
-      targetReps: s.targetReps,
-      targetRpe: s.targetRpe,
-      restSecondsTarget: s.restSecondsTarget,
-      dropSet: s.dropSet === true,
-      restPause: s.restPause === true,
-    })),
-  )
+  await setPlannedSets(plannedExerciseId, setsToCopy(sourceSets, source))
 }
 
 /**
@@ -1136,4 +1152,81 @@ export async function removeSlotExercise(
   }
 
   return { removed, skipped }
+}
+
+export interface CopyPreviousWeekResult {
+  /** Ejercicios que se trajeron, con sus series. */
+  copied: number
+  /** Los que la semana ya tenía planificados y quedaron como estaban. */
+  kept: number
+  /** Días que no se tocaron: la semana no los tiene, o ya se entrenaron. */
+  skippedDays: number
+}
+
+/**
+ * Trae a una semana lo planificado en la anterior del mismo bloque: cada
+ * ejercicio que le falte, con sus series tal como estaban.
+ *
+ * Es como se planifica de verdad un mesociclo —la semana 3 es la 2 con un poco
+ * más de peso—, así que partir de cero cada semana es reescribir a mano algo
+ * que ya estaba decidido, y es donde se cuelan los errores.
+ *
+ * Nunca pisa lo que la semana de destino ya tenga: un ejercicio que ya está
+ * planificado se deja como está y se informa. Traer no es reemplazar, y
+ * después de ajustar el peso de una celda la copia no puede deshacerlo.
+ *
+ * Con `slotIndex` viene sólo ese día; sin él, la semana entera.
+ */
+export async function copyPreviousWeekPlan(
+  mesocycleId: string,
+  weekIndex: number,
+  slotIndex?: number,
+): Promise<CopyPreviousWeekResult> {
+  const empty = { copied: 0, kept: 0, skippedDays: 0 }
+  // La primera semana no tiene anterior de la que traer.
+  if (weekIndex <= 0) return empty
+
+  const slotDays = await slotDaysOfBlock(mesocycleId)
+  const sourceWeek = slotDays[weekIndex - 1]
+  const targetWeek = slotDays[weekIndex]
+  if (!sourceWeek || !targetWeek) return empty
+
+  const slots =
+    slotIndex === undefined
+      ? Array.from({ length: Math.max(sourceWeek.length, targetWeek.length) }, (_, i) => i)
+      : [slotIndex]
+
+  let copied = 0
+  let kept = 0
+  let skippedDays = 0
+
+  for (const index of slots) {
+    const from = sourceWeek[index]
+    const to = targetWeek[index]
+    // Sin día de origen no hay nada que traer, y eso no es un día saltado.
+    if (!from) continue
+    if (!to) {
+      skippedDays += 1
+      continue
+    }
+    // Un día ya entrenado se salta: cambiarle el plan no cambia lo que se hizo
+    // y sí rompe la comparación que la planilla enseña en esa celda.
+    const session = await getSessionForDay(to.id)
+    if (session && session.endedAt !== null) {
+      skippedDays += 1
+      continue
+    }
+
+    const existing = await listPlannedExercises(to.id)
+    for (const source of await listPlannedExercises(from.id)) {
+      if (existing.some((pe) => pe.exerciseId === source.exerciseId)) {
+        kept += 1
+        continue
+      }
+      await copyPlannedExerciseTo(source, to.id)
+      copied += 1
+    }
+  }
+
+  return { copied, kept, skippedDays }
 }

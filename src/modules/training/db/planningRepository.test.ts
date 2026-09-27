@@ -3,6 +3,7 @@ import { db } from '../../../shared/db/database'
 import { createExercise, createMuscleGroup } from './trainingRepository'
 import {
   copyPlannedExercisesToDay,
+  copyPreviousWeekPlan,
   createDay,
   createMacrocycle,
   createMesocycle,
@@ -41,6 +42,7 @@ import {
 import {
   addSessionExercise,
   createExecutedSet,
+  endSession,
   listExecutedSets,
   listSessionExercises,
   startSession,
@@ -1066,5 +1068,210 @@ describe('planilla del bloque', () => {
   it('addExerciseToSlot devuelve null si la semana no tiene ese día', async () => {
     const { remo, weeks } = await seedBlock()
     expect(await addExerciseToSlot(weeks[0].week.id, 5, remo.id)).toBeNull()
+  })
+})
+
+describe('copyPreviousWeekPlan', () => {
+  /** Un bloque de dos semanas con dos días cada una, emparejados por posición. */
+  async function seedTwoWeeks() {
+    const mesocycle = await seedMesocycle()
+    const chest = await createMuscleGroup('Pecho')
+    const bench = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const row = await createExercise({
+      name: 'Remo',
+      type: 'strength',
+      category: null,
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 0.5 }],
+    })
+    const week1 = await createWeek(mesocycle.id)
+    const week2 = await createWeek(mesocycle.id)
+    const w1d1 = await createDay({
+      weekId: week1.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Día 1',
+    })
+    const w1d2 = await createDay({
+      weekId: week1.id,
+      date: '2026-01-07T00:00:00.000Z',
+      label: 'Día 2',
+    })
+    const w2d1 = await createDay({
+      weekId: week2.id,
+      date: '2026-01-12T00:00:00.000Z',
+      label: 'Día 1',
+    })
+    const w2d2 = await createDay({
+      weekId: week2.id,
+      date: '2026-01-14T00:00:00.000Z',
+      label: 'Día 2',
+    })
+    return { mesocycle, bench, row, week1, week2, w1d1, w1d2, w2d1, w2d2 }
+  }
+
+  it('trae los ejercicios y las series de la semana anterior', async () => {
+    const { mesocycle, bench, row, w1d1, w1d2, w2d1, w2d2 } = await seedTwoWeeks()
+    const pe = await createPlannedExercise({
+      dayId: w1d1.id,
+      exerciseId: bench.id,
+      notes: 'Técnica',
+    })
+    await createPlannedSet({
+      plannedExerciseId: pe.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180,
+      dropSet: false,
+      restPause: false,
+    })
+    await createPlannedExercise({ dayId: w1d2.id, exerciseId: row.id, notes: '' })
+
+    const result = await copyPreviousWeekPlan(mesocycle.id, 1)
+
+    expect(result).toEqual({ copied: 2, kept: 0, skippedDays: 0 })
+    const copied = await listPlannedExercises(w2d1.id)
+    expect(copied).toHaveLength(1)
+    expect(copied[0].exerciseId).toBe(bench.id)
+    expect(copied[0].notes).toBe('Técnica')
+    expect(copied[0].id).not.toBe(pe.id)
+    const sets = await listPlannedSets(copied[0].id)
+    expect(sets).toHaveLength(1)
+    expect(sets[0]).toMatchObject({
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180,
+    })
+    // El segundo día viaja en la misma pasada: es la semana entera.
+    expect(await listPlannedExercises(w2d2.id)).toHaveLength(1)
+  })
+
+  it('no pisa un ejercicio que la semana ya tenía planificado', async () => {
+    const { mesocycle, bench, w1d1, w2d1 } = await seedTwoWeeks()
+    const source = await createPlannedExercise({
+      dayId: w1d1.id,
+      exerciseId: bench.id,
+      notes: '',
+    })
+    await createPlannedSet({
+      plannedExerciseId: source.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: null,
+      restSecondsTarget: null,
+      dropSet: false,
+      restPause: false,
+    })
+    const already = await createPlannedExercise({
+      dayId: w2d1.id,
+      exerciseId: bench.id,
+      notes: '',
+    })
+    await createPlannedSet({
+      plannedExerciseId: already.id,
+      targetWeightKg: 105,
+      targetReps: 3,
+      targetRpe: null,
+      restSecondsTarget: null,
+      dropSet: false,
+      restPause: false,
+    })
+
+    const result = await copyPreviousWeekPlan(mesocycle.id, 1)
+
+    expect(result).toEqual({ copied: 0, kept: 1, skippedDays: 0 })
+    const exercises = await listPlannedExercises(w2d1.id)
+    expect(exercises).toHaveLength(1)
+    const sets = await listPlannedSets(exercises[0].id)
+    expect(sets).toHaveLength(1)
+    expect(sets[0].targetWeightKg).toBe(105)
+  })
+
+  it('con slotIndex trae sólo ese día', async () => {
+    const { mesocycle, bench, row, w1d1, w1d2, w2d1, w2d2 } = await seedTwoWeeks()
+    await createPlannedExercise({ dayId: w1d1.id, exerciseId: bench.id, notes: '' })
+    await createPlannedExercise({ dayId: w1d2.id, exerciseId: row.id, notes: '' })
+
+    const result = await copyPreviousWeekPlan(mesocycle.id, 1, 1)
+
+    expect(result).toEqual({ copied: 1, kept: 0, skippedDays: 0 })
+    expect(await listPlannedExercises(w2d1.id)).toHaveLength(0)
+    expect(await listPlannedExercises(w2d2.id)).toHaveLength(1)
+  })
+
+  it('salta un día que ya se entrenó', async () => {
+    const { mesocycle, bench, w1d1, w2d1 } = await seedTwoWeeks()
+    await createPlannedExercise({ dayId: w1d1.id, exerciseId: bench.id, notes: '' })
+    const session = await startSession(w2d1.id)
+    await endSession(session.id)
+
+    const result = await copyPreviousWeekPlan(mesocycle.id, 1, 0)
+
+    expect(result).toEqual({ copied: 0, kept: 0, skippedDays: 1 })
+    expect(await listPlannedExercises(w2d1.id)).toHaveLength(0)
+  })
+
+  it('cuenta como saltado el día que la semana de destino no tiene', async () => {
+    const { mesocycle, bench, w1d1, w1d2, w2d2 } = await seedTwoWeeks()
+    await createPlannedExercise({ dayId: w1d1.id, exerciseId: bench.id, notes: '' })
+    await createPlannedExercise({ dayId: w1d2.id, exerciseId: bench.id, notes: '' })
+    await deleteDay(w2d2.id)
+
+    const result = await copyPreviousWeekPlan(mesocycle.id, 1)
+
+    expect(result).toEqual({ copied: 1, kept: 0, skippedDays: 1 })
+  })
+
+  it('la primera semana no tiene anterior, así que no hace nada', async () => {
+    const { mesocycle, bench, w1d1 } = await seedTwoWeeks()
+    await createPlannedExercise({ dayId: w1d1.id, exerciseId: bench.id, notes: '' })
+
+    expect(await copyPreviousWeekPlan(mesocycle.id, 0)).toEqual({
+      copied: 0,
+      kept: 0,
+      skippedDays: 0,
+    })
+    expect(await listPlannedExercises(w1d1.id)).toHaveLength(1)
+  })
+
+  it('se lleva la marca de serie no efectiva', async () => {
+    const { mesocycle, bench, w1d1, w2d1 } = await seedTwoWeeks()
+    const source = await createPlannedExercise({
+      dayId: w1d1.id,
+      exerciseId: bench.id,
+      notes: '',
+    })
+    const aproximacion = await createPlannedSet({
+      plannedExerciseId: source.id,
+      targetWeightKg: 60,
+      targetReps: 5,
+      targetRpe: null,
+      restSecondsTarget: null,
+      dropSet: false,
+      restPause: false,
+    })
+    // Se escribe directo porque la marca por serie no pasa por
+    // `updatePlannedSet`: la pone la planilla con `setPlannedSets`.
+    await db.training_planned_sets.update(aproximacion.id, { countsAsEffective: false })
+    await createPlannedSet({
+      plannedExerciseId: source.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: null,
+      restSecondsTarget: null,
+      dropSet: false,
+      restPause: false,
+    })
+
+    await copyPreviousWeekPlan(mesocycle.id, 1, 0)
+
+    const copied = await listPlannedExercises(w2d1.id)
+    const sets = await listPlannedSets(copied[0].id)
+    expect(sets.map((s) => s.countsAsEffective)).toEqual([false, true])
   })
 })
