@@ -49,21 +49,26 @@ export function isDue(item: GroceryItem, today: string): boolean {
 }
 
 /**
- * La cantidad es lo que dice cuánto hay que comprar. Sin cantidad el artículo
- * está en casa: sigue en la lista como parte del catálogo, pero no entra en la
- * ida al súper.
+ * La cantidad es apuntar cuánto hay que comprar. Ponerla es decir "esto lo
+ * llevo"; vaciarla, "ya lo tengo en casa".
  */
 export function hasQuantity(item: GroceryItem): boolean {
   return item.quantity.trim() !== ''
 }
 
 /**
- * Lo que de verdad hay que llevar: además de que le toque por ciclo, tiene que
- * hacer falta. Es lo que cuentan las tarjetas de arriba y lo que marca de golpe
- * el botón de la barra de compra.
+ * Lo que hay que llevar al súper, por cualquiera de los dos caminos: porque se
+ * le anotó una cantidad, o porque ya pasó su ciclo.
+ *
+ * Son dos caminos y no uno —antes pedía las dos cosas a la vez— porque si no
+ * se anulan entre ellos. Al cerrar la compra se borra la cantidad, así que
+ * exigirla además del ciclo dejaba al artículo sin forma de volver a salir: a
+ * los 14 días le tocaba, pero como ya no tenía cantidad no contaba, y el aviso
+ * por ciclo no servía para nada. Y al revés: anotar una cantidad de algo
+ * comprado anteayer tiene que poder llevarse igual, que para eso se anotó.
  */
 export function needsBuying(item: GroceryItem, today: string): boolean {
-  return hasQuantity(item) && isDue(item, today)
+  return hasQuantity(item) || isDue(item, today)
 }
 
 /** Línea secundaria de cada fila: cuándo se compró por última vez y si ya toca. */
@@ -79,14 +84,22 @@ export function lastBoughtLabel(item: GroceryItem, today: string): string {
 }
 
 /**
- * Orden de cada lista: primero lo que hay que comprar y luego lo que ya está en
+ * Orden de cada lista: primero lo que hay que llevar y luego lo que ya está en
  * casa, alfabético dentro de cada bloque. `localeCompare` con `es` para que la
  * ñ y los acentos caigan donde uno los busca.
+ *
+ * Arriba va lo que hay que llevar por cualquiera de los dos caminos, no sólo lo
+ * que tiene cantidad: si no, lo que vence por ciclo se quedaba enterrado abajo
+ * justo el día que había que comprarlo.
  */
-export function sortForDisplay(items: GroceryItem[]): GroceryItem[] {
+export function sortForDisplay(items: GroceryItem[], today: string): GroceryItem[] {
   return [...items].sort((a, b) => {
-    const byNeed = Number(hasQuantity(b)) - Number(hasQuantity(a))
+    const byNeed = Number(needsBuying(b, today)) - Number(needsBuying(a, today))
     if (byNeed !== 0) return byNeed
+    // Entre dos que hay que llevar, primero el que ya tiene cantidad anotada:
+    // de ese ya se sabe cuánto, del otro hay que decidirlo en el pasillo.
+    const byQty = Number(hasQuantity(b)) - Number(hasQuantity(a))
+    if (byQty !== 0) return byQty
     return a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
   })
 }
@@ -99,9 +112,9 @@ export function todayKey(): string {
 export interface CadenceGroup {
   cadence: PurchaseCadence
   items: GroceryItem[]
-  /** Cuántos hay que llevar: les toca por ciclo y tienen cantidad puesta. */
+  /** Cuántos hay que llevar: con cantidad anotada, o vencidos por ciclo. */
   dueCount: number
-  /** Cuántos están en casa (sin cantidad) y quedan fuera de esta ida al súper. */
+  /** Cuántos están en casa y quedan fuera de esta ida al súper. */
   stockedCount: number
 }
 
@@ -112,12 +125,16 @@ export interface CadenceGroup {
  */
 export function groupByCadence(items: GroceryItem[], today: string): CadenceGroup[] {
   return (['quincenal', 'mensual', 'esporadico'] as PurchaseCadence[]).map((cadence) => {
-    const group = sortForDisplay(items.filter((item) => item.cadence === cadence))
+    const group = sortForDisplay(
+      items.filter((item) => item.cadence === cadence),
+      today,
+    )
+    const due = group.filter((i) => needsBuying(i, today)).length
     return {
       cadence,
       items: group,
-      dueCount: group.filter((i) => needsBuying(i, today)).length,
-      stockedCount: group.filter((i) => !hasQuantity(i)).length,
+      dueCount: due,
+      stockedCount: group.length - due,
     }
   })
 }

@@ -106,8 +106,12 @@ export async function clearChecked(): Promise<void> {
 }
 
 /**
- * Cierra la compra: todo lo marcado pasa a comprado hoy y se desmarca, que es
- * lo que reinicia su ciclo. Devuelve cuántos artículos se llevó.
+ * Cierra la compra: todo lo marcado pasa a comprado hoy, se desmarca y pierde
+ * la cantidad. Devuelve cuántos artículos se llevó.
+ *
+ * La cantidad también se borra porque era la nota de cuánto había que comprar,
+ * y ya se compró. Dejándola, el artículo seguía arriba de la lista con su "2 kg"
+ * el día después de haberlo traído, como si todavía hiciera falta.
  */
 export async function completeShoppingRun(today = todayKey()): Promise<number> {
   const timestamp = nowIso()
@@ -116,6 +120,7 @@ export async function completeShoppingRun(today = todayKey()): Promise<number> {
     checked.map((i) =>
       db.grocery_items.update(i.id, {
         checked: false,
+        quantity: '',
         lastBoughtAt: today,
         updatedAt: timestamp,
       }),

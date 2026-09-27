@@ -3714,6 +3714,13 @@ section {
   text-transform: uppercase;
 }
 
+/* Toca por ciclo pero sin cantidad anotada: se ve como lo que hay que llevar,
+   no como lo que está en casa. */
+.grocery-row-tag--due {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
 .grocery-row--dragging {
   position: relative;
   z-index: 2;
