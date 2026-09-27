@@ -9,6 +9,7 @@ import {
   buildDayCompletion,
   missingBitacoraFields,
   MODULE_LABELS,
+  pendingModules,
 } from '../lib/dayCompletion'
 import { CompletionRing } from './CompletionRing'
 import { DayCloseCard } from './DayCloseCard'
@@ -58,12 +59,11 @@ export function DayDetailSheet({ date, onClose, onOpenDay }: DayDetailSheetProps
             <p className="day-detail-summary">
               {day.complete
                 ? 'Este día está completo.'
-                : `Falta ${day.doneCount === 3 ? 'uno' : `${4 - day.doneCount}`}: ${
-                    (['training', 'nutrition', 'finance', 'bitacora'] as const)
-                      .filter((k) => day[k] === 'pending')
-                      .map((k) => MODULE_LABELS[k].toLowerCase())
-                      .join(', ')
-                  }.`}
+                : `Falta ${day.doneCount === 3 ? 'uno' : `${4 - day.doneCount}`}: ${pendingModules(
+                    day,
+                  )
+                    .map((k) => MODULE_LABELS[k].toLowerCase())
+                    .join(', ')}.`}
             </p>
           </div>
 
