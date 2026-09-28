@@ -549,8 +549,10 @@ export function SessionView({ dayId }: SessionViewProps) {
                               {actual ? (
                                 <>
                                   {actual.weightKg ?? '-'} kg × {actual.reps}
-                                  {actual.rpe !== null && ` · RPE ${actual.rpe}`}
+                                  {actual.rpe !== null && ` · @${actual.rpe}`}
                                   {actual.eva !== null && ` · EVA ${actual.eva}`}
+                                  {actual.dropSet === true && <span className="set-tag">DS</span>}
+                                  {actual.restPause === true && <span className="set-tag">RP</span>}
                                   {actual.notes && ` · ${actual.notes}`}
                                   {e1rmSuffix(actual)}
                                 </>
@@ -634,10 +636,10 @@ export function SessionView({ dayId }: SessionViewProps) {
                       <span className="set-number">{s.setNumber}</span>
                       <span className="set-summary">
                         {s.weightKg ?? '-'} kg × {s.reps}
-                        {s.rpe !== null && ` · RPE ${s.rpe}`}
+                        {s.rpe !== null && ` · @${s.rpe}`}
                         {s.eva !== null && ` · EVA ${s.eva}`}
-                        {s.dropSet === true && <span className="set-tag">drop</span>}
-                        {s.restPause === true && <span className="set-tag">rest-pause</span>}
+                        {s.dropSet === true && <span className="set-tag">DS</span>}
+                        {s.restPause === true && <span className="set-tag">RP</span>}
                         {s.notes && ` · ${s.notes}`}
                         {e1rmSuffix(s)}
                       </span>
