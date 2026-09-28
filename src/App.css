@@ -4983,14 +4983,14 @@ button.macro-cell {
 /* --- la tarjeta de cierre -------------------------------------------- */
 .day-close {
   margin-top: 20px;
-  padding: 14px;
+  padding: 10px 14px;
   border: 1px solid var(--accent-border);
   border-radius: 14px;
   background: var(--accent-bg);
 }
 
 .day-close-prompt {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -5003,7 +5003,7 @@ button.macro-cell {
 .day-close-primary,
 .day-close-secondary {
   flex: 1 1 0;
-  min-height: 44px;
+  min-height: 40px;
   padding-left: 6px;
   padding-right: 6px;
   border-radius: 10px;
@@ -5167,8 +5167,8 @@ button.macro-cell {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
 .day-detail-summary {
@@ -5179,7 +5179,7 @@ button.macro-cell {
 }
 
 .day-detail-module {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .day-detail-module h3 {
@@ -5192,7 +5192,7 @@ button.macro-cell {
 }
 
 .day-detail-module .day-close {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 /* --- la lista de pendientes ------------------------------------------- */

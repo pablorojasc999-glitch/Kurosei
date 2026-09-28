@@ -55,7 +55,7 @@ export function DayDetailSheet({ date, onClose, onOpenDay }: DayDetailSheetProps
       {day && (
         <>
           <div className="day-detail-head">
-            <CompletionRing day={day} size={54} />
+            <CompletionRing day={day} size={34} />
             <p className="day-detail-summary">
               {day.complete
                 ? 'Este día está completo.'
