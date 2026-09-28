@@ -703,11 +703,11 @@ section {
 .set-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   padding: 8px 10px;
   background: var(--surface-2);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .set-number {
@@ -718,6 +718,14 @@ section {
 
 .set-summary {
   flex: 1;
+}
+
+/* Más chicos que el .icon-button de siempre: acá compiten por ancho con el
+   resumen de la serie, que es lo que tiene que quedar en una sola línea. */
+.set-row .icon-button {
+  width: 22px;
+  height: 22px;
+  font-size: 15px;
 }
 
 /* Finished-session view: planned vs. actual on one row per set number,
@@ -4892,8 +4900,8 @@ button.macro-cell {
 /* La marca en la serie ya anotada: corta, para no empujar el resumen. */
 .set-tag {
   display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
+  margin-left: 4px;
+  padding: 1px 5px;
   border-radius: 999px;
   background: var(--accent-bg);
   border: 1px solid var(--accent-border);
@@ -5149,10 +5157,14 @@ button.macro-cell {
 }
 
 /* --- el detalle de un día --------------------------------------------- */
+/* El anillo arriba y el texto abajo, no lado a lado: al lado, compartir el
+   ancho con el anillo hacía que "Falta 3: nutrición, finanzas, bitácora."
+   se cortara en dos líneas. Debajo tiene todo el ancho de la tarjeta. */
 .day-detail-head {
   display: flex;
-  align-items: center;
-  gap: 14px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   margin-bottom: 4px;
 }
 
