@@ -1,5 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   getCategoryTotals,
   getMonthlyTotalsForYear,
@@ -25,10 +26,42 @@ const MONTH_LABELS = [
 ]
 
 export function EstadisticasPage() {
+  const session = useSupabaseSession()
   const [year, setYear] = useState(() => new Date().getFullYear())
-  const categories = useLiveQuery(() => listCategories('expense'), [])
-  const categoryTotals = useLiveQuery(() => getCategoryTotals(year), [year])
-  const monthlyTotals = useLiveQuery(() => getMonthlyTotalsForYear(year), [year])
+
+  const { data, error: loadError } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      const [categories, categoryTotals, monthlyTotals] = await Promise.all([
+        listCategories('expense'),
+        getCategoryTotals(year),
+        getMonthlyTotalsForYear(year),
+      ])
+      return { categories, categoryTotals, monthlyTotals }
+    }, [session, year]),
+  )
+  const categories = data?.categories
+  const categoryTotals = data?.categoryTotals
+  const monthlyTotals = data?.monthlyTotals
+
+  // Ya no hay copia local: sin sesión no hay nada que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Estadísticas</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Estadísticas</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver tus estadísticas.
+        </p>
+      </div>
+    )
+  }
 
   const categoryBars = (categories ?? [])
     .map((c) => ({ category: c, total: categoryTotals?.get(c.id) ?? 0 }))
@@ -46,6 +79,7 @@ export function EstadisticasPage() {
       <h1>Estadísticas</h1>
       <BalanceHeader />
       <YearNav year={year} onChange={setYear} />
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <section>
         <h2>Gastos por categoría</h2>
