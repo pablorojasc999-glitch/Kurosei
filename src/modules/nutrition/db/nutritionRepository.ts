@@ -460,9 +460,9 @@ export async function softDeleteWaterEntry(id: string): Promise<void> {
 // become the daily log's `calories`/`carbsG`/`proteinG`/`fatG`/`waterLiters`,
 // so they're never typed in by hand.
 //
-// `getDailyLog`/`upsertDailyLog` siguen en Dexie por ahora (la Bitácora
-// todavía no se migró), y eso está bien: el motor de sync viejo sigue
-// llevando esa tabla de un lado a otro hasta que le toque su turno.
+// `getDailyLog`/`upsertDailyLog` ya hablan con Supabase (ver
+// bitacoraRepository.ts): esta función necesita sesión igual que el resto de
+// Nutrición, lo que ya es el caso en todos sus puntos de entrada.
 // ---------------------------------------------------------------------
 
 export async function syncNutritionTotalsToDailyLog(date: string): Promise<void> {

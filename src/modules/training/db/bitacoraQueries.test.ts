@@ -1,14 +1,28 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../../shared/db/database'
-import { listDailyMetricsInRange } from './bitacoraQueries'
-import { upsertDailyLog } from './bitacoraRepository'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
 import { createCardioSession } from './cardioRepository'
 import { addSessionExercise, createExecutedSet, endSession, startSession } from './executionRepository'
 import { getOrCreateDayForDate } from './planningRepository'
 import { createExercise, createMuscleGroup } from './trainingRepository'
 import { inclusiveRange } from '../lib/progressScope'
 
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const { listDailyMetricsInRange } = await import('./bitacoraQueries')
+const { upsertDailyLog } = await import('./bitacoraRepository')
+
 beforeEach(async () => {
+  fake.tables.training_daily_logs = []
   await db.transaction(
     'rw',
     db.tables,

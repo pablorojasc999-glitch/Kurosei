@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../../shared/db/database'
 import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
-import { getDailyLog } from '../../training/db/bitacoraRepository'
 
 const fake = createFakeSupabaseClient()
 
@@ -46,6 +45,8 @@ const {
   updateTemplateManualEntry,
 } = await import('./nutritionRepository')
 
+const { getDailyLog } = await import('../../training/db/bitacoraRepository')
+
 const NO_MICROS = {
   saturatedFatG: null,
   transFatG: null,
@@ -72,9 +73,6 @@ const NO_MICROS = {
 }
 
 beforeEach(async () => {
-  // Las tablas de nutrición ya no viven en Dexie, pero la bitácora
-  // (`training_daily_logs`, vía bitacoraRepository) todavía sí — hasta que
-  // le toque su turno de migrar, el test necesita limpiar las dos cosas.
   fake.tables.nutrition_foods = []
   fake.tables.nutrition_meal_sections = []
   fake.tables.nutrition_entries = []
@@ -82,6 +80,7 @@ beforeEach(async () => {
   fake.tables.nutrition_meal_templates = []
   fake.tables.nutrition_meal_template_entries = []
   fake.tables.nutrition_goal_plans = []
+  fake.tables.training_daily_logs = []
   await db.transaction('rw', db.tables, async () => Promise.all(db.tables.map((t) => t.clear())))
 })
 

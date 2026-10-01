@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   getDailyLog,
   getProfile,
@@ -70,10 +72,21 @@ interface BitacoraSectionProps {
 
 export function BitacoraSection({ date }: BitacoraSectionProps) {
   const dateKey = toDateKey(date)
-  const profile = useLiveQuery(() => getProfile(), [])
-  const dailyLog = useLiveQuery(() => getDailyLog(dateKey), [dateKey])
+  const authSession = useSupabaseSession()
+  const { data: profile, refresh: refreshProfile } = useRemoteQuery(
+    useCallback(async () => {
+      if (authSession === undefined) return undefined
+      return authSession ? getProfile() : null
+    }, [authSession]),
+  )
+  const { data: dailyLog, refresh: refreshLog } = useRemoteQuery(
+    useCallback(async () => {
+      if (authSession === undefined) return undefined
+      return authSession ? getDailyLog(dateKey) : null
+    }, [authSession, dateKey]),
+  )
   const day = useLiveQuery(() => findDayByDate(date), [dateKey])
-  const session = useLiveQuery(
+  const trainingSession = useLiveQuery(
     () => (day ? getSessionForDay(day.id) : Promise.resolve(undefined)),
     [day?.id],
   )
@@ -82,8 +95,11 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     [day?.id],
   )
   const executedSetCount = useLiveQuery(
-    () => (session ? countExecutedSetsForSession(session.id) : Promise.resolve(0)),
-    [session?.id],
+    () =>
+      trainingSession
+        ? countExecutedSetsForSession(trainingSession.id)
+        : Promise.resolve(0),
+    [trainingSession?.id],
   )
 
   const [showProfileForm, setShowProfileForm] = useState(false)
@@ -148,6 +164,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         bodyFatPercent: parseNum(profileForm.bodyFatPercent),
         muscleMassPercent: parseNum(profileForm.muscleMassPercent),
       })
+      await refreshProfile()
       setShowProfileForm(false)
     })
   }
@@ -173,6 +190,7 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
         fatigue: parseNum(logForm.fatigue),
         steps: parseNum(logForm.steps),
       })
+      await refreshLog()
       setIsEditingLog(false)
     })
   }
@@ -227,8 +245,8 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       targetDate: date,
       cardioCaloriesBurned,
       strengthSetCount: executedSetCount ?? 0,
-      strengthMinutes: session
-        ? sessionDurationMinutes(session.startedAt, session.endedAt)
+      strengthMinutes: trainingSession
+        ? sessionDurationMinutes(trainingSession.startedAt, trainingSession.endedAt)
         : null,
     })
   }

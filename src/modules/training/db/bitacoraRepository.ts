@@ -1,18 +1,31 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import type { DailyLog, Sex, UserProfile } from '../domain/types'
 
 /**
+ * Ya no pasa por Dexie: habla directo con Supabase, como cualquier pantalla
+ * de una app en línea — se pide, se escribe, se vuelve a pedir. Sin conexión
+ * no hay perfil ni bitácora que mostrar.
+ */
+function client() {
+  if (!supabase) throw new Error('La bitácora necesita conexión para funcionar.')
+  return supabase
+}
+
+/**
  * The single profile row, if the user has ever saved one. If more than one
  * exists (e.g. two tabs racing to create it before the multi-tab guard
- * existed), the most recently updated one wins — `.first()` with no sort
- * would pick an arbitrary one by primary key instead.
+ * existed), the most recently updated one wins.
  */
 export async function getProfile(): Promise<UserProfile | null> {
-  const profiles = await db.training_user_profile
-    .filter((p) => p.deletedAt === null)
-    .toArray()
+  const { data, error } = await client()
+    .from('training_user_profile')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const profiles = data as UserProfile[]
   if (profiles.length === 0) return null
   return profiles.reduce((latest, p) => (p.updatedAt > latest.updatedAt ? p : latest))
 }
@@ -34,10 +47,11 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<UserProf
   const existing = await getProfile()
   const timestamp = nowIso()
   if (existing) {
-    await db.training_user_profile.update(existing.id, {
-      ...input,
-      updatedAt: timestamp,
-    })
+    const { error } = await client()
+      .from('training_user_profile')
+      .update({ ...input, updatedAt: timestamp })
+      .eq('id', existing.id)
+    if (error) throw new Error(error.message)
     await deleteDuplicateProfiles(existing.id, timestamp)
     return { ...existing, ...input, updatedAt: timestamp }
   }
@@ -48,54 +62,86 @@ export async function upsertProfile(input: UpsertProfileInput): Promise<UserProf
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_user_profile.add(profile)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_user_profile').insert({ ...profile, userId })
+  if (error) throw new Error(error.message)
   return profile
 }
 
 /** Soft-deletes every profile row except `keepId` (see `upsertProfile`). */
 async function deleteDuplicateProfiles(keepId: string, timestamp: string): Promise<void> {
-  const others = await db.training_user_profile
-    .filter((p) => p.deletedAt === null && p.id !== keepId)
-    .toArray()
-  await Promise.all(
-    others.map((p) =>
-      db.training_user_profile.update(p.id, { deletedAt: timestamp, updatedAt: timestamp }),
-    ),
-  )
+  const { data, error } = await client()
+    .from('training_user_profile')
+    .select('id')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const others = (data as Array<{ id: string }>).filter((p) => p.id !== keepId)
+  for (const { id } of others) {
+    const { error: updateError } = await client()
+      .from('training_user_profile')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', id)
+    if (updateError) throw new Error(updateError.message)
+  }
 }
 
 /**
  * The bitácora entry for a calendar day (`date` as a `YYYY-MM-DD` key), if
  * one was ever saved. If more than one row exists for that date, the most
- * recently updated one wins — see `getProfile` for why an unsorted
- * `.first()` isn't safe here.
+ * recently updated one wins — see `getProfile` for why an unsorted read
+ * isn't safe here.
  */
 export async function getDailyLog(date: string): Promise<DailyLog | null> {
-  const logs = await db.training_daily_logs
-    .where('date')
-    .equals(date)
-    .filter((l) => l.deletedAt === null)
-    .toArray()
+  const { data, error } = await client()
+    .from('training_daily_logs')
+    .select('*')
+    .eq('date', date)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const logs = data as DailyLog[]
   if (logs.length === 0) return null
   return logs.reduce((latest, l) => (l.updatedAt > latest.updatedAt ? l : latest))
 }
 
+/**
+ * Todas las bitácoras sin borrar, sin filtrar por fecha — para el cruce con
+ * las demás tablas de Entrenamiento (todavía en Dexie), ver
+ * `bitacoraQueries.ts`.
+ */
+export async function listDailyLogs(): Promise<DailyLog[]> {
+  const { data, error } = await client().from('training_daily_logs').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as DailyLog[]
+}
+
+/** Las bitácoras de un rango de fechas (claves `YYYY-MM-DD`), ambas incluidas. */
+export async function listDailyLogsInRange(from: string, to: string): Promise<DailyLog[]> {
+  const { data, error } = await client()
+    .from('training_daily_logs')
+    .select('*')
+    .gte('date', from)
+    .lte('date', to)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as DailyLog[]
+}
+
 /** Soft-deletes every bitácora row for `date` except `keepId` (see `upsertDailyLog`). */
-async function deleteDuplicateDailyLogs(
-  date: string,
-  keepId: string,
-  timestamp: string,
-): Promise<void> {
-  const others = await db.training_daily_logs
-    .where('date')
-    .equals(date)
-    .filter((l) => l.deletedAt === null && l.id !== keepId)
-    .toArray()
-  await Promise.all(
-    others.map((l) =>
-      db.training_daily_logs.update(l.id, { deletedAt: timestamp, updatedAt: timestamp }),
-    ),
-  )
+async function deleteDuplicateDailyLogs(date: string, keepId: string, timestamp: string): Promise<void> {
+  const { data, error } = await client()
+    .from('training_daily_logs')
+    .select('id')
+    .eq('date', date)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const others = (data as Array<{ id: string }>).filter((l) => l.id !== keepId)
+  for (const { id } of others) {
+    const { error: updateError } = await client()
+      .from('training_daily_logs')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', id)
+    if (updateError) throw new Error(updateError.message)
+  }
 }
 
 export interface UpsertDailyLogInput {
@@ -127,10 +173,11 @@ export async function upsertDailyLog(
   const existing = await getDailyLog(date)
   const timestamp = nowIso()
   if (existing) {
-    await db.training_daily_logs.update(existing.id, {
-      ...input,
-      updatedAt: timestamp,
-    })
+    const { error } = await client()
+      .from('training_daily_logs')
+      .update({ ...input, updatedAt: timestamp })
+      .eq('id', existing.id)
+    if (error) throw new Error(error.message)
     await deleteDuplicateDailyLogs(date, existing.id, timestamp)
     return { ...existing, ...input, updatedAt: timestamp }
   }
@@ -142,6 +189,8 @@ export async function upsertDailyLog(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_daily_logs.add(log)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_daily_logs').insert({ ...log, userId })
+  if (error) throw new Error(error.message)
   return log
 }

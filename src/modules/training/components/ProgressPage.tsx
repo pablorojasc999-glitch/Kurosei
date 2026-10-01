@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { db } from '../../../shared/db/database'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { BodyMap } from './BodyMap'
 import { LineChart } from './LineChart'
 import type { ChartSeries } from './LineChart'
@@ -59,6 +61,7 @@ function defaultCurrentOrPastId(
 }
 
 export function ProgressPage() {
+  const session = useSupabaseSession()
   const setsWithContext = useLiveQuery(() => listAllExecutedSetsWithContext(), [])
   const exercises = useLiveQuery(
     () => db.training_exercises.filter((e) => e.deletedAt === null).toArray(),
@@ -78,7 +81,16 @@ export function ProgressPage() {
   const macrocycles = useLiveQuery(() => listMacrocycles(), [])
   const mesocycles = useLiveQuery(() => listMesocyclesWithContext(), [])
   const weeks = useLiveQuery(() => listWeeksWithContext(), [])
-  const profile = useLiveQuery(() => getProfile(), [])
+  // La bitácora ya no está en Dexie: sin sesión no hay perfil ni métricas que
+  // mostrar, pero el resto de la página (series de entrenamiento) sigue
+  // funcionando igual, porque todavía pasa por Dexie (le toca en el módulo
+  // de Entrenamiento).
+  const { data: profile } = useRemoteQuery(
+    useCallback(async () => {
+      if (session === undefined) return undefined
+      return session ? getProfile() : null
+    }, [session]),
+  )
 
   const [selectedExerciseId, setSelectedExerciseId] = useState('')
   const [scopeKind, setScopeKind] = useState<ScopeKind>('day')
@@ -122,9 +134,16 @@ export function ProgressPage() {
     activeRange = dayRange(activeDay)
   }
 
-  const dailyMetrics = useLiveQuery(
-    () => (activeRange ? listDailyMetricsInRange(activeRange) : Promise.resolve([])),
-    [activeRange?.start, activeRange?.end],
+  const { data: dailyMetrics } = useRemoteQuery(
+    useCallback(
+      async () => {
+        if (session === undefined) return undefined
+        if (!session || !activeRange) return []
+        return listDailyMetricsInRange(activeRange)
+      },
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [session, activeRange?.start, activeRange?.end],
+    ),
   )
 
   if (
