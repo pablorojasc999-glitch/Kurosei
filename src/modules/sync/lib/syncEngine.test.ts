@@ -57,6 +57,9 @@ function createFakeSupabaseClient(
           return Promise.resolve({ error: null })
         },
         select(_cols: string) {
+          // Sin `.eq('userId', ...)` de por medio, igual que una tabla
+          // compartida que deja el filtro de dueño en manos de RLS: acá
+          // alcanza con no filtrar, ya que no hay políticas que simular.
           let userId: string | undefined
           const builder = {
             eq(_col: string, value: string) {
@@ -69,7 +72,9 @@ function createFakeSupabaseClient(
               }
               return Promise.resolve({
                 data: store.filter(
-                  (r) => r.userId === userId && String(r[col] ?? '') > since,
+                  (r) =>
+                    (userId === undefined || r.userId === userId) &&
+                    String(r[col] ?? '') > since,
                 ),
                 error: null,
               })
@@ -290,6 +295,43 @@ describe('pullTable', () => {
     await expect(
       pullTable(client, 'training_muscle_groups', USER_ID, EPOCH),
     ).rejects.toThrow('training_muscle_groups: permission denied for table')
+  })
+
+  it('baja ejercicios de otra cuenta: la biblioteca de ejercicios es compartida', async () => {
+    const deOtraCuenta = {
+      id: 'ajeno',
+      userId: 'otro-usuario',
+      name: 'Sentadilla',
+      type: 'strength',
+      category: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      deletedAt: null,
+    }
+    const { client } = createFakeSupabaseClient([deOtraCuenta])
+
+    await pullTable(client, 'training_exercises', USER_ID, EPOCH)
+
+    const local = await db.training_exercises.get('ajeno')
+    expect(local).toMatchObject({ name: 'Sentadilla' })
+  })
+
+  it('no baja días de entrenamiento de otra cuenta: eso no se comparte', async () => {
+    const deOtraCuenta = {
+      id: 'ajeno',
+      userId: 'otro-usuario',
+      date: '2026-01-01T00:00:00.000Z',
+      label: 'Piernas',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      deletedAt: null,
+      planClosedAt: null,
+    }
+    const { client } = createFakeSupabaseClient([deOtraCuenta])
+
+    await pullTable(client, 'training_days', USER_ID, EPOCH)
+
+    expect(await db.training_days.get('ajeno')).toBeUndefined()
   })
 })
 
