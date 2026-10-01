@@ -19,7 +19,11 @@
 --     tables independently, and soft-deletes never actually remove rows —
 --     FK constraints here would only add sync-ordering risk for no benefit.
 --   * Row Level Security scopes every row to its owner (auth.uid()), so
---     each user only ever sees/writes their own data.
+--     each user only ever sees/writes their own data — except the exercise
+--     and food libraries (training_muscle_groups, training_exercises,
+--     training_exercise_muscle_contributions, nutrition_foods), which add a
+--     read-only policy for the accounts listed in shared_library_members;
+--     see that section near the end of this file.
 
 create extension if not exists pgcrypto;
 
@@ -875,3 +879,80 @@ create policy "owner_all" on "day_closures" for all
 drop trigger if exists "day_closures_synced_at" on "day_closures";
 create trigger "day_closures_synced_at" before insert or update on "day_closures"
   for each row execute function public.set_synced_at();
+
+-- ---------------------------------------------------------------------
+-- Biblioteca compartida de ejercicios y de alimentos
+--
+-- Todo lo demás es estrictamente por cuenta (ver "owner_all" arriba): esto
+-- es la única excepción, y a propósito sólo cubre estas cuatro tablas. Cada
+-- fila se sigue subiendo con el "userId" de quien la creó — eso no cambia,
+-- y sigue siendo lo único que puede escribir ("owner_all" sigue mandando en
+-- insert/update/delete — cada quien sólo escribe lo suyo). Lo que se agrega
+-- es una política de lectura más: un miembro puede VER las filas de
+-- cualquier otro miembro en estas cuatro tablas. Una cuenta nueva que no
+-- esté en "shared_library_members" no ve nada de nadie más, acá ni en
+-- ningún otro lado: el valor por defecto sigue siendo "sólo lo mío".
+-- ---------------------------------------------------------------------
+
+create table if not exists "shared_library_members" (
+  "user_id" uuid primary key references auth.users(id) on delete cascade
+);
+
+alter table "shared_library_members" enable row level security;
+-- Sin políticas a propósito: nadie lee ni escribe esta tabla desde el
+-- cliente, ni siquiera sus propios miembros. Sólo la consulta la función
+-- de abajo, que corre con privilegios propios (security definer) — si la
+-- política de la tabla de miembros no fuera así, cada cuenta sólo vería su
+-- propia fila ahí adentro y nunca la de la otra cuenta.
+
+create or replace function public.is_shared_library_member(uid uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1 from public.shared_library_members m where m.user_id = uid
+  );
+$$;
+
+revoke all on function public.is_shared_library_member(uuid) from public;
+revoke execute on function public.is_shared_library_member(uuid) from anon;
+grant execute on function public.is_shared_library_member(uuid) to authenticated;
+
+drop policy if exists "shared_library_read" on "training_muscle_groups";
+create policy "shared_library_read" on "training_muscle_groups" for select
+  using (
+    public.is_shared_library_member(auth.uid())
+    and public.is_shared_library_member("userId")
+  );
+
+drop policy if exists "shared_library_read" on "training_exercises";
+create policy "shared_library_read" on "training_exercises" for select
+  using (
+    public.is_shared_library_member(auth.uid())
+    and public.is_shared_library_member("userId")
+  );
+
+drop policy if exists "shared_library_read" on "training_exercise_muscle_contributions";
+create policy "shared_library_read" on "training_exercise_muscle_contributions" for select
+  using (
+    public.is_shared_library_member(auth.uid())
+    and public.is_shared_library_member("userId")
+  );
+
+drop policy if exists "shared_library_read" on "nutrition_foods";
+create policy "shared_library_read" on "nutrition_foods" for select
+  using (
+    public.is_shared_library_member(auth.uid())
+    and public.is_shared_library_member("userId")
+  );
+
+-- Agregar una cuenta más a la biblioteca compartida: buscar su "id" en
+-- auth.users y agregar una fila acá.
+-- insert into "shared_library_members" ("user_id") values ('<uuid>') on conflict do nothing;
+insert into "shared_library_members" ("user_id") values
+  ('05bf1abe-5dba-46f3-8e83-d107be3cc604'),
+  ('ebc8b36b-597d-405b-872b-6283f4c74a0d')
+on conflict ("user_id") do nothing;

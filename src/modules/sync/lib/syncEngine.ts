@@ -38,6 +38,22 @@ export const SYNC_TABLE_NAMES = [
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]
 
+/**
+ * Las bibliotecas de ejercicios y alimentos se comparten entre las cuentas
+ * que Supabase marca como miembros de `shared_library_members`: cada fila
+ * se sigue subiendo con el `userId` de quien la creó (eso no cambia), pero
+ * al bajar no se filtra por dueño — la política RLS ya deja pasar tanto las
+ * propias como las de cualquier otro miembro. El resto de las tablas sigue
+ * filtrando por `userId` como siempre, así que una cuenta nueva no ve nada
+ * de la otra salvo esto.
+ */
+const SHARED_LIBRARY_TABLES: ReadonlySet<SyncTableName> = new Set([
+  'training_muscle_groups',
+  'training_exercises',
+  'training_exercise_muscle_contributions',
+  'nutrition_foods',
+])
+
 const LAST_SYNCED_KEY = 'kurosei_last_synced_at'
 /**
  * Hasta dónde se ha bajado, medido con el reloj del servidor.
@@ -119,11 +135,14 @@ export async function pullTable(
   userId: string,
   since: string,
 ): Promise<string | null> {
-  const { data, error } = await client
-    .from(tableName)
-    .select('*')
-    .eq('userId', userId)
-    .gt('syncedAt', since)
+  let query = client.from(tableName).select('*')
+  // Para las bibliotecas compartidas no se filtra por dueño acá: la política
+  // RLS es la que decide qué filas de otros miembros se pueden ver. Filtrar
+  // también en el cliente anularía el sentido de compartirlas.
+  if (!SHARED_LIBRARY_TABLES.has(tableName)) {
+    query = query.eq('userId', userId)
+  }
+  const { data, error } = await query.gt('syncedAt', since)
   if (error) throw new Error(`${tableName}: ${error.message}`)
   if (!data || data.length === 0) return null
 
