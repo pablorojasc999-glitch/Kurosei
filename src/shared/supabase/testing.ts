@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 type Row = Record<string, unknown>
-type FilterKind = 'eq' | 'is' | 'in'
+type FilterKind = 'eq' | 'is' | 'in' | 'gte' | 'lte'
 interface Filter {
   kind: FilterKind
   col: string
@@ -11,6 +11,8 @@ interface Filter {
 function matches(row: Row, filters: Filter[]): boolean {
   return filters.every(({ kind, col, value }) => {
     if (kind === 'in') return (value as unknown[]).includes(row[col])
+    if (kind === 'gte') return (row[col] as string) >= (value as string)
+    if (kind === 'lte') return (row[col] as string) <= (value as string)
     // `is` y `eq` se tratan igual acá: a esta tabla en memoria le alcanza con
     // comparar por valor, no hace falta distinguir el operador SQL real.
     return row[col] === value
@@ -21,9 +23,9 @@ function matches(row: Row, filters: Filter[]): boolean {
  * Un cliente de Supabase de juguete para probar repositorios que ya no
  * pasan por Dexie, sin pegarle a la base real. Imita sólo la parte de la
  * API que estos repositorios usan: `select` / `insert` / `update`,
- * `eq` / `is` / `in`, y `maybeSingle`. El builder es "thenable" como el
- * real, así que `await client.from(t).select('*').eq(...)` funciona igual
- * sin un `.then()` ni un `.execute()` de por medio.
+ * `eq` / `is` / `in` / `gte` / `lte`, y `maybeSingle`. El builder es
+ * "thenable" como el real, así que `await client.from(t).select('*').eq(...)`
+ * funciona igual sin un `.then()` ni un `.execute()` de por medio.
  */
 export function createFakeSupabaseClient(
   seed: Record<string, Row[]> = {},
@@ -90,6 +92,14 @@ export function createFakeSupabaseClient(
       },
       in(col: string, values: unknown[]) {
         filters.push({ kind: 'in', col, value: values })
+        return builder
+      },
+      gte(col: string, value: unknown) {
+        filters.push({ kind: 'gte', col, value })
+        return builder
+      },
+      lte(col: string, value: unknown) {
+        filters.push({ kind: 'lte', col, value })
         return builder
       },
       maybeSingle() {

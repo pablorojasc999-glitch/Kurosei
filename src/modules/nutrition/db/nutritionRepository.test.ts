@@ -1,7 +1,20 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { db } from '../../../shared/db/database'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
 import { getDailyLog } from '../../training/db/bitacoraRepository'
-import {
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const {
   addFoodEntry,
   addFoodEntryToTemplate,
   addManualEntry,
@@ -31,7 +44,7 @@ import {
   updateGoalPlan,
   updateTemplateFoodEntryQuantity,
   updateTemplateManualEntry,
-} from './nutritionRepository'
+} = await import('./nutritionRepository')
 
 const NO_MICROS = {
   saturatedFatG: null,
@@ -59,6 +72,16 @@ const NO_MICROS = {
 }
 
 beforeEach(async () => {
+  // Las tablas de nutrición ya no viven en Dexie, pero la bitácora
+  // (`training_daily_logs`, vía bitacoraRepository) todavía sí — hasta que
+  // le toque su turno de migrar, el test necesita limpiar las dos cosas.
+  fake.tables.nutrition_foods = []
+  fake.tables.nutrition_meal_sections = []
+  fake.tables.nutrition_entries = []
+  fake.tables.nutrition_water_entries = []
+  fake.tables.nutrition_meal_templates = []
+  fake.tables.nutrition_meal_template_entries = []
+  fake.tables.nutrition_goal_plans = []
   await db.transaction('rw', db.tables, async () => Promise.all(db.tables.map((t) => t.clear())))
 })
 
