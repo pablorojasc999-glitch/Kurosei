@@ -1,4 +1,4 @@
-import { db } from '../../../shared/db/database'
+import { listDailyLogsInRange } from '../../training/db/bitacoraRepository'
 import { buildDayCompletion, type DayCompletion } from '../lib/dayCompletion'
 import { listClosuresInRange } from './closingRepository'
 
@@ -7,18 +7,16 @@ import { listClosuresInRange } from './closingRepository'
  *
  * Se leen los cierres y las bitácoras del rango de una vez y se arma todo en
  * memoria: el calendario pide un mes entero, y una consulta por día serían
- * sesenta viajes a Dexie por cada mes que se pasa.
+ * sesenta pedidos a Supabase por cada mes que se pasa.
  */
 export async function listDayCompletions(
   from: string,
   to: string,
 ): Promise<DayCompletion[]> {
-  const closures = await listClosuresInRange(from, to)
-  const logs = await db.training_daily_logs
-    .where('date')
-    .between(from, to, true, true)
-    .filter((l) => l.deletedAt === null)
-    .toArray()
+  const [closures, logs] = await Promise.all([
+    listClosuresInRange(from, to),
+    listDailyLogsInRange(from, to),
+  ])
 
   const closuresByDate = new Map<string, typeof closures>()
   for (const closure of closures) {

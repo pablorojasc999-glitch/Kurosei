@@ -1,4 +1,5 @@
 import { db } from '../../../shared/db/database'
+import { listDailyLogs } from './bitacoraRepository'
 import { toDateKey } from '../lib/calendarGrid'
 import type { DateRange } from '../lib/progressScope'
 import { sessionDurationMinutes } from '../lib/sessionTimes'
@@ -41,7 +42,7 @@ export interface DailyMetric {
 export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMetric[]> {
   const [days, dailyLogs] = await Promise.all([
     db.training_days.filter((d) => d.deletedAt === null).toArray(),
-    db.training_daily_logs.filter((l) => l.deletedAt === null).toArray(),
+    listDailyLogs(),
   ])
 
   const domainDates: string[] = []

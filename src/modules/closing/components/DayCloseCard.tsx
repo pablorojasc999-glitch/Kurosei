@@ -1,7 +1,9 @@
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { closeDay, listClosuresForDate, reopenDay } from '../db/closingRepository'
-import type { ClosableModule } from '../domain/types'
+import type { ClosableModule, ClosureKind } from '../domain/types'
 import {
   buildDayCompletion,
   EMPTY_LABELS,
@@ -15,6 +17,8 @@ interface DayCloseCardProps {
   module: ClosableModule
   /** La pregunta de arriba; sin esto se arma una a partir del módulo. */
   prompt?: string
+  /** Avisa a quien lo embeba (p. ej. la hoja de detalle del calendario) que el cierre cambió, para que refresque lo que muestra. */
+  onChange?: () => void
 }
 
 const DONE_LABELS: Record<ClosableModule, string> = {
@@ -37,13 +41,42 @@ function stateLabel(module: ClosableModule, state: ModuleState): string {
  * gastos quedaría pendiente para siempre y la lista de pendientes dejaría de
  * servir de tanto ruido.
  */
-export function DayCloseCard({ date, module, prompt }: DayCloseCardProps) {
-  const closures = useLiveQuery(() => listClosuresForDate(date), [date])
+export function DayCloseCard({ date, module, prompt, onChange }: DayCloseCardProps) {
+  const session = useSupabaseSession()
+  const { data: closures, refresh } = useRemoteQuery(
+    useCallback(async () => {
+      if (session === undefined) return undefined
+      return session ? listClosuresForDate(date) : []
+    }, [session, date]),
+  )
   const { isSubmitting, guard } = useSubmitGuard()
+  const [error, setError] = useState<string | null>(null)
 
   if (!closures) return null
   const day = buildDayCompletion({ date, closures, log: undefined })
   const state = day[module]
+
+  async function handleClose(kind: ClosureKind) {
+    setError(null)
+    try {
+      await closeDay(date, module, kind)
+      await refresh()
+      onChange?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
+    }
+  }
+
+  async function handleReopen() {
+    setError(null)
+    try {
+      await reopenDay(date, module)
+      await refresh()
+      onChange?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
+    }
+  }
 
   if (state !== 'pending') {
     return (
@@ -56,10 +89,11 @@ export function DayCloseCard({ date, module, prompt }: DayCloseCardProps) {
           type="button"
           className="day-close-reopen"
           disabled={isSubmitting}
-          onClick={() => void guard(() => reopenDay(date, module))}
+          onClick={() => void guard(handleReopen)}
         >
           Reabrir
         </button>
+        {error && <p className="error">{error}</p>}
       </div>
     )
   }
@@ -74,11 +108,7 @@ export function DayCloseCard({ date, module, prompt }: DayCloseCardProps) {
           type="button"
           className="day-close-primary"
           disabled={isSubmitting}
-          onClick={() =>
-            void guard(async () => {
-              await closeDay(date, module, 'done')
-            })
-          }
+          onClick={() => void guard(() => handleClose('done'))}
         >
           {DONE_LABELS[module]}
         </button>
@@ -86,15 +116,12 @@ export function DayCloseCard({ date, module, prompt }: DayCloseCardProps) {
           type="button"
           className="day-close-secondary"
           disabled={isSubmitting}
-          onClick={() =>
-            void guard(async () => {
-              await closeDay(date, module, 'none')
-            })
-          }
+          onClick={() => void guard(() => handleClose('none'))}
         >
           {EMPTY_LABELS[module]}
         </button>
       </div>
+      {error && <p className="error">{error}</p>}
     </div>
   )
 }

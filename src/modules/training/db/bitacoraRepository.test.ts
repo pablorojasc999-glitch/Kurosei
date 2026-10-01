@@ -1,13 +1,24 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import { getDailyLog, getProfile, upsertDailyLog, upsertProfile } from './bitacoraRepository'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
 
-beforeEach(async () => {
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const { getDailyLog, getProfile, listDailyLogs, upsertDailyLog, upsertProfile } = await import(
+  './bitacoraRepository'
+)
+
+beforeEach(() => {
+  fake.tables.training_user_profile = []
+  fake.tables.training_daily_logs = []
 })
 
 describe('upsertProfile / getProfile', () => {
@@ -44,7 +55,7 @@ describe('upsertProfile / getProfile', () => {
     })
 
     expect(updated.id).toBe(first.id)
-    expect(await db.training_user_profile.count()).toBe(1)
+    expect(fake.tables.training_user_profile.filter((p) => p.deletedAt === null)).toHaveLength(1)
     const found = await getProfile()
     expect(found).toMatchObject({ heightCm: 176, bodyFatPercent: 14, muscleMassPercent: 40 })
   })
@@ -86,7 +97,7 @@ describe('upsertDailyLog / getDailyLog', () => {
     })
 
     expect(updated.id).toBe(first.id)
-    expect(await db.training_daily_logs.count()).toBe(1)
+    expect(fake.tables.training_daily_logs.filter((l) => l.deletedAt === null)).toHaveLength(1)
     const found = await getDailyLog('2026-08-22')
     expect(found).toMatchObject({ bodyWeightKg: 79.5, creatineTaken: true })
   })
@@ -100,9 +111,10 @@ describe('upsertDailyLog / getDailyLog', () => {
   })
 
   it('resolves a legacy duplicate (two rows for the same date) to the most recently updated one', async () => {
-    // Simulate leftover duplicate rows from before upsertDailyLog deduplicated,
-    // inserted directly so `.first()`-style ordering can't be relied on.
-    await db.training_daily_logs.bulkAdd([
+    // Simula filas duplicadas que quedaron de antes de que upsertDailyLog
+    // las deduplicara, insertadas directo para que no se pueda confiar en el
+    // orden de llegada.
+    fake.tables.training_daily_logs.push(
       {
         id: 'old-row',
         date: '2026-08-22',
@@ -112,6 +124,7 @@ describe('upsertDailyLog / getDailyLog', () => {
         createdAt: '2026-08-22T10:00:00.000Z',
         updatedAt: '2026-08-22T10:00:00.000Z',
         deletedAt: null,
+        userId: 'user-1',
       },
       {
         id: 'new-row',
@@ -122,15 +135,16 @@ describe('upsertDailyLog / getDailyLog', () => {
         createdAt: '2026-08-22T09:00:00.000Z',
         updatedAt: '2026-08-22T18:00:00.000Z',
         deletedAt: null,
+        userId: 'user-1',
       },
-    ])
+    )
 
     const found = await getDailyLog('2026-08-22')
     expect(found).toMatchObject({ id: 'new-row', fatigue: 1, stimulants: 0 })
   })
 
   it('cleans up duplicate rows for a date the next time it is saved', async () => {
-    await db.training_daily_logs.bulkAdd([
+    fake.tables.training_daily_logs.push(
       {
         id: 'old-row',
         date: '2026-08-22',
@@ -138,6 +152,7 @@ describe('upsertDailyLog / getDailyLog', () => {
         createdAt: '2026-08-22T10:00:00.000Z',
         updatedAt: '2026-08-22T10:00:00.000Z',
         deletedAt: null,
+        userId: 'user-1',
       },
       {
         id: 'new-row',
@@ -146,15 +161,24 @@ describe('upsertDailyLog / getDailyLog', () => {
         createdAt: '2026-08-22T09:00:00.000Z',
         updatedAt: '2026-08-22T18:00:00.000Z',
         deletedAt: null,
+        userId: 'user-1',
       },
-    ])
+    )
 
     await upsertDailyLog('2026-08-22', { ...EMPTY_LOG_INPUT, steps: 500 })
 
-    const active = await db.training_daily_logs
-      .filter((l) => l.deletedAt === null)
-      .toArray()
+    const active = fake.tables.training_daily_logs.filter((l) => l.deletedAt === null)
     expect(active).toHaveLength(1)
     expect(active[0]).toMatchObject({ id: 'new-row', steps: 500 })
+  })
+})
+
+describe('listDailyLogs', () => {
+  it('returns every non-deleted entry, across dates', async () => {
+    await upsertDailyLog('2026-08-22', { ...EMPTY_LOG_INPUT, steps: 1000 })
+    await upsertDailyLog('2026-08-23', { ...EMPTY_LOG_INPUT, steps: 2000 })
+
+    const all = await listDailyLogs()
+    expect(all.map((l) => l.date).sort()).toEqual(['2026-08-22', '2026-08-23'])
   })
 })

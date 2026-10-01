@@ -7,11 +7,13 @@ import type { SyncedEntity } from '../../training/domain/types'
 /**
  * Every Dexie store that mirrors to Supabase, in a stable sync order.
  *
- * "grocery_items", las cuatro tablas de "finance_" y las siete de
- * "nutrition_" ya no están: Súper, Finanzas y Nutrición dejaron de pasar por
- * Dexie y hablan directo con Supabase (ver groceryRepository.ts,
- * financeRepository.ts y nutritionRepository.ts), así que no hay nada local
- * que subir ni bajar para esas tablas.
+ * "grocery_items", las cuatro tablas de "finance_", las siete de
+ * "nutrition_", "training_user_profile", "training_daily_logs" y
+ * "day_closures" ya no están: Súper, Finanzas, Nutrición y la
+ * Bitácora/cierre de día dejaron de pasar por Dexie y hablan directo con
+ * Supabase (ver groceryRepository.ts, financeRepository.ts,
+ * nutritionRepository.ts, bitacoraRepository.ts y closingRepository.ts), así
+ * que no hay nada local que subir ni bajar para esas tablas.
  */
 export const SYNC_TABLE_NAMES = [
   'training_muscle_groups',
@@ -27,9 +29,6 @@ export const SYNC_TABLE_NAMES = [
   'training_session_exercises',
   'training_executed_sets',
   'training_cardio_sessions',
-  'training_user_profile',
-  'training_daily_logs',
-  'day_closures',
 ] as const
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]

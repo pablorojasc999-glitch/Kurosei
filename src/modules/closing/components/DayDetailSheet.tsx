@@ -1,8 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useCallback } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
-import { db } from '../../../shared/db/database'
-import { formatDayHeader } from '../../training/lib/calendarGrid'
-import { parseDateInput } from '../../training/lib/calendarGrid'
+import { getDailyLog } from '../../training/db/bitacoraRepository'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { formatDayHeader, parseDateInput } from '../../training/lib/calendarGrid'
 import { listClosuresForDate } from '../db/closingRepository'
 import type { ClosableModule } from '../domain/types'
 import {
@@ -21,6 +21,8 @@ interface DayDetailSheetProps {
   onClose: () => void
   /** Abre ese día en Registro, para ir a llenar lo que falte. */
   onOpenDay: (date: Date) => void
+  /** Avisa al calendario que algo cambió, para que refresque sus anillos. */
+  onChange: () => void
 }
 
 /**
@@ -30,21 +32,25 @@ interface DayDetailSheetProps {
  * tiene dónde vivir en su propia pantalla. Y de paso resuelve el caso real de
  * ponerse al día con una semana entera sin ir módulo por módulo.
  */
-export function DayDetailSheet({ date, onClose, onOpenDay }: DayDetailSheetProps) {
-  const data = useLiveQuery(async () => {
-    const closures = await listClosuresForDate(date)
-    const log = await db.training_daily_logs
-      .where('date')
-      .equals(date)
-      .filter((l) => l.deletedAt === null)
-      .first()
-    return { closures, log }
-  }, [date])
+export function DayDetailSheet({ date, onClose, onOpenDay, onChange }: DayDetailSheetProps) {
+  const { data, refresh } = useRemoteQuery(
+    useCallback(async () => {
+      const [closures, log] = await Promise.all([listClosuresForDate(date), getDailyLog(date)])
+      return { closures, log }
+    }, [date]),
+  )
+
+  // Un cierre adentro de una de las tarjetas cambia tanto lo que se ve acá
+  // (el resumen de arriba) como el anillo del día en el calendario.
+  async function handleChange() {
+    await refresh()
+    onChange()
+  }
 
   const day = data
-    ? buildDayCompletion({ date, closures: data.closures, log: data.log })
+    ? buildDayCompletion({ date, closures: data.closures, log: data.log ?? undefined })
     : null
-  const faltan = data ? missingBitacoraFields(data.log) : []
+  const faltan = data ? missingBitacoraFields(data.log ?? undefined) : []
 
   return (
     <BottomSheet
@@ -70,7 +76,7 @@ export function DayDetailSheet({ date, onClose, onOpenDay }: DayDetailSheetProps
           {CLOSABLE.map((module) => (
             <section key={module} className="day-detail-module">
               <h3>{MODULE_LABELS[module]}</h3>
-              <DayCloseCard date={date} module={module} />
+              <DayCloseCard date={date} module={module} onChange={handleChange} />
             </section>
           ))}
 
