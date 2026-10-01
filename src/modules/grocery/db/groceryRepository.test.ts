@@ -1,8 +1,20 @@
 import { needsBuying } from '../lib/groceryCadence'
 import type { GroceryItem } from '../domain/types'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import {
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const {
   checkAllDue,
   clearChecked,
   completeShoppingRun,
@@ -11,10 +23,10 @@ import {
   softDeleteItem,
   toggleItemChecked,
   updateItem,
-} from './groceryRepository'
+} = await import('./groceryRepository')
 
-beforeEach(async () => {
-  await db.grocery_items.clear()
+beforeEach(() => {
+  fake.tables.grocery_items = []
 })
 
 const names = (items: Awaited<ReturnType<typeof listItems>>) => items.map((i) => i.name)

@@ -4,7 +4,13 @@ import { db } from '../../../shared/db/database'
 import { supabase } from '../../../shared/supabase/client'
 import type { SyncedEntity } from '../../training/domain/types'
 
-/** Every Dexie store that mirrors to Supabase, in a stable sync order. */
+/**
+ * Every Dexie store that mirrors to Supabase, in a stable sync order.
+ *
+ * "grocery_items" ya no está: Súper dejó de pasar por Dexie y habla directo
+ * con Supabase (ver groceryRepository.ts), así que no hay nada local que
+ * subir ni bajar para esa tabla.
+ */
 export const SYNC_TABLE_NAMES = [
   'training_muscle_groups',
   'training_exercises',
@@ -32,7 +38,6 @@ export const SYNC_TABLE_NAMES = [
   'nutrition_meal_templates',
   'nutrition_meal_template_entries',
   'nutrition_goal_plans',
-  'grocery_items',
   'day_closures',
 ] as const
 

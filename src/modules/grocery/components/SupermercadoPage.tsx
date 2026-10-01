@@ -1,7 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { useEntryDragReorder } from '../../nutrition/lib/useEntryDragReorder'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import type { GroceryItem, PurchaseCadence } from '../domain/types'
@@ -28,7 +29,14 @@ import {
 } from '../lib/groceryCadence'
 
 export function SupermercadoPage() {
-  const items = useLiveQuery(() => listItems(), [])
+  const session = useSupabaseSession()
+  const {
+    data: items,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(
+    useCallback(() => (session ? listItems() : Promise.resolve(undefined)), [session]),
+  )
   const today = todayKey()
 
   const [openCadence, setOpenCadence] = useState<PurchaseCadence | null>(null)
@@ -48,7 +56,7 @@ export function SupermercadoPage() {
     items?.map((i) => ({ ...i, sectionId: i.cadence })),
     PURCHASE_CADENCES.map((c) => ({ id: c })),
     (id, targetCadence) => {
-      void updateItem(id, { cadence: targetCadence as PurchaseCadence })
+      void updateItem(id, { cadence: targetCadence as PurchaseCadence }).then(refresh)
     },
   )
 
@@ -89,6 +97,7 @@ export function SupermercadoPage() {
         if (editingId) await updateItem(editingId, { name, quantity, note, cadence })
         else await createItem({ name, cadence, quantity, note })
         resetForm()
+        await refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
@@ -97,10 +106,30 @@ export function SupermercadoPage() {
 
   async function handleCompleteRun() {
     const count = await completeShoppingRun()
+    await refresh()
     setRunMessage(
       count === 1
         ? 'Compra cerrada: 1 artículo marcado como comprado hoy.'
         : `Compra cerrada: ${count} artículos marcados como comprados hoy.`,
+    )
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle la lista.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Supermercado</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Supermercado</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar el súper.
+        </p>
+      </div>
     )
   }
 
@@ -111,6 +140,7 @@ export function SupermercadoPage() {
         Lo que compras se separa por cada cuánto lo repones. Marca lo que llevas y cierra la
         compra: eso reinicia el ciclo de cada artículo.
       </p>
+      {loadError && <p className="error">No se pudo cargar el súper: {loadError.message}</p>}
 
       <div className="grocery-summary-row">
         {groups.map((group) => (
@@ -137,13 +167,16 @@ export function SupermercadoPage() {
         </span>
         <div className="grocery-run-actions">
           {dueItems.length > 0 && (
-            <button type="button" onClick={() => void checkAllDue(dueItems.map((i) => i.id))}>
+            <button
+              type="button"
+              onClick={() => void checkAllDue(dueItems.map((i) => i.id)).then(refresh)}
+            >
               Marcar lo que toca ({dueItems.length})
             </button>
           )}
           {checkedItems.length > 0 && (
             <>
-              <button type="button" onClick={() => void clearChecked()}>
+              <button type="button" onClick={() => void clearChecked().then(refresh)}>
                 Desmarcar
               </button>
               <button type="button" className="grocery-run-close" onClick={() => void handleCompleteRun()}>
@@ -228,7 +261,7 @@ export function SupermercadoPage() {
                       aria-label={item.checked ? `Desmarcar ${item.name}` : `Marcar ${item.name}`}
                       onClick={() => {
                         if (drag.consumeJustDragged()) return
-                        void toggleItemChecked(item.id)
+                        void toggleItemChecked(item.id).then(refresh)
                       }}
                     >
                       {item.checked ? '✓' : ''}
@@ -267,7 +300,7 @@ export function SupermercadoPage() {
                       className="icon-button"
                       label={`Eliminar ${item.name}`}
                       confirmMessage={`¿Eliminar "${item.name}"?`}
-                      onConfirm={() => softDeleteItem(item.id)}
+                      onConfirm={() => softDeleteItem(item.id).then(refresh)}
                     />
                   </div>
                 </div>
