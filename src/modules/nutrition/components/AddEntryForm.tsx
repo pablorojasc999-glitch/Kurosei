@@ -1,6 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { toDateKey } from '../../training/lib/calendarGrid'
 import { listEntriesForDateRange } from '../db/nutritionRepository'
@@ -81,9 +81,11 @@ export function AddEntryForm({
     return { from: toDateKey(from), to: toDateKey(today), recentSince: toDateKey(yesterday) }
   }, [])
 
-  const recentEntries = useLiveQuery(
-    () => listEntriesForDateRange(suggestionWindow.from, suggestionWindow.to),
-    [suggestionWindow.from, suggestionWindow.to],
+  const { data: recentEntries } = useRemoteQuery(
+    useCallback(
+      () => listEntriesForDateRange(suggestionWindow.from, suggestionWindow.to),
+      [suggestionWindow.from, suggestionWindow.to],
+    ),
   )
 
   const suggestions = useMemo(

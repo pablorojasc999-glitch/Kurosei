@@ -1,7 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { createFood, listFoods, softDeleteFood, updateFood } from '../db/nutritionRepository'
 import type { FoodItem, ServingUnit } from '../domain/types'
@@ -79,7 +80,12 @@ function foodToForm(food: FoodItem): FoodFormState {
 }
 
 export function BibliotecaPage() {
-  const foods = useLiveQuery(() => listFoods(), [])
+  const session = useSupabaseSession()
+  const {
+    data: foods,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(useCallback(() => (session ? listFoods() : Promise.resolve(undefined)), [session]))
 
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -134,10 +140,30 @@ export function BibliotecaPage() {
           await createFood(input)
         }
         resetForm()
+        await refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
     })
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle la biblioteca.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Biblioteca de alimentos</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Biblioteca de alimentos</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar la biblioteca.
+        </p>
+      </div>
+    )
   }
 
   const filteredFoods = foods?.filter((f) =>
@@ -147,6 +173,7 @@ export function BibliotecaPage() {
   return (
     <div className="page">
       <h1>Biblioteca de alimentos</h1>
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <button
         type="button"
@@ -333,7 +360,7 @@ export function BibliotecaPage() {
                   Editar
                 </button>
                 <ConfirmDeleteButton
-                  onConfirm={() => softDeleteFood(food.id)}
+                  onConfirm={() => softDeleteFood(food.id).then(refresh)}
                   confirmMessage={`¿Eliminar "${food.name}"?`}
                 />
               </div>

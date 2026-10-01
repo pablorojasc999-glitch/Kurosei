@@ -7,9 +7,10 @@ import type { SyncedEntity } from '../../training/domain/types'
 /**
  * Every Dexie store that mirrors to Supabase, in a stable sync order.
  *
- * "grocery_items" y las cuatro tablas de "finance_" ya no están: Súper y
- * Finanzas dejaron de pasar por Dexie y hablan directo con Supabase (ver
- * groceryRepository.ts y financeRepository.ts), así que no hay nada local
+ * "grocery_items", las cuatro tablas de "finance_" y las siete de
+ * "nutrition_" ya no están: Súper, Finanzas y Nutrición dejaron de pasar por
+ * Dexie y hablan directo con Supabase (ver groceryRepository.ts,
+ * financeRepository.ts y nutritionRepository.ts), así que no hay nada local
  * que subir ni bajar para esas tablas.
  */
 export const SYNC_TABLE_NAMES = [
@@ -28,32 +29,27 @@ export const SYNC_TABLE_NAMES = [
   'training_cardio_sessions',
   'training_user_profile',
   'training_daily_logs',
-  'nutrition_foods',
-  'nutrition_meal_sections',
-  'nutrition_entries',
-  'nutrition_water_entries',
-  'nutrition_meal_templates',
-  'nutrition_meal_template_entries',
-  'nutrition_goal_plans',
   'day_closures',
 ] as const
 
 export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]
 
 /**
- * Las bibliotecas de ejercicios y alimentos se comparten entre las cuentas
- * que Supabase marca como miembros de `shared_library_members`: cada fila
- * se sigue subiendo con el `userId` de quien la creó (eso no cambia), pero
- * al bajar no se filtra por dueño — la política RLS ya deja pasar tanto las
- * propias como las de cualquier otro miembro. El resto de las tablas sigue
- * filtrando por `userId` como siempre, así que una cuenta nueva no ve nada
- * de la otra salvo esto.
+ * La biblioteca de ejercicios se comparte entre las cuentas que Supabase
+ * marca como miembros de `shared_library_members`: cada fila se sigue
+ * subiendo con el `userId` de quien la creó (eso no cambia), pero al bajar
+ * no se filtra por dueño — la política RLS ya deja pasar tanto las propias
+ * como las de cualquier otro miembro. El resto de las tablas sigue filtrando
+ * por `userId` como siempre, así que una cuenta nueva no ve nada de la otra
+ * salvo esto. (La biblioteca de alimentos, `nutrition_foods`, es la otra
+ * mitad de esa misma excepción — pero ya no pasa por acá: ver la nota en
+ * `nutritionRepository.ts` sobre por qué sus lecturas tampoco filtran por
+ * dueño.)
  */
 const SHARED_LIBRARY_TABLES: ReadonlySet<SyncTableName> = new Set([
   'training_muscle_groups',
   'training_exercises',
   'training_exercise_muscle_contributions',
-  'nutrition_foods',
 ])
 
 const LAST_SYNCED_KEY = 'kurosei_last_synced_at'

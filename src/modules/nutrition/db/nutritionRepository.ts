@@ -1,4 +1,5 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import { getDailyLog, upsertDailyLog } from '../../training/db/bitacoraRepository'
@@ -18,13 +19,36 @@ import { findActivePlan } from '../lib/goalPlans'
 import { scaleMacros, sumMacros, type MacroTotals } from '../lib/macros'
 import { moveItem, reindex } from '../lib/reorder'
 
+/**
+ * Este módulo ya no pasa por Dexie: habla directo con Supabase, como
+ * cualquier pantalla de una app en línea — se pide, se escribe, se vuelve a
+ * pedir. `nutrition_foods` es la biblioteca compartida (ver PR #103): acá no
+ * se filtra por dueño en ninguna lectura, ni para ésa ni para el resto —
+ * la política RLS de cada tabla ya decide qué filas se pueden ver.
+ */
+function client() {
+  if (!supabase) throw new Error('Nutrición necesita conexión para funcionar.')
+  return supabase
+}
+
 // ---------------------------------------------------------------------
 // Foods
 // ---------------------------------------------------------------------
 
 export async function listFoods(): Promise<FoodItem[]> {
-  const foods = await db.nutrition_foods.filter((f) => f.deletedAt === null).toArray()
-  return foods.sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  const { data, error } = await client().from('nutrition_foods').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as FoodItem[]).sort((a, b) => a.name.localeCompare(b.name, 'es'))
+}
+
+async function getFood(id: string): Promise<FoodItem | null> {
+  const { data, error } = await client()
+    .from('nutrition_foods')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data as FoodItem | null
 }
 
 export interface CreateFoodInput extends NutrientProfile {
@@ -47,19 +71,29 @@ export async function createFood(input: CreateFoodInput): Promise<FoodItem> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_foods.add(food)
+  const userId = await requireUserId()
+  const { error } = await client().from('nutrition_foods').insert({ ...food, userId })
+  if (error) throw new Error(error.message)
   return food
 }
 
 export type UpdateFoodInput = Partial<CreateFoodInput>
 
 export async function updateFood(id: string, input: UpdateFoodInput): Promise<void> {
-  await db.nutrition_foods.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('nutrition_foods')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function softDeleteFood(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.nutrition_foods.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('nutrition_foods')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 // ---------------------------------------------------------------------
@@ -67,7 +101,12 @@ export async function softDeleteFood(id: string): Promise<void> {
 // ---------------------------------------------------------------------
 
 export async function listMealSections(): Promise<MealSection[]> {
-  return db.nutrition_meal_sections.filter((s) => s.deletedAt === null).sortBy('order')
+  const { data, error } = await client()
+    .from('nutrition_meal_sections')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as MealSection[]).sort((a, b) => a.order - b.order)
 }
 
 export async function createMealSection(name: string): Promise<MealSection> {
@@ -82,26 +121,37 @@ export async function createMealSection(name: string): Promise<MealSection> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_meal_sections.add(section)
+  const userId = await requireUserId()
+  const { error } = await client().from('nutrition_meal_sections').insert({ ...section, userId })
+  if (error) throw new Error(error.message)
   return section
 }
 
 export async function renameMealSection(id: string, name: string): Promise<void> {
-  await db.nutrition_meal_sections.update(id, { name, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('nutrition_meal_sections')
+    .update({ name, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Refuses to delete a section that still has logged entries anywhere, past or present — deleting it would orphan them. */
 export async function softDeleteMealSection(id: string): Promise<void> {
-  const inUse = await db.nutrition_entries
-    .where('sectionId')
-    .equals(id)
-    .filter((e) => e.deletedAt === null)
-    .count()
-  if (inUse > 0) {
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('id')
+    .eq('sectionId', id)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  if ((data as Array<{ id: string }>).length > 0) {
     throw new Error('Esta sección tiene registros — movelos o eliminalos antes de borrarla.')
   }
   const timestamp = nowIso()
-  await db.nutrition_meal_sections.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error: deleteError } = await client()
+    .from('nutrition_meal_sections')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (deleteError) throw new Error(deleteError.message)
 }
 
 /** Reorders the meal sections themselves (not their entries) to match `orderedIds`. */
@@ -109,11 +159,13 @@ export async function reorderMealSections(orderedIds: string[]): Promise<void> {
   const sections = await listMealSections()
   const changed = reindex(sections, orderedIds)
   const timestamp = nowIso()
-  await Promise.all(
-    changed.map((s) =>
-      db.nutrition_meal_sections.update(s.id, { order: s.order, updatedAt: timestamp }),
-    ),
-  )
+  for (const s of changed) {
+    const { error } = await client()
+      .from('nutrition_meal_sections')
+      .update({ order: s.order, updatedAt: timestamp })
+      .eq('id', s.id)
+    if (error) throw new Error(error.message)
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -121,12 +173,13 @@ export async function reorderMealSections(orderedIds: string[]): Promise<void> {
 // ---------------------------------------------------------------------
 
 export async function listEntriesForDate(date: string): Promise<NutritionEntry[]> {
-  const entries = await db.nutrition_entries
-    .where('date')
-    .equals(date)
-    .filter((e) => e.deletedAt === null)
-    .toArray()
-  return entries.sort((a, b) => a.order - b.order)
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('*')
+    .eq('date', date)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as NutritionEntry[]).sort((a, b) => a.order - b.order)
 }
 
 /** All entries within `[startDate, endDate]` inclusive — used to compute the week strip's per-day status without one query per day. */
@@ -134,11 +187,14 @@ export async function listEntriesForDateRange(
   startDate: string,
   endDate: string,
 ): Promise<NutritionEntry[]> {
-  return db.nutrition_entries
-    .where('date')
-    .between(startDate, endDate, true, true)
-    .filter((e) => e.deletedAt === null)
-    .toArray()
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('*')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as NutritionEntry[]
 }
 
 /** Only entries the user has checked off count toward the day's totals — entries from before this field existed have `checked === undefined`, which counts the same as `true`. */
@@ -155,7 +211,7 @@ export interface AddFoodEntryInput {
 }
 
 export async function addFoodEntry(input: AddFoodEntryInput): Promise<NutritionEntry> {
-  const food = await db.nutrition_foods.get(input.foodId)
+  const food = await getFood(input.foodId)
   if (!food) throw new Error('Alimento no encontrado.')
   const macros = scaleMacros(food, input.quantity)
   const entry = await insertEntry({
@@ -226,27 +282,49 @@ async function insertEntry(input: InsertEntryInput): Promise<NutritionEntry> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_entries.add(entry)
+  const userId = await requireUserId()
+  const { error } = await client().from('nutrition_entries').insert({ ...entry, userId })
+  if (error) throw new Error(error.message)
   return entry
 }
 
 /** Toggles whether an entry counts toward the day's totals. */
 export async function toggleEntryChecked(id: string): Promise<void> {
-  const entry = await db.nutrition_entries.get(id)
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('checked, date')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as { checked: boolean; date: string } | null
   if (!entry) return
   const checked = entry.checked === false
-  await db.nutrition_entries.update(id, { checked, updatedAt: nowIso() })
+  const { error: updateError } = await client()
+    .from('nutrition_entries')
+    .update({ checked, updatedAt: nowIso() })
+    .eq('id', id)
+  if (updateError) throw new Error(updateError.message)
   await syncNutritionTotalsToDailyLog(entry.date)
 }
 
 /** Re-scales a `food`-kind entry's stored macros for a new quantity. */
 export async function updateFoodEntryQuantity(id: string, quantity: number): Promise<void> {
-  const entry = await db.nutrition_entries.get(id)
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('foodId, date')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as { foodId: string | null; date: string } | null
   if (!entry || !entry.foodId) return
-  const food = await db.nutrition_foods.get(entry.foodId)
+  const food = await getFood(entry.foodId)
   if (!food) return
   const macros = scaleMacros(food, quantity)
-  await db.nutrition_entries.update(id, { quantity, ...macros, updatedAt: nowIso() })
+  const { error: updateError } = await client()
+    .from('nutrition_entries')
+    .update({ quantity, ...macros, updatedAt: nowIso() })
+    .eq('id', id)
+  if (updateError) throw new Error(updateError.message)
   await syncNutritionTotalsToDailyLog(entry.date)
 }
 
@@ -263,17 +341,37 @@ export async function updateManualEntry(
   id: string,
   input: UpdateManualEntryInput,
 ): Promise<void> {
-  const entry = await db.nutrition_entries.get(id)
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('date')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as { date: string } | null
   if (!entry) return
-  await db.nutrition_entries.update(id, { ...input, updatedAt: nowIso() })
+  const { error: updateError } = await client()
+    .from('nutrition_entries')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (updateError) throw new Error(updateError.message)
   await syncNutritionTotalsToDailyLog(entry.date)
 }
 
 export async function softDeleteEntry(id: string): Promise<void> {
-  const entry = await db.nutrition_entries.get(id)
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('date')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as { date: string } | null
   if (!entry) return
   const timestamp = nowIso()
-  await db.nutrition_entries.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error: updateError } = await client()
+    .from('nutrition_entries')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (updateError) throw new Error(updateError.message)
   await syncNutritionTotalsToDailyLog(entry.date)
 }
 
@@ -283,21 +381,25 @@ export async function moveEntry(
   targetSectionId: string,
   targetIndex: number,
 ): Promise<void> {
-  const entry = await db.nutrition_entries.get(entryId)
+  const { data, error } = await client()
+    .from('nutrition_entries')
+    .select('*')
+    .eq('id', entryId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as NutritionEntry | null
   if (!entry || entry.deletedAt) return
   const dayEntries = await listEntriesForDate(entry.date)
   const changed = moveItem(dayEntries, entryId, targetSectionId, targetIndex)
   if (changed.length === 0) return
   const timestamp = nowIso()
-  await Promise.all(
-    changed.map((c) =>
-      db.nutrition_entries.update(c.id, {
-        sectionId: c.sectionId,
-        order: c.order,
-        updatedAt: timestamp,
-      }),
-    ),
-  )
+  for (const c of changed) {
+    const { error: updateError } = await client()
+      .from('nutrition_entries')
+      .update({ sectionId: c.sectionId, order: c.order, updatedAt: timestamp })
+      .eq('id', c.id)
+    if (updateError) throw new Error(updateError.message)
+  }
 }
 
 // ---------------------------------------------------------------------
@@ -305,12 +407,13 @@ export async function moveEntry(
 // ---------------------------------------------------------------------
 
 export async function listWaterEntriesForDate(date: string): Promise<WaterEntry[]> {
-  const entries = await db.nutrition_water_entries
-    .where('date')
-    .equals(date)
-    .filter((e) => e.deletedAt === null)
-    .toArray()
-  return entries.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  const { data, error } = await client()
+    .from('nutrition_water_entries')
+    .select('*')
+    .eq('date', date)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as WaterEntry[]).sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
 export function getWaterTotalMl(entries: WaterEntry[]): number {
@@ -327,16 +430,28 @@ export async function addWaterEntry(date: string, amountMl: number): Promise<Wat
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_water_entries.add(entry)
+  const userId = await requireUserId()
+  const { error } = await client().from('nutrition_water_entries').insert({ ...entry, userId })
+  if (error) throw new Error(error.message)
   await syncNutritionTotalsToDailyLog(date)
   return entry
 }
 
 export async function softDeleteWaterEntry(id: string): Promise<void> {
-  const entry = await db.nutrition_water_entries.get(id)
+  const { data, error } = await client()
+    .from('nutrition_water_entries')
+    .select('date')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as { date: string } | null
   if (!entry) return
   const timestamp = nowIso()
-  await db.nutrition_water_entries.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error: updateError } = await client()
+    .from('nutrition_water_entries')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (updateError) throw new Error(updateError.message)
   await syncNutritionTotalsToDailyLog(entry.date)
 }
 
@@ -344,6 +459,10 @@ export async function softDeleteWaterEntry(id: string): Promise<void> {
 // Bitácora write-through — the day's macro/water totals from Nutrición
 // become the daily log's `calories`/`carbsG`/`proteinG`/`fatG`/`waterLiters`,
 // so they're never typed in by hand.
+//
+// `getDailyLog`/`upsertDailyLog` siguen en Dexie por ahora (la Bitácora
+// todavía no se migró), y eso está bien: el motor de sync viejo sigue
+// llevando esa tabla de un lado a otro hasta que le toque su turno.
 // ---------------------------------------------------------------------
 
 export async function syncNutritionTotalsToDailyLog(date: string): Promise<void> {
@@ -377,16 +496,22 @@ export async function syncNutritionTotalsToDailyLog(date: string): Promise<void>
 // ---------------------------------------------------------------------
 
 export async function listMealTemplates(): Promise<MealTemplate[]> {
-  return db.nutrition_meal_templates.filter((t) => t.deletedAt === null).sortBy('order')
+  const { data, error } = await client()
+    .from('nutrition_meal_templates')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as MealTemplate[]).sort((a, b) => a.order - b.order)
 }
 
 export async function listTemplateEntries(templateId: string): Promise<MealTemplateEntry[]> {
-  const entries = await db.nutrition_meal_template_entries
-    .where('templateId')
-    .equals(templateId)
-    .filter((e) => e.deletedAt === null)
-    .toArray()
-  return entries.sort((a, b) => a.order - b.order)
+  const { data, error } = await client()
+    .from('nutrition_meal_template_entries')
+    .select('*')
+    .eq('templateId', templateId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as MealTemplateEntry[]).sort((a, b) => a.order - b.order)
 }
 
 /** Starts a brand-new, empty template — sections and entries are added to it afterwards, same as building out a day in Registro. */
@@ -403,7 +528,9 @@ export async function createMealTemplate(name: string, emoji: string): Promise<M
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_meal_templates.add(template)
+  const userId = await requireUserId()
+  const { error } = await client().from('nutrition_meal_templates').insert({ ...template, userId })
+  if (error) throw new Error(error.message)
   return template
 }
 
@@ -431,7 +558,11 @@ async function insertTemplateEntry(input: InsertTemplateEntryInput): Promise<Mea
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_meal_template_entries.add(entry)
+  const userId = await requireUserId()
+  const { error } = await client()
+    .from('nutrition_meal_template_entries')
+    .insert({ ...entry, userId })
+  if (error) throw new Error(error.message)
   return entry
 }
 
@@ -446,7 +577,7 @@ export interface AddTemplateFoodEntryInput {
 export async function addFoodEntryToTemplate(
   input: AddTemplateFoodEntryInput,
 ): Promise<MealTemplateEntry> {
-  const food = await db.nutrition_foods.get(input.foodId)
+  const food = await getFood(input.foodId)
   if (!food) throw new Error('Alimento no encontrado.')
   const macros = scaleMacros(food, input.quantity)
   return insertTemplateEntry({
@@ -492,17 +623,31 @@ export async function addManualEntryToTemplate(
 
 export async function softDeleteTemplateEntry(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.nutrition_meal_template_entries.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('nutrition_meal_template_entries')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Re-scales a `food`-kind template entry's stored macros for a new quantity. */
 export async function updateTemplateFoodEntryQuantity(id: string, quantity: number): Promise<void> {
-  const entry = await db.nutrition_meal_template_entries.get(id)
+  const { data, error } = await client()
+    .from('nutrition_meal_template_entries')
+    .select('foodId')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as { foodId: string | null } | null
   if (!entry || !entry.foodId) return
-  const food = await db.nutrition_foods.get(entry.foodId)
+  const food = await getFood(entry.foodId)
   if (!food) return
   const macros = scaleMacros(food, quantity)
-  await db.nutrition_meal_template_entries.update(id, { quantity, ...macros, updatedAt: nowIso() })
+  const { error: updateError } = await client()
+    .from('nutrition_meal_template_entries')
+    .update({ quantity, ...macros, updatedAt: nowIso() })
+    .eq('id', id)
+  if (updateError) throw new Error(updateError.message)
 }
 
 export interface UpdateTemplateManualEntryInput {
@@ -518,9 +663,11 @@ export async function updateTemplateManualEntry(
   id: string,
   input: UpdateTemplateManualEntryInput,
 ): Promise<void> {
-  const entry = await db.nutrition_meal_template_entries.get(id)
-  if (!entry) return
-  await db.nutrition_meal_template_entries.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('nutrition_meal_template_entries')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Moves a template entry to `targetSectionId` at `targetIndex` — a plain reorder when the section is unchanged, a cross-meal move otherwise. Same operation as `moveEntry`, scoped to a template instead of a date. */
@@ -529,21 +676,25 @@ export async function moveTemplateEntry(
   targetSectionId: string,
   targetIndex: number,
 ): Promise<void> {
-  const entry = await db.nutrition_meal_template_entries.get(entryId)
+  const { data, error } = await client()
+    .from('nutrition_meal_template_entries')
+    .select('*')
+    .eq('id', entryId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const entry = data as MealTemplateEntry | null
   if (!entry || entry.deletedAt) return
   const templateEntries = await listTemplateEntries(entry.templateId)
   const changed = moveItem(templateEntries, entryId, targetSectionId, targetIndex)
   if (changed.length === 0) return
   const timestamp = nowIso()
-  await Promise.all(
-    changed.map((c) =>
-      db.nutrition_meal_template_entries.update(c.id, {
-        sectionId: c.sectionId,
-        order: c.order,
-        updatedAt: timestamp,
-      }),
-    ),
-  )
+  for (const c of changed) {
+    const { error: updateError } = await client()
+      .from('nutrition_meal_template_entries')
+      .update({ sectionId: c.sectionId, order: c.order, updatedAt: timestamp })
+      .eq('id', c.id)
+    if (updateError) throw new Error(updateError.message)
+  }
 }
 
 /** Appends a template's entries onto `date` — never overwrites what's already logged there. */
@@ -554,7 +705,8 @@ export async function applyTemplateToDate(templateId: string, date: string): Pro
     existingBySection.set(e.sectionId, Math.max(existingBySection.get(e.sectionId) ?? -1, e.order))
   }
   const timestamp = nowIso()
-  const newEntries: NutritionEntry[] = templateEntries.map((te) => {
+  const userId = await requireUserId()
+  const newEntries: Array<NutritionEntry & { userId: string }> = templateEntries.map((te) => {
     const nextOrder = (existingBySection.get(te.sectionId) ?? -1) + 1
     existingBySection.set(te.sectionId, nextOrder)
     return {
@@ -575,15 +727,23 @@ export async function applyTemplateToDate(templateId: string, date: string): Pro
       createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,
+      userId,
     }
   })
-  await db.nutrition_entries.bulkAdd(newEntries)
+  if (newEntries.length > 0) {
+    const { error } = await client().from('nutrition_entries').insert(newEntries)
+    if (error) throw new Error(error.message)
+  }
   await syncNutritionTotalsToDailyLog(date)
 }
 
 export async function softDeleteMealTemplate(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.nutrition_meal_templates.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('nutrition_meal_templates')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 // ---------------------------------------------------------------------
@@ -591,8 +751,12 @@ export async function softDeleteMealTemplate(id: string): Promise<void> {
 // ---------------------------------------------------------------------
 
 export async function listGoalPlans(): Promise<NutritionGoalPlan[]> {
-  const plans = await db.nutrition_goal_plans.filter((p) => p.deletedAt === null).toArray()
-  return plans.sort((a, b) => b.startDate.localeCompare(a.startDate))
+  const { data, error } = await client()
+    .from('nutrition_goal_plans')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as NutritionGoalPlan[]).sort((a, b) => b.startDate.localeCompare(a.startDate))
 }
 
 export async function getActiveGoalPlanForDate(date: string): Promise<NutritionGoalPlan | null> {
@@ -622,15 +786,25 @@ export async function createGoalPlan(input: GoalPlanInput): Promise<NutritionGoa
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.nutrition_goal_plans.add(plan)
+  const userId = await requireUserId()
+  const { error } = await client().from('nutrition_goal_plans').insert({ ...plan, userId })
+  if (error) throw new Error(error.message)
   return plan
 }
 
 export async function updateGoalPlan(id: string, input: GoalPlanInput): Promise<void> {
-  await db.nutrition_goal_plans.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('nutrition_goal_plans')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function softDeleteGoalPlan(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.nutrition_goal_plans.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('nutrition_goal_plans')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
