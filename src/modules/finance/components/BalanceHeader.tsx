@@ -1,8 +1,8 @@
 import { useAccountsTotalBalance } from '../lib/useAccountsTotalBalance'
 import { formatMoney } from '../lib/money'
 
-export function BalanceHeader() {
-  const balance = useAccountsTotalBalance()
+export function BalanceHeader({ refreshKey }: { refreshKey?: unknown } = {}) {
+  const balance = useAccountsTotalBalance(refreshKey)
 
   return (
     <div className="finance-balance-header">

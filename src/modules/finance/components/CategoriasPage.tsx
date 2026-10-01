@@ -1,7 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
   createCategory,
@@ -28,13 +29,30 @@ function formatMonthLabel(month: number, year: number): string {
 }
 
 export function CategoriasPage() {
+  const session = useSupabaseSession()
   const [monthKey, setMonthKey] = useState(() => toMonthKey(new Date()))
   const year = yearOfMonthKey(monthKey)
 
-  const categories = useLiveQuery(() => listCategories(), [])
-  const allBudgets = useLiveQuery(() => listCategoryBudgets(), [])
-  const categoryTotals = useLiveQuery(() => getCategoryTotalsForMonth(monthKey), [monthKey])
-  const monthTotals = useLiveQuery(() => getMonthTotals(monthKey), [monthKey])
+  const {
+    data,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      const [categories, allBudgets, categoryTotals, monthTotals] = await Promise.all([
+        listCategories(),
+        listCategoryBudgets(),
+        getCategoryTotalsForMonth(monthKey),
+        getMonthTotals(monthKey),
+      ])
+      return { categories, allBudgets, categoryTotals, monthTotals }
+    }, [session, monthKey]),
+  )
+  const categories = data?.categories
+  const allBudgets = data?.allBudgets
+  const categoryTotals = data?.categoryTotals
+  const monthTotals = data?.monthTotals
 
   // El presupuesto que rige en el mes que se está mirando, no "el" presupuesto:
   // en agosto puede ser otro que en septiembre.
@@ -61,19 +79,23 @@ export function CategoriasPage() {
   const [selectedNote, setSelectedNote] = useState('')
   const { isSubmitting, guard } = useSubmitGuard()
 
-  const notesForCategory = useLiveQuery(
-    () => (editingId ? listNotesForCategory(editingId) : Promise.resolve([])),
-    [editingId],
+  const { data: notesForCategory } = useRemoteQuery(
+    useCallback(
+      () => (editingId ? listNotesForCategory(editingId) : Promise.resolve([])),
+      [editingId],
+    ),
   )
   const activeNote = notesForCategory?.includes(selectedNote)
     ? selectedNote
     : (notesForCategory?.[0] ?? '')
-  const noteBreakdown = useLiveQuery(
-    () =>
-      editingId && activeNote
-        ? getCategoryNoteMonthlyTotals(editingId, activeNote, year)
-        : Promise.resolve([]),
-    [editingId, activeNote, year],
+  const { data: noteBreakdown } = useRemoteQuery(
+    useCallback(
+      () =>
+        editingId && activeNote
+          ? getCategoryNoteMonthlyTotals(editingId, activeNote, year)
+          : Promise.resolve([]),
+      [editingId, activeNote, year],
+    ),
   )
 
   function resetForm() {
@@ -126,10 +148,30 @@ export function CategoriasPage() {
         if (type === 'expense') await setCategoryBudget(categoryId, monthKey, parsedBudget)
 
         resetForm()
+        await refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
     })
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle categorías.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Categorías</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Categorías</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tus categorías.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -137,6 +179,7 @@ export function CategoriasPage() {
       <h1>Categorías</h1>
       <BalanceHeader />
       <MonthNav monthKey={monthKey} onChange={setMonthKey} />
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <div className="finance-summary-row">
         <div className="finance-summary-card finance-summary-card--expense">
@@ -168,7 +211,7 @@ export function CategoriasPage() {
                 className="icon-button finance-category-delete"
                 label="Eliminar categoría"
                 confirmMessage={`¿Eliminar "${category.name}"?`}
-                onConfirm={() => softDeleteCategory(category.id)}
+                onConfirm={() => softDeleteCategory(category.id).then(refresh)}
               />
               <button
                 type="button"

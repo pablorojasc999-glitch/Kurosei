@@ -1,7 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
   archiveDebtIfPaid,
@@ -18,39 +19,45 @@ import { formatMoney } from '../lib/money'
 import { BalanceHeader } from './BalanceHeader'
 
 export function CuentasPage() {
-  const accountRows = useLiveQuery(async () => {
-    const accounts = await listAccounts('account')
-    return Promise.all(
-      accounts.map(async (account) => ({
-        account,
-        balance: await getAccountBalance(account.id),
-      })),
-    )
-  }, [])
-  const debts = useLiveQuery(async () => {
-    const rows = await listAccounts('debt')
-    return Promise.all(
-      rows.map(async (debt) => ({ debt, progress: await getDebtProgress(debt) })),
-    )
-  }, [])
+  const session = useSupabaseSession()
 
-  // Backfill a category link onto debts created before payments were tracked this way.
-  useEffect(() => {
-    listAccounts('debt').then((rows) => {
-      for (const debt of rows) {
-        if (!debt.categoryId) void ensureDebtCategoryId(debt)
+  const {
+    data,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      const [accounts, debtAccounts] = await Promise.all([
+        listAccounts('account'),
+        listAccounts('debt'),
+      ])
+      const accountRows = await Promise.all(
+        accounts.map(async (account) => ({
+          account,
+          balance: await getAccountBalance(account.id),
+        })),
+      )
+      const debts = await Promise.all(
+        debtAccounts.map(async (debt) => ({ debt, progress: await getDebtProgress(debt) })),
+      )
+
+      // Backfill a category link onto debts created before payments were tracked this way.
+      for (const debt of debtAccounts) {
+        if (!debt.categoryId) await ensureDebtCategoryId(debt)
       }
-    })
-  }, [])
+      // A debt whose linked category now covers its goal amount gets archived
+      // automatically — it disappears from the next load, but its category and
+      // transaction history stay.
+      for (const { debt, progress } of debts) {
+        if (progress.percent >= 100) await archiveDebtIfPaid(debt.id)
+      }
 
-  // A debt whose linked category now covers its goal amount gets archived automatically —
-  // it disappears from this list, but its category and transaction history stay.
-  useEffect(() => {
-    if (!debts) return
-    for (const { debt, progress } of debts) {
-      if (progress.percent >= 100) void archiveDebtIfPaid(debt.id)
-    }
-  }, [debts])
+      return { accountRows, debts }
+    }, [session]),
+  )
+  const accountRows = data?.accountRows
+  const debts = data?.debts
 
   const [formKind, setFormKind] = useState<'account' | 'debt' | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -139,10 +146,30 @@ export function CuentasPage() {
           }
         }
         resetForm()
+        await refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
     })
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle cuentas ni deudas.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Cuentas</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Cuentas</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tus cuentas.
+        </p>
+      </div>
+    )
   }
 
   const accountsTotal = accountRows?.reduce((sum, r) => sum + r.balance, 0) ?? 0
@@ -161,6 +188,7 @@ export function CuentasPage() {
     <div className="page">
       <h1>Cuentas</h1>
       <BalanceHeader />
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <ul className="finance-account-list">
         {accountRows?.map(({ account, balance }) => (
@@ -178,7 +206,7 @@ export function CuentasPage() {
               variant="icon"
               label="Eliminar cuenta"
               confirmMessage={`¿Eliminar "${account.name}"?`}
-              onConfirm={() => softDeleteAccount(account.id)}
+              onConfirm={() => softDeleteAccount(account.id).then(refresh)}
             />
           </li>
         ))}
@@ -225,7 +253,7 @@ export function CuentasPage() {
               variant="icon"
               label="Eliminar deuda"
               confirmMessage={`¿Eliminar "${debt.name}"?`}
-              onConfirm={() => softDeleteAccount(debt.id)}
+              onConfirm={() => softDeleteAccount(debt.id).then(refresh)}
             />
           </li>
         ))}
