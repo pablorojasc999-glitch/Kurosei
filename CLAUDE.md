@@ -1,7 +1,9 @@
 # Kurosei
 
 App personal de entrenamiento, nutrición, finanzas y supermercado. React + TypeScript
-+ Vite, con Dexie (IndexedDB) como base local y Supabase para sincronizar.
++ Vite, hablando directo con Supabase — como Instagram o Mercado Libre: se pide, se
+escribe, se vuelve a pedir. Sin sesión iniciada no hay nada que mostrar; no existe un
+modo sin cuenta ni funciona sin conexión.
 
 ## Flujo de trabajo: no preguntar, hacer
 
@@ -51,28 +53,40 @@ escritos los que ya existen, y conviene seguirlos:
 ## Estructura
 
 ```
-src/modules/<módulo>/     training · nutrition · finance · grocery · sync
+src/modules/<módulo>/     training · nutrition · finance · grocery · closing · sync
   components/             pantallas y piezas de interfaz
-  db/                     acceso a Dexie (repositorios)
+  db/                     acceso a Supabase (repositorios)
   domain/types.ts         tipos del dominio
-  lib/                    lógica pura, sin React ni Dexie
-src/shared/db/database.ts el esquema de Dexie, acumulativo
+  lib/                    lógica pura, sin React ni Supabase
 src/App.css               casi todos los estilos
 ```
 
 ## Cosas que conviene saber antes de tocar
 
-- **El esquema de Dexie es acumulativo.** Nunca quitar un `version()` pasado: un
-  navegador que ya tenga datos falla al cargar con `VersionError`.
+- **Un repositorio (`db/`) es una función por operación, contra Supabase.** Se pide
+  con `select`, se escribe con `insert`/`update`, nunca queda una copia local que
+  mezclar. Las pantallas usan `useRemoteQuery` (pide al montar, expone `refresh`) en
+  vez de `useLiveQuery`: después de escribir hay que llamar a `refresh()` a mano,
+  no se actualiza solo.
+- **No hay transacciones entre tablas.** Un alta o baja que toca varias tablas se
+  hace en escrituras secuenciales, no atómicas — el mismo riesgo que ya se acepta en
+  todo el código ante dos toques casi simultáneos (ver los comentarios en los
+  repositorios que lo hacen).
+- **Las lecturas no filtran por dueño.** La política RLS de cada tabla en Supabase
+  ya decide qué fila ve cada cuenta (incluida la biblioteca compartida de
+  ejercicios y alimentos entre las dos cuentas que la usan). Filtrar además en el
+  cliente sería redundante o, en las compartidas, directamente incorrecto.
 - **La lógica va en `lib/`, no en el componente.** Es lo único que está cubierto por
-  tests, y así se puede probar sin montar React. Cuando una pantalla necesite
-  ordenar, calcular o agrupar, ese criterio va en `lib/` con su test.
+  tests de lógica pura, y así se puede probar sin montar React. Cuando una pantalla
+  necesite ordenar, calcular o agrupar, ese criterio va en `lib/` con su test.
 - **Antes de escribir un criterio nuevo, buscar si ya existe.** Varias vistas
   comparten reglas (por ejemplo `sortCategoriesForGrid` ordena los presupuestos en
   Categorías y en Transacciones). Duplicarlo hace que las dos vistas se separen con
   el tiempo.
-- **Los tests son de lógica pura** (`*.test.ts`, vitest). No hay tests de componentes
-  ni la librería para escribirlos; no introducir ese patrón sin acordarlo antes.
+- **Los repositorios también tienen tests** (`*.test.ts`, vitest), contra el cliente
+  de Supabase de juguete en `shared/supabase/testing.ts` — no contra la base real.
+  Lo que no hay son tests de componentes ni la librería para escribirlos; no
+  introducir ese patrón sin acordarlo antes.
 - **Todo tiene que caber en una pantalla de teléfono.** Es el único lugar donde se
   usa la app. Nada de desbordes horizontales.
 

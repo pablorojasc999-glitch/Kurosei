@@ -211,11 +211,6 @@
   word-break: break-all;
 }
 
-.account-sync-status {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 .account-signout {
   color: var(--danger);
 }
