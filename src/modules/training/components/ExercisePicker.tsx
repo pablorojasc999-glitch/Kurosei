@@ -1,6 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useMemo, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../db/trainingRepository'
 import { searchExercises } from '../lib/exerciseSearch'
 import type { MuscleInvolvement } from '../lib/exerciseSearch'
 
@@ -32,24 +32,23 @@ export function ExercisePicker({
 }: ExercisePickerProps) {
   const [query, setQuery] = useState('')
 
-  const data = useLiveQuery(async () => {
-    const exercises = await db.training_exercises
-      .filter((e) => e.deletedAt === null && (!onlyStrength || e.type === 'strength'))
-      .toArray()
-    const groups = await db.training_muscle_groups
-      .filter((g) => g.deletedAt === null)
-      .toArray()
-    const contributions = await db.training_exercise_muscle_contributions
-      .filter((c) => c.deletedAt === null)
-      .toArray()
-    const nameOf = new Map(groups.map((g) => [g.id, g.name]))
-    const involvements: MuscleInvolvement[] = contributions.flatMap((c) => {
-      const groupName = nameOf.get(c.muscleGroupId)
-      // Una contribución a un grupo borrado no se puede buscar por nombre.
-      return groupName ? [{ exerciseId: c.exerciseId, groupName, factor: c.factor }] : []
-    })
-    return { exercises, involvements }
-  }, [onlyStrength])
+  const { data } = useRemoteQuery(
+    useCallback(async () => {
+      const [allExercises, groups, contributions] = await Promise.all([
+        listExercises(),
+        listMuscleGroups(),
+        listAllMuscleContributions(),
+      ])
+      const exercises = allExercises.filter((e) => !onlyStrength || e.type === 'strength')
+      const nameOf = new Map(groups.map((g) => [g.id, g.name]))
+      const involvements: MuscleInvolvement[] = contributions.flatMap((c) => {
+        const groupName = nameOf.get(c.muscleGroupId)
+        // Una contribución a un grupo borrado no se puede buscar por nombre.
+        return groupName ? [{ exerciseId: c.exerciseId, groupName, factor: c.factor }] : []
+      })
+      return { exercises, involvements }
+    }, [onlyStrength]),
+  )
 
   const results = useMemo(
     () => (data ? searchExercises(query, data.exercises, data.involvements) : []),

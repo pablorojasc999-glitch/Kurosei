@@ -1,4 +1,5 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import { BODY_REGION_LABELS, matchBodyRegion } from '../lib/bodyMap'
@@ -9,14 +10,29 @@ import {
 import type {
   Exercise,
   ExerciseCategory,
+  ExerciseMuscleContribution,
   ExerciseType,
   MuscleGroup,
 } from '../domain/types'
 
+/**
+ * Ya no pasa por Dexie: habla directo con Supabase. `training_muscle_groups`,
+ * `training_exercises` y `training_exercise_muscle_contributions` son la
+ * biblioteca compartida (ver #103): sus lecturas no filtran por dueño, la
+ * política RLS ya decide quién ve qué.
+ */
+function client() {
+  if (!supabase) throw new Error('La biblioteca de ejercicios necesita conexión para funcionar.')
+  return supabase
+}
+
 export async function listMuscleGroups(): Promise<MuscleGroup[]> {
-  return db.training_muscle_groups
-    .filter((g) => g.deletedAt === null)
-    .sortBy('name')
+  const { data, error } = await client()
+    .from('training_muscle_groups')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as MuscleGroup[]).sort((a, b) => a.name.localeCompare(b.name))
 }
 
 function normalizeName(name: string): string {
@@ -37,7 +53,9 @@ export async function createMuscleGroup(name: string): Promise<MuscleGroup> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_muscle_groups.add(muscleGroup)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_muscle_groups').insert({ ...muscleGroup, userId })
+  if (error) throw new Error(error.message)
   return muscleGroup
 }
 
@@ -66,18 +84,31 @@ export async function ensureCanonicalMuscleGroups(): Promise<MuscleGroup[]> {
 }
 
 export async function listExercises(): Promise<Exercise[]> {
-  return db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name')
+  const { data, error } = await client().from('training_exercises').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Exercise[]).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** Todas las contribuciones musculares no borradas — para cruces con otras tablas (ver ExercisePicker/SessionSummary/BlockGrid). */
+export async function listAllMuscleContributions(): Promise<ExerciseMuscleContribution[]> {
+  const { data, error } = await client()
+    .from('training_exercise_muscle_contributions')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as ExerciseMuscleContribution[]
 }
 
 export async function listContributionsForExercise(
   exerciseId: string,
 ): Promise<ContributionInput[]> {
-  const rows = await db.training_exercise_muscle_contributions
-    .where('exerciseId')
-    .equals(exerciseId)
-    .filter((c) => c.deletedAt === null)
-    .toArray()
-  return rows.map((r) => ({
+  const { data, error } = await client()
+    .from('training_exercise_muscle_contributions')
+    .select('*')
+    .eq('exerciseId', exerciseId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Array<{ muscleGroupId: string; factor: number }>).map((r) => ({
     muscleGroupId: r.muscleGroupId,
     factor: r.factor,
   }))
@@ -117,13 +148,14 @@ export async function createExercise(
     deletedAt: null,
   }
 
-  await db.transaction(
-    'rw',
-    db.training_exercises,
-    db.training_exercise_muscle_contributions,
-    async () => {
-      await db.training_exercises.add(exercise)
-      await db.training_exercise_muscle_contributions.bulkAdd(
+  const userId = await requireUserId()
+  const { error } = await client().from('training_exercises').insert({ ...exercise, userId })
+  if (error) throw new Error(error.message)
+
+  if (input.muscleContributions.length > 0) {
+    const { error: contribError } = await client()
+      .from('training_exercise_muscle_contributions')
+      .insert(
         input.muscleContributions.map((c) => ({
           id: generateId(),
           exerciseId: exercise.id,
@@ -132,10 +164,11 @@ export async function createExercise(
           createdAt: timestamp,
           updatedAt: timestamp,
           deletedAt: null,
+          userId,
         })),
       )
-    },
-  )
+    if (contribError) throw new Error(contribError.message)
+  }
 
   return exercise
 }
@@ -170,31 +203,37 @@ export async function updateExercise(
 
   const timestamp = nowIso()
 
-  await db.transaction(
-    'rw',
-    db.training_exercises,
-    db.training_exercise_muscle_contributions,
-    async () => {
-      await db.training_exercises.update(exerciseId, {
-        name: input.name,
-        type: input.type,
-        category: input.category,
-        updatedAt: timestamp,
-      })
+  const { error } = await client()
+    .from('training_exercises')
+    .update({
+      name: input.name,
+      type: input.type,
+      category: input.category,
+      updatedAt: timestamp,
+    })
+    .eq('id', exerciseId)
+  if (error) throw new Error(error.message)
 
-      const oldContributions = await db.training_exercise_muscle_contributions
-        .where('exerciseId')
-        .equals(exerciseId)
-        .filter((c) => c.deletedAt === null)
-        .toArray()
-      await db.training_exercise_muscle_contributions.bulkUpdate(
-        oldContributions.map((c) => ({
-          key: c.id,
-          changes: { deletedAt: timestamp, updatedAt: timestamp },
-        })),
-      )
+  const { data: oldContributions, error: listError } = await client()
+    .from('training_exercise_muscle_contributions')
+    .select('id')
+    .eq('exerciseId', exerciseId)
+    .is('deletedAt', null)
+  if (listError) throw new Error(listError.message)
 
-      await db.training_exercise_muscle_contributions.bulkAdd(
+  for (const { id } of oldContributions as Array<{ id: string }>) {
+    const { error: deleteError } = await client()
+      .from('training_exercise_muscle_contributions')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', id)
+    if (deleteError) throw new Error(deleteError.message)
+  }
+
+  if (input.muscleContributions.length > 0) {
+    const userId = await requireUserId()
+    const { error: contribError } = await client()
+      .from('training_exercise_muscle_contributions')
+      .insert(
         input.muscleContributions.map((c) => ({
           id: generateId(),
           exerciseId,
@@ -203,16 +242,18 @@ export async function updateExercise(
           createdAt: timestamp,
           updatedAt: timestamp,
           deletedAt: null,
+          userId,
         })),
       )
-    },
-  )
+    if (contribError) throw new Error(contribError.message)
+  }
 }
 
 export async function softDeleteExercise(exerciseId: string): Promise<void> {
   const timestamp = nowIso()
-  await db.training_exercises.update(exerciseId, {
-    deletedAt: timestamp,
-    updatedAt: timestamp,
-  })
+  const { error } = await client()
+    .from('training_exercises')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', exerciseId)
+  if (error) throw new Error(error.message)
 }

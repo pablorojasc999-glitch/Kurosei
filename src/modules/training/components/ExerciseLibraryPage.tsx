@@ -1,10 +1,12 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useEffect, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   createExercise,
   ensureCanonicalMuscleGroups,
+  listAllMuscleContributions,
+  listExercises,
   softDeleteExercise,
   updateExercise,
 } from '../db/trainingRepository'
@@ -27,21 +29,14 @@ const FACTOR_OPTIONS = Array.from({ length: 10 }, (_, i) => {
 })
 
 export function ExerciseLibraryPage() {
-  const exercises = useLiveQuery(
-    () =>
-      db.training_exercises
-        .filter((e) => e.deletedAt === null)
-        .toArray()
-        .then((list) => list.sort((a, b) => a.name.localeCompare(b.name, 'es'))),
-    [],
+  const session = useSupabaseSession()
+  const { data: exercises, refresh: refreshExercises } = useRemoteQuery(
+    useCallback(
+      async () => (await listExercises()).sort((a, b) => a.name.localeCompare(b.name, 'es')),
+      [],
+    ),
   )
-  const contributions = useLiveQuery(
-    () =>
-      db.training_exercise_muscle_contributions
-        .filter((c) => c.deletedAt === null)
-        .toArray(),
-    [],
-  )
+  const { data: contributions } = useRemoteQuery(useCallback(() => listAllMuscleContributions(), []))
 
   const [canonicalGroups, setCanonicalGroups] = useState<MuscleGroup[]>([])
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null)
@@ -56,8 +51,9 @@ export function ExerciseLibraryPage() {
   const { isSubmitting, guard } = useSubmitGuard()
 
   useEffect(() => {
-    ensureCanonicalMuscleGroups().then(setCanonicalGroups)
-  }, [])
+    if (!session) return
+    ensureCanonicalMuscleGroups().then(setCanonicalGroups).catch(() => {})
+  }, [session])
 
   function updateFactor(muscleGroupId: string, value: string) {
     setFactors((prev) => ({ ...prev, [muscleGroupId]: value }))
@@ -118,11 +114,31 @@ export function ExerciseLibraryPage() {
         } else {
           await createExercise(input)
         }
+        await refreshExercises()
         resetForm()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
     })
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle la biblioteca.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Biblioteca de ejercicios</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Biblioteca de ejercicios</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar la biblioteca.
+        </p>
+      </div>
+    )
   }
 
   const filteredExercises = exercises?.filter((ex) =>
@@ -251,7 +267,7 @@ export function ExerciseLibraryPage() {
                   Editar
                 </button>
                 <ConfirmDeleteButton
-                  onConfirm={() => softDeleteExercise(ex.id)}
+                  onConfirm={() => softDeleteExercise(ex.id).then(refreshExercises)}
                   confirmMessage={`¿Eliminar "${ex.name}"?`}
                 />
               </div>

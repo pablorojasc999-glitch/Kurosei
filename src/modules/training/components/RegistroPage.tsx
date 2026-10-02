@@ -1,5 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { listCardioSessions } from '../db/cardioRepository'
 import { getSessionForDay } from '../db/executionRepository'
 import {
@@ -22,6 +23,7 @@ interface RegistroPageProps {
 }
 
 export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
+  const session = useSupabaseSession()
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()))
   const [appliedJumpToDate, setAppliedJumpToDate] = useState(jumpToDate)
   const [forceShowContent, setForceShowContent] = useState(false)
@@ -37,16 +39,24 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
     setForceShowContent(false)
   }
 
-  const day = useLiveQuery(() => findDayByDate(selectedDate), [selectedDate])
-  const dayHasContent = useLiveQuery(async () => {
-    if (!day) return false
-    const [plannedExercises, session, cardioSessions] = await Promise.all([
-      listPlannedExercises(day.id),
-      getSessionForDay(day.id),
-      listCardioSessions(day.id),
-    ])
-    return plannedExercises.length > 0 || session !== undefined || cardioSessions.length > 0
-  }, [day?.id])
+  const { data: day, refresh: refreshDay } = useRemoteQuery(
+    useCallback(async () => {
+      if (session === undefined) return undefined
+      return session ? findDayByDate(selectedDate) : null
+    }, [session, selectedDate]),
+  )
+  const { data: dayHasContent } = useRemoteQuery(
+    useCallback(async () => {
+      if (!day) return false
+      const [plannedExercises, trainingSession, cardioSessions] = await Promise.all([
+        listPlannedExercises(day.id),
+        getSessionForDay(day.id),
+        listCardioSessions(day.id),
+      ])
+      return plannedExercises.length > 0 || trainingSession !== undefined || cardioSessions.length > 0
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+    }, [day?.id]),
+  )
 
   const [appliedDayHasContent, setAppliedDayHasContent] = useState(dayHasContent)
   if (dayHasContent !== appliedDayHasContent) {
@@ -79,7 +89,27 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
 
   async function handleCreateDay() {
     await getOrCreateDayForDate(selectedDate)
+    await refreshDay()
     setForceShowContent(true)
+  }
+
+  // Ya no hay copia local: sin sesión no hay registro que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Registro</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Registro</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tu registro.
+        </p>
+      </div>
+    )
   }
 
   return (

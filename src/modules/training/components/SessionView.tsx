@@ -1,6 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addSessionExercise,
@@ -11,6 +10,8 @@ import {
   endSession,
   updateSessionTimes,
   getSessionForDay,
+  listAllExecutedSets,
+  listSessionExercises,
   reopenSession,
   reorderSessionExercise,
   setSessionExerciseClosed,
@@ -18,9 +19,11 @@ import {
   updateExecutedSet,
 } from '../db/executionRepository'
 import {
+  listAllPlannedSets,
   listPlannedDaysWithExercises,
   listPlannedExercises,
 } from '../db/planningRepository'
+import { listExercises } from '../db/trainingRepository'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
@@ -36,7 +39,7 @@ import {
   toTimeInput,
   withTimeOfDay,
 } from '../lib/sessionTimes'
-import type { ExecutedSet, SessionExercise } from '../domain/types'
+import type { ExecutedSet } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
 
@@ -76,41 +79,36 @@ interface SessionViewProps {
 }
 
 export function SessionView({ dayId }: SessionViewProps) {
-  const session = useLiveQuery(() => getSessionForDay(dayId), [dayId])
-
-  const sessionExercises = useLiveQuery(
-    () =>
-      session
-        ? db.training_session_exercises
-            .where('sessionId')
-            .equals(session.id)
-            .filter((se) => se.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<SessionExercise[]>([]),
-    [session?.id],
+  const { data, refresh } = useRemoteQuery(
+    useCallback(async () => {
+      const [session, executedSets, plannedExercises, plannedSets, exercisesLibrary, plannedDayOptions] =
+        await Promise.all([
+          getSessionForDay(dayId),
+          listAllExecutedSets(),
+          listPlannedExercises(dayId),
+          listAllPlannedSets(),
+          listExercises(),
+          listPlannedDaysWithExercises(),
+        ])
+      const sessionExercises = session ? await listSessionExercises(session.id) : []
+      return {
+        session,
+        sessionExercises,
+        executedSets,
+        plannedExercises,
+        plannedSets,
+        exercisesLibrary,
+        plannedDayOptions,
+      }
+    }, [dayId]),
   )
-
-  const executedSets = useLiveQuery(
-    () => db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
-    [],
-  )
-
-  const plannedExercises = useLiveQuery(
-    () => listPlannedExercises(dayId),
-    [dayId],
-  )
-  const plannedSets = useLiveQuery(
-    () => db.training_planned_sets.filter((s) => s.deletedAt === null).toArray(),
-    [],
-  )
-  const exercisesLibrary = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
-    [],
-  )
-  const plannedDayOptions = useLiveQuery(
-    () => listPlannedDaysWithExercises(),
-    [],
-  )
+  const session = data?.session
+  const sessionExercises = data?.sessionExercises
+  const executedSets = data?.executedSets
+  const plannedExercises = data?.plannedExercises
+  const plannedSets = data?.plannedSets
+  const exercisesLibrary = data?.exercisesLibrary
+  const plannedDayOptions = data?.plannedDayOptions
 
   const [showAddExerciseForm, setShowAddExerciseForm] = useState(false)
   const [newExerciseId, setNewExerciseId] = useState('')
@@ -148,6 +146,7 @@ export function SessionView({ dayId }: SessionViewProps) {
         exerciseId: newExerciseId,
         notes: '',
       })
+      await refresh()
       setNewExerciseId('')
       setShowAddExerciseForm(false)
     })
@@ -167,6 +166,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           notes: pe.notes,
         })
       }
+      await refresh()
     })
   }
 
@@ -180,6 +180,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           notes: pe.notes,
         })
       }
+      await refresh()
     })
   }
 
@@ -195,6 +196,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           notes: pe.notes,
         })
       }
+      await refresh()
       setPickedSourceDayId('')
     })
   }
@@ -213,6 +215,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           notes: pe.notes,
         })
       }
+      await refresh()
       setPickedSourceDayId('')
     })
   }
@@ -238,6 +241,7 @@ export function SessionView({ dayId }: SessionViewProps) {
         // El nonce hace que el cronómetro se monte de nuevo y empiece limpio.
         setRest((prev) => ({ sessionExerciseId, nonce: (prev?.nonce ?? 0) + 1 }))
       }
+      await refresh()
       setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
       setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
     })
@@ -336,6 +340,7 @@ export function SessionView({ dayId }: SessionViewProps) {
       ? endIsoFromTime(startedAt, toTimeInput(session.endedAt))
       : undefined
     await updateSessionTimes(session.id, { startedAt, ...(endedAt ? { endedAt } : {}) })
+    await refresh()
   }
 
   async function handleEndTimeChange(time: string) {
@@ -343,11 +348,13 @@ export function SessionView({ dayId }: SessionViewProps) {
     // Borrar la hora de término deja la sesión abierta otra vez.
     if (time === '') {
       await updateSessionTimes(session.id, { endedAt: null })
+      await refresh()
       return
     }
     const endedAt = endIsoFromTime(session.startedAt, time)
     if (!endedAt) return
     await updateSessionTimes(session.id, { endedAt })
+    await refresh()
   }
 
   return (
@@ -380,14 +387,14 @@ export function SessionView({ dayId }: SessionViewProps) {
               Reabrir sesión
             </button>
           ) : (
-            <button type="button" onClick={() => endSession(session.id)}>
+            <button type="button" onClick={() => void endSession(session.id).then(refresh)}>
               Finalizar sesión
             </button>
           )}
           <ConfirmDeleteButton
             label="Eliminar sesión"
             confirmMessage="¿Eliminar toda la sesión de hoy?"
-            onConfirm={() => deleteSession(session.id)}
+            onConfirm={() => deleteSession(session.id).then(refresh)}
           />
         </div>
       </div>
@@ -399,7 +406,7 @@ export function SessionView({ dayId }: SessionViewProps) {
             type="button"
             className="btn-danger"
             onClick={() => {
-              reopenSession(session.id)
+              void reopenSession(session.id).then(refresh)
               setConfirmingReopen(false)
             }}
           >
@@ -501,7 +508,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                       className="icon-button"
                       aria-label="Subir ejercicio"
                       disabled={exerciseIndex <= 0}
-                      onClick={() => reorderSessionExercise(se.id, 'up')}
+                      onClick={() => void reorderSessionExercise(se.id, 'up').then(refresh)}
                     >
                       ↑
                     </button>
@@ -513,20 +520,20 @@ export function SessionView({ dayId }: SessionViewProps) {
                         exerciseIndex === -1 ||
                         exerciseIndex === (sessionExercises?.length ?? 0) - 1
                       }
-                      onClick={() => reorderSessionExercise(se.id, 'down')}
+                      onClick={() => void reorderSessionExercise(se.id, 'down').then(refresh)}
                     >
                       ↓
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSessionExerciseClosed(se.id, !exerciseClosed)}
+                      onClick={() => void setSessionExerciseClosed(se.id, !exerciseClosed).then(refresh)}
                     >
                       {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
                     </button>
                     <ConfirmDeleteButton
                       label="Quitar"
                       confirmMessage="¿Quitar este ejercicio de la sesión?"
-                      onConfirm={() => deleteSessionExercise(se.id)}
+                      onConfirm={() => deleteSessionExercise(se.id).then(refresh)}
                     />
                   </>
                 )}
@@ -657,7 +664,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                             variant="icon"
                             label="Eliminar serie"
                             confirmMessage="¿Eliminar esta serie?"
-                            onConfirm={() => deleteExecutedSet(s.id)}
+                            onConfirm={() => deleteExecutedSet(s.id).then(refresh)}
                           />
                         </>
                       )}

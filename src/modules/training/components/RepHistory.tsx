@@ -1,5 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { listExecutedSetsForExerciseByReps } from '../db/executionRepository'
 import {
   e1rmOfSet as e1rmOf,
@@ -25,9 +25,8 @@ interface RepHistoryProps {
 const MODES: RepHistoryMode[] = ['recientes', 'e1rm']
 
 export function RepHistory({ exerciseId, reps }: RepHistoryProps) {
-  const history = useLiveQuery(
-    () => listExecutedSetsForExerciseByReps(exerciseId, reps),
-    [exerciseId, reps],
+  const { data: history } = useRemoteQuery(
+    useCallback(() => listExecutedSetsForExerciseByReps(exerciseId, reps), [exerciseId, reps]),
   )
   const [mode, setMode] = useState<RepHistoryMode>('recientes')
 

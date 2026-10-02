@@ -1,6 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../../../shared/db/database'
+import { useCallback } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
+import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../db/trainingRepository'
 import { e1rmForSet } from '../lib/e1rm'
 import { isNewPR, maxOrNull, muscleGroupVolume, tonnage } from '../lib/metrics'
 import { mergeMuscleGroupTotals } from '../lib/muscleGroupTotals'
@@ -10,21 +11,13 @@ interface SessionSummaryProps {
 }
 
 export function SessionSummary({ sessionId }: SessionSummaryProps) {
-  const allExecutedSets = useLiveQuery(() => listAllExecutedSetsWithContext(), [])
-  const exercises = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).toArray(),
-    [],
+  const { data: allExecutedSets } = useRemoteQuery(
+    useCallback(() => listAllExecutedSetsWithContext(), []),
   )
-  const muscleGroups = useLiveQuery(
-    () => db.training_muscle_groups.filter((g) => g.deletedAt === null).toArray(),
-    [],
-  )
-  const contributions = useLiveQuery(
-    () =>
-      db.training_exercise_muscle_contributions
-        .filter((c) => c.deletedAt === null)
-        .toArray(),
-    [],
+  const { data: exercises } = useRemoteQuery(useCallback(() => listExercises(), []))
+  const { data: muscleGroups } = useRemoteQuery(useCallback(() => listMuscleGroups(), []))
+  const { data: contributions } = useRemoteQuery(
+    useCallback(() => listAllMuscleContributions(), []),
   )
 
   if (!allExecutedSets || !exercises || !contributions) {

@@ -1,9 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
-import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   getDailyLog,
   getProfile,
@@ -72,34 +70,44 @@ interface BitacoraSectionProps {
 
 export function BitacoraSection({ date }: BitacoraSectionProps) {
   const dateKey = toDateKey(date)
-  const authSession = useSupabaseSession()
+  // La sesión ya la exige la pantalla que contiene esta sección (Registro):
+  // acá se asume que hay una.
   const { data: profile, refresh: refreshProfile } = useRemoteQuery(
-    useCallback(async () => {
-      if (authSession === undefined) return undefined
-      return authSession ? getProfile() : null
-    }, [authSession]),
+    useCallback(() => getProfile(), []),
   )
   const { data: dailyLog, refresh: refreshLog } = useRemoteQuery(
-    useCallback(async () => {
-      if (authSession === undefined) return undefined
-      return authSession ? getDailyLog(dateKey) : null
-    }, [authSession, dateKey]),
+    useCallback(() => getDailyLog(dateKey), [dateKey]),
   )
-  const day = useLiveQuery(() => findDayByDate(date), [dateKey])
-  const trainingSession = useLiveQuery(
-    () => (day ? getSessionForDay(day.id) : Promise.resolve(undefined)),
-    [day?.id],
+  const { data: day } = useRemoteQuery(
+    useCallback(
+      () => findDayByDate(date),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [dateKey],
+    ),
   )
-  const cardioSessions = useLiveQuery(
-    () => (day ? listCardioSessions(day.id) : Promise.resolve([])),
-    [day?.id],
+  const { data: trainingSession } = useRemoteQuery(
+    useCallback(
+      () => (day ? getSessionForDay(day.id) : Promise.resolve(undefined)),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [day?.id],
+    ),
   )
-  const executedSetCount = useLiveQuery(
-    () =>
-      trainingSession
-        ? countExecutedSetsForSession(trainingSession.id)
-        : Promise.resolve(0),
-    [trainingSession?.id],
+  const { data: cardioSessions } = useRemoteQuery(
+    useCallback(
+      () => (day ? listCardioSessions(day.id) : Promise.resolve([])),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [day?.id],
+    ),
+  )
+  const { data: executedSetCount } = useRemoteQuery(
+    useCallback(
+      () =>
+        trainingSession
+          ? countExecutedSetsForSession(trainingSession.id)
+          : Promise.resolve(0),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [trainingSession?.id],
+    ),
   )
 
   const [showProfileForm, setShowProfileForm] = useState(false)
