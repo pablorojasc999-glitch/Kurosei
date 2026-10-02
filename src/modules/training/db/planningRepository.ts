@@ -484,9 +484,20 @@ export async function listPlannedSets(
   return (data as PlannedSet[]).sort((a, b) => a.setNumber - b.setNumber)
 }
 
-/** Todas las series planificadas no borradas — para cruces con otras tablas (ver SessionView.tsx). */
-export async function listAllPlannedSets(): Promise<PlannedSet[]> {
-  const { data, error } = await client().from('training_planned_sets').select('*').is('deletedAt', null)
+/**
+ * Las series planificadas de varios ejercicios a la vez — evita traer la
+ * tabla entera cuando ya se sabe a qué ejercicios limitarse (ver
+ * SessionView.tsx y PeriodizationPage.tsx).
+ */
+export async function listPlannedSetsForExercises(
+  plannedExerciseIds: string[],
+): Promise<PlannedSet[]> {
+  if (plannedExerciseIds.length === 0) return []
+  const { data, error } = await client()
+    .from('training_planned_sets')
+    .select('*')
+    .in('plannedExerciseId', plannedExerciseIds)
+    .is('deletedAt', null)
   if (error) throw new Error(error.message)
   return data as PlannedSet[]
 }

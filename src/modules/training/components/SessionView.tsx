@@ -10,7 +10,7 @@ import {
   endSession,
   updateSessionTimes,
   getSessionForDay,
-  listAllExecutedSets,
+  listExecutedSetsForSessionExercises,
   listSessionExercises,
   reopenSession,
   reorderSessionExercise,
@@ -19,7 +19,7 @@ import {
   updateExecutedSet,
 } from '../db/executionRepository'
 import {
-  listAllPlannedSets,
+  listPlannedSetsForExercises,
   listPlannedDaysWithExercises,
   listPlannedExercises,
 } from '../db/planningRepository'
@@ -79,36 +79,39 @@ interface SessionViewProps {
 }
 
 export function SessionView({ dayId }: SessionViewProps) {
-  const { data, refresh } = useRemoteQuery(
+  // La sesión y sus series ejecutadas cambian con casi cada acción de esta
+  // pantalla, así que se refrescan juntas (`refresh`) sin arrastrar al plan ni
+  // a la biblioteca de ejercicios, que acá nunca se editan — pedirlos de
+  // nuevo en cada serie registrada sería tráfico de sobra.
+  const { data: sessionData, refresh } = useRemoteQuery(
     useCallback(async () => {
-      const [session, executedSets, plannedExercises, plannedSets, exercisesLibrary, plannedDayOptions] =
-        await Promise.all([
-          getSessionForDay(dayId),
-          listAllExecutedSets(),
-          listPlannedExercises(dayId),
-          listAllPlannedSets(),
-          listExercises(),
-          listPlannedDaysWithExercises(),
-        ])
+      const session = await getSessionForDay(dayId)
       const sessionExercises = session ? await listSessionExercises(session.id) : []
-      return {
-        session,
-        sessionExercises,
-        executedSets,
-        plannedExercises,
-        plannedSets,
-        exercisesLibrary,
-        plannedDayOptions,
-      }
+      const executedSets = await listExecutedSetsForSessionExercises(
+        sessionExercises.map((se) => se.id),
+      )
+      return { session, sessionExercises, executedSets }
     }, [dayId]),
   )
-  const session = data?.session
-  const sessionExercises = data?.sessionExercises
-  const executedSets = data?.executedSets
-  const plannedExercises = data?.plannedExercises
-  const plannedSets = data?.plannedSets
-  const exercisesLibrary = data?.exercisesLibrary
-  const plannedDayOptions = data?.plannedDayOptions
+  const session = sessionData?.session
+  const sessionExercises = sessionData?.sessionExercises
+  const executedSets = sessionData?.executedSets
+
+  const { data: plannedExercises } = useRemoteQuery(
+    useCallback(() => listPlannedExercises(dayId), [dayId]),
+  )
+  // Depende de `plannedExercises` (no de `dayId`) para no traer la tabla
+  // entera de series planificadas: sólo las de los ejercicios de este día.
+  const { data: plannedSets } = useRemoteQuery(
+    useCallback(
+      () => listPlannedSetsForExercises((plannedExercises ?? []).map((pe) => pe.id)),
+      [plannedExercises],
+    ),
+  )
+  const { data: exercisesLibrary } = useRemoteQuery(useCallback(() => listExercises(), []))
+  const { data: plannedDayOptions } = useRemoteQuery(
+    useCallback(() => listPlannedDaysWithExercises(), []),
+  )
 
   const [showAddExerciseForm, setShowAddExerciseForm] = useState(false)
   const [newExerciseId, setNewExerciseId] = useState('')

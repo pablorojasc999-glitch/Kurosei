@@ -40,6 +40,7 @@ const {
   listPlannedDaysWithExercises,
   listPlannedExercises,
   listPlannedSets,
+  listPlannedSetsForExercises,
   listWeeks,
   listWeeksWithContext,
   reorderPlannedExercise,
@@ -97,6 +98,52 @@ async function seedMesocycle() {
   })
   return mesocycle
 }
+
+describe('listPlannedSetsForExercises', () => {
+  it('returns only the sets of the requested exercises, across any day', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const chest = await createMuscleGroup('Pecho')
+    const bench = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const squatExercise = await createExercise({
+      name: 'Sentadilla',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const benchPlan = await createPlannedExercise({ dayId: day.id, exerciseId: bench.id, notes: '' })
+    const squatPlan = await createPlannedExercise({ dayId: day.id, exerciseId: squatExercise.id, notes: '' })
+    const benchSet = await createPlannedSet({
+      plannedExerciseId: benchPlan.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180, dropSet: false, restPause: false })
+    await createPlannedSet({
+      plannedExerciseId: squatPlan.id,
+      targetWeightKg: 140,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180, dropSet: false, restPause: false })
+
+    const sets = await listPlannedSetsForExercises([benchPlan.id])
+    expect(sets.map((s) => s.id)).toEqual([benchSet.id])
+  })
+
+  it('returns an empty list without hitting the client when no exercises are given', async () => {
+    expect(await listPlannedSetsForExercises([])).toEqual([])
+  })
+})
 
 describe('createWeek / createMesocycle order auto-increment', () => {
   it('assigns incrementing order starting at 0', async () => {
