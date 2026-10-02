@@ -1,4 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks'
+import { useCallback } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { getRecentRpeDeviations } from '../db/metricsQueries'
 import { needsDeloadAlert } from '../lib/metrics'
 
@@ -9,9 +10,8 @@ interface DeloadAlertProps {
 }
 
 export function DeloadAlert({ exerciseId }: DeloadAlertProps) {
-  const deviations = useLiveQuery(
-    () => getRecentRpeDeviations(exerciseId, RECENT_SESSIONS_TO_CHECK),
-    [exerciseId],
+  const { data: deviations } = useRemoteQuery(
+    useCallback(() => getRecentRpeDeviations(exerciseId, RECENT_SESSIONS_TO_CHECK), [exerciseId]),
   )
 
   if (!deviations || !needsDeloadAlert(deviations)) return null

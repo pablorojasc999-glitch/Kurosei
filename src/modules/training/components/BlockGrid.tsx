@@ -1,6 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addExerciseToSlot,
@@ -14,8 +14,7 @@ import {
   setPlannedSets,
   setSlotExerciseCounts,
 } from '../db/planningRepository'
-import { listExercises, listMuscleGroups } from '../db/trainingRepository'
-import { db } from '../../../shared/db/database'
+import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../db/trainingRepository'
 import {
   buildEffectiveSets,
   type EffectiveSetsCell,
@@ -59,16 +58,18 @@ interface BlockGridProps {
 }
 
 export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
-  const data = useLiveQuery(() => getBlockGridData(mesocycleId), [mesocycleId])
-  const exercises = useLiveQuery(() => listExercises(), [])
+  const { data, refresh } = useRemoteQuery(
+    useCallback(() => getBlockGridData(mesocycleId), [mesocycleId]),
+  )
+  const { data: exercises } = useRemoteQuery(useCallback(() => listExercises(), []))
   // Para el resumen del pie: qué músculo toca cada ejercicio y cuánto.
-  const muscles = useLiveQuery(async () => {
-    const groups = await listMuscleGroups()
-    const contributions = await db.training_exercise_muscle_contributions
-      .filter((c) => c.deletedAt === null)
-      .toArray()
-    return { names: new Map(groups.map((g) => [g.id, g.name])), contributions }
-  }, [])
+  const { data: muscles } = useRemoteQuery(
+    useCallback(async () => {
+      const groups = await listMuscleGroups()
+      const contributions = await listAllMuscleContributions()
+      return { names: new Map(groups.map((g) => [g.id, g.name])), contributions }
+    }, []),
+  )
   // Se guarda a qué fila apunta la hoja, no una copia de la fila: con la copia,
   // marcar algo dentro de la hoja cambiaba la base pero la hoja seguía
   // enseñando el dato de cuando se abrió, y había que cerrarla para verlo.
@@ -134,6 +135,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
     const week = grid.weeks[adding.weekIndex]
     const created = await addExerciseToSlot(week.id, adding.slot.slotIndex, exerciseId)
     if (!created) setNotice('Esa semana no tiene ese día, así que no se pudo añadir.')
+    await refresh()
     setAdding(null)
   }
 
@@ -305,7 +307,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
                                 grid.weeks[index].id,
                                 slot.slotIndex,
                                 row.exerciseId,
-                              )
+                              ).then(refresh)
                             }
                           >
                             +
@@ -375,6 +377,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
           mesocycleId={mesocycleId}
           onClose={() => setRowMenu(null)}
           onNotice={setNotice}
+          onChange={refresh}
         />
       )}
 
@@ -385,6 +388,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
           mesocycleId={mesocycleId}
           onClose={() => setWeekMenu(null)}
           onNotice={setNotice}
+          onChange={refresh}
         />
       )}
 
@@ -403,6 +407,7 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
           onClose={() => setEditing(null)}
           onNotice={setNotice}
           onOpenDay={onOpenDay}
+          onChange={refresh}
         />
       )}
     </>
@@ -633,6 +638,7 @@ interface WeekMenuProps {
   mesocycleId: string
   onClose: () => void
   onNotice: (message: string) => void
+  onChange: () => void
 }
 
 /**
@@ -645,7 +651,7 @@ interface WeekMenuProps {
  * Se ofrece la semana entera y también un día suelto, porque el bloque no se
  * planifica de una sentada: hoy el día 1, mañana el 2.
  */
-function WeekMenu({ weekIndex, slots, mesocycleId, onClose, onNotice }: WeekMenuProps) {
+function WeekMenu({ weekIndex, slots, mesocycleId, onClose, onNotice, onChange }: WeekMenuProps) {
   const { isSubmitting: isBusy, guard } = useSubmitGuard()
   const from = weekIndex
 
@@ -653,6 +659,7 @@ function WeekMenu({ weekIndex, slots, mesocycleId, onClose, onNotice }: WeekMenu
     await guard(async () => {
       const result = await copyPreviousWeekPlan(mesocycleId, weekIndex, slotIndex)
       onNotice(describePreviousWeekCopy(result, from))
+      await onChange()
     })
     onClose()
   }
@@ -710,6 +717,7 @@ interface RowMenuProps {
   mesocycleId: string
   onClose: () => void
   onNotice: (message: string) => void
+  onChange: () => void
 }
 
 /**
@@ -720,7 +728,7 @@ interface RowMenuProps {
  * ejercicio en las cuatro semanas: moverlo en una sola descuadraría la
  * planilla. Para una semana suelta está la propia celda.
  */
-function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuProps) {
+function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice, onChange }: RowMenuProps) {
   const { isSubmitting: isBusy, guard } = useSubmitGuard()
   const index = slot.rows.findIndex((r) => r.exerciseId === row.exerciseId)
   const cuenta = row.countsState !== 'none'
@@ -728,6 +736,7 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
   async function mover(direction: 'up' | 'down') {
     await guard(async () => {
       await reorderSlotExercise(mesocycleId, slot.slotIndex, row.exerciseId, direction)
+      await onChange()
     })
     onClose()
   }
@@ -746,6 +755,7 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
           `Quitado de ${removed} semana${removed === 1 ? '' : 's'}; ${skipped} con la sesión ya finalizada quedaron como estaban.`,
         )
       }
+      await onChange()
     })
     onClose()
   }
@@ -765,6 +775,7 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
           `Movido en ${moved} semana${moved === 1 ? '' : 's'}; ${skipped} quedaron como estaban.`,
         )
       }
+      await onChange()
     })
     onClose()
   }
@@ -822,6 +833,7 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice }: RowMenuPr
                 row.exerciseId,
                 e.target.checked,
               )
+              await onChange()
             })
           }
         />
@@ -880,9 +892,10 @@ interface CellEditorProps {
   onClose: () => void
   onNotice: (message: string) => void
   onOpenDay: (weekId: string, dayId: string) => void
+  onChange: () => void
 }
 
-function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellEditorProps) {
+function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChange }: CellEditorProps) {
   const { slot, row, cell, weekIndex } = target
   const plannedExerciseId = cell.plannedExerciseId as string
   // La fila ya trae las celdas de todas las semanas, así que la anterior está
@@ -960,6 +973,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
               : `${row.exerciseName} se aplicó en ${result.applied} semanas. ${result.skipped} no tienen ${slot.label}.`,
           )
         }
+        await onChange()
         onClose()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
@@ -1076,6 +1090,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay }: CellE
           confirmMessage={`¿Quitar ${row.exerciseName} de la semana ${weekIndex + 1}?`}
           onConfirm={async () => {
             await deletePlannedExercise(cell.plannedExerciseId as string)
+            await onChange()
             onClose()
           }}
         />

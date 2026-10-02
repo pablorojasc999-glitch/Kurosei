@@ -1,58 +1,68 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import type { ExecutedSet, SessionExercise, StrengthSession } from '../domain/types'
+
+/** Ya no pasa por Dexie: habla directo con Supabase. */
+function client() {
+  if (!supabase) throw new Error('La sesión necesita conexión para funcionar.')
+  return supabase
+}
 
 /**
  * The active StrengthSession for a day, if one exists. If more than one row
  * somehow matches (a leftover duplicate from a race before `startSession`
  * became transactional), the most recently updated one wins — an unsorted
- * `.first()` would pick an arbitrary one by primary key instead.
+ * read would pick an arbitrary one instead.
  */
 export async function getSessionForDay(
   dayId: string,
 ): Promise<StrengthSession | undefined> {
-  const sessions = await db.training_sessions
-    .where('dayId')
-    .equals(dayId)
-    .filter((s) => s.deletedAt === null)
-    .toArray()
+  const { data, error } = await client()
+    .from('training_sessions')
+    .select('*')
+    .eq('dayId', dayId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const sessions = data as StrengthSession[]
   if (sessions.length === 0) return undefined
   return sessions.reduce((latest, s) => (s.updatedAt > latest.updatedAt ? s : latest))
 }
 
 /**
- * Starts (or resumes) the session for a day. Runs as one transaction so two
- * near-simultaneous calls (e.g. a fast double-tap on "Iniciar sesión")
- * can't both pass the "doesn't exist yet" check and create two sessions.
+ * Starts (or resumes) the session for a day.
+ *
+ * No hay transacción entre cliente y Supabase que evite que dos toques casi
+ * simultáneos pasen juntos el "no existe todavía" y creen dos sesiones — el
+ * mismo riesgo que ya se acepta en el resto de los repositorios migrados.
  */
 export async function startSession(dayId: string): Promise<StrengthSession> {
-  return db.transaction('rw', db.training_sessions, async () => {
-    const existing = await getSessionForDay(dayId)
-    if (existing) {
-      return existing
-    }
-    const timestamp = nowIso()
-    const session: StrengthSession = {
-      id: generateId(),
-      dayId,
-      startedAt: timestamp,
-      endedAt: null,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      deletedAt: null,
-    }
-    await db.training_sessions.add(session)
-    return session
-  })
+  const existing = await getSessionForDay(dayId)
+  if (existing) return existing
+  const timestamp = nowIso()
+  const session: StrengthSession = {
+    id: generateId(),
+    dayId,
+    startedAt: timestamp,
+    endedAt: null,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+  }
+  const userId = await requireUserId()
+  const { error } = await client().from('training_sessions').insert({ ...session, userId })
+  if (error) throw new Error(error.message)
+  return session
 }
 
 export async function endSession(sessionId: string): Promise<void> {
   const timestamp = nowIso()
-  await db.training_sessions.update(sessionId, {
-    endedAt: timestamp,
-    updatedAt: timestamp,
-  })
+  const { error } = await client()
+    .from('training_sessions')
+    .update({ endedAt: timestamp, updatedAt: timestamp })
+    .eq('id', sessionId)
+  if (error) throw new Error(error.message)
 }
 
 /**
@@ -66,17 +76,19 @@ export async function updateSessionTimes(
   sessionId: string,
   times: { startedAt?: string; endedAt?: string | null },
 ): Promise<void> {
-  const changes: Partial<StrengthSession> = { updatedAt: nowIso() }
+  const changes: Record<string, unknown> = { updatedAt: nowIso() }
   if (times.startedAt !== undefined) changes.startedAt = times.startedAt
   if (times.endedAt !== undefined) changes.endedAt = times.endedAt
-  await db.training_sessions.update(sessionId, changes)
+  const { error } = await client().from('training_sessions').update(changes).eq('id', sessionId)
+  if (error) throw new Error(error.message)
 }
 
 export async function reopenSession(sessionId: string): Promise<void> {
-  await db.training_sessions.update(sessionId, {
-    endedAt: null,
-    updatedAt: nowIso(),
-  })
+  const { error } = await client()
+    .from('training_sessions')
+    .update({ endedAt: null, updatedAt: nowIso() })
+    .eq('id', sessionId)
+  if (error) throw new Error(error.message)
 }
 
 /** Deletes a session entirely, cascading to its exercises and their sets. */
@@ -86,20 +98,47 @@ export async function deleteSession(sessionId: string): Promise<void> {
     await deleteSessionExercise(se.id)
   }
   const timestamp = nowIso()
-  await db.training_sessions.update(sessionId, {
-    deletedAt: timestamp,
-    updatedAt: timestamp,
-  })
+  const { error } = await client()
+    .from('training_sessions')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', sessionId)
+  if (error) throw new Error(error.message)
+}
+
+/** Todas las sesiones no borradas — para cruces con otras tablas (ver metricsQueries.ts). */
+export async function listAllSessions(): Promise<StrengthSession[]> {
+  const { data, error } = await client().from('training_sessions').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as StrengthSession[]
+}
+
+/** Todos los ejercicios de sesión no borrados — para cruces con otras tablas (ver metricsQueries.ts). */
+export async function listAllSessionExercises(): Promise<SessionExercise[]> {
+  const { data, error } = await client()
+    .from('training_session_exercises')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as SessionExercise[]
+}
+
+/** Todas las series ejecutadas no borradas — para cruces con otras tablas (ver metricsQueries.ts). */
+export async function listAllExecutedSets(): Promise<ExecutedSet[]> {
+  const { data, error } = await client().from('training_executed_sets').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as ExecutedSet[]
 }
 
 export async function listSessionExercises(
   sessionId: string,
 ): Promise<SessionExercise[]> {
-  return db.training_session_exercises
-    .where('sessionId')
-    .equals(sessionId)
-    .filter((se) => se.deletedAt === null)
-    .sortBy('order')
+  const { data, error } = await client()
+    .from('training_session_exercises')
+    .select('*')
+    .eq('sessionId', sessionId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as SessionExercise[]).sort((a, b) => a.order - b.order)
 }
 
 export interface AddSessionExerciseInput {
@@ -125,7 +164,11 @@ export async function addSessionExercise(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_session_exercises.add(sessionExercise)
+  const userId = await requireUserId()
+  const { error } = await client()
+    .from('training_session_exercises')
+    .insert({ ...sessionExercise, userId })
+  if (error) throw new Error(error.message)
   return sessionExercise
 }
 
@@ -138,7 +181,13 @@ export async function reorderSessionExercise(
   id: string,
   direction: 'up' | 'down',
 ): Promise<void> {
-  const sessionExercise = await db.training_session_exercises.get(id)
+  const { data, error } = await client()
+    .from('training_session_exercises')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const sessionExercise = data as SessionExercise | null
   if (!sessionExercise) return
   const siblings = await listSessionExercises(sessionExercise.sessionId)
   const index = siblings.findIndex((se) => se.id === id)
@@ -147,16 +196,16 @@ export async function reorderSessionExercise(
   if (!target) return
 
   const timestamp = nowIso()
-  await db.transaction('rw', db.training_session_exercises, async () => {
-    await db.training_session_exercises.update(sessionExercise.id, {
-      order: target.order,
-      updatedAt: timestamp,
-    })
-    await db.training_session_exercises.update(target.id, {
-      order: sessionExercise.order,
-      updatedAt: timestamp,
-    })
-  })
+  const { error: error1 } = await client()
+    .from('training_session_exercises')
+    .update({ order: target.order, updatedAt: timestamp })
+    .eq('id', sessionExercise.id)
+  if (error1) throw new Error(error1.message)
+  const { error: error2 } = await client()
+    .from('training_session_exercises')
+    .update({ order: sessionExercise.order, updatedAt: timestamp })
+    .eq('id', target.id)
+  if (error2) throw new Error(error2.message)
 }
 
 /** Closes or reopens a session exercise, locking/unlocking its set-log form. */
@@ -164,55 +213,53 @@ export async function setSessionExerciseClosed(
   id: string,
   closed: boolean,
 ): Promise<void> {
-  await db.training_session_exercises.update(id, {
-    closedAt: closed ? nowIso() : null,
-    updatedAt: nowIso(),
-  })
+  const { error } = await client()
+    .from('training_session_exercises')
+    .update({ closedAt: closed ? nowIso() : null, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function deleteSessionExercise(id: string): Promise<void> {
   const timestamp = nowIso()
   const sets = await listExecutedSets(id)
-  await db.transaction(
-    'rw',
-    db.training_session_exercises,
-    db.training_executed_sets,
-    async () => {
-      await db.training_session_exercises.update(id, {
-        deletedAt: timestamp,
-        updatedAt: timestamp,
-      })
-      await Promise.all(
-        sets.map((s) =>
-          db.training_executed_sets.update(s.id, {
-            deletedAt: timestamp,
-            updatedAt: timestamp,
-          }),
-        ),
-      )
-    },
-  )
+  const { error } = await client()
+    .from('training_session_exercises')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+  for (const s of sets) {
+    const { error: setError } = await client()
+      .from('training_executed_sets')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', s.id)
+    if (setError) throw new Error(setError.message)
+  }
 }
 
 export async function listExecutedSets(
   sessionExerciseId: string,
 ): Promise<ExecutedSet[]> {
-  return db.training_executed_sets
-    .where('sessionExerciseId')
-    .equals(sessionExerciseId)
-    .filter((s) => s.deletedAt === null)
-    .sortBy('setNumber')
+  const { data, error } = await client()
+    .from('training_executed_sets')
+    .select('*')
+    .eq('sessionExerciseId', sessionExerciseId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as ExecutedSet[]).sort((a, b) => a.setNumber - b.setNumber)
 }
 
 /** Total executed sets across every exercise in a session, for calorie estimation. */
 export async function countExecutedSetsForSession(sessionId: string): Promise<number> {
   const sessionExercises = await listSessionExercises(sessionId)
   if (sessionExercises.length === 0) return 0
-  return db.training_executed_sets
-    .where('sessionExerciseId')
-    .anyOf(sessionExercises.map((se) => se.id))
-    .filter((s) => s.deletedAt === null)
-    .count()
+  const { data, error } = await client()
+    .from('training_executed_sets')
+    .select('id')
+    .in('sessionExerciseId', sessionExercises.map((se) => se.id))
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Array<{ id: string }>).length
 }
 
 export interface CreateExecutedSetInput {
@@ -253,7 +300,9 @@ export async function createExecutedSet(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_executed_sets.add(executedSet)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_executed_sets').insert({ ...executedSet, userId })
+  if (error) throw new Error(error.message)
   return executedSet
 }
 
@@ -271,18 +320,20 @@ export async function updateExecutedSet(
   id: string,
   input: UpdateExecutedSetInput,
 ): Promise<void> {
-  await db.training_executed_sets.update(id, {
-    ...input,
-    updatedAt: nowIso(),
-  })
+  const { error } = await client()
+    .from('training_executed_sets')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function deleteExecutedSet(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.training_executed_sets.update(id, {
-    deletedAt: timestamp,
-    updatedAt: timestamp,
-  })
+  const { error } = await client()
+    .from('training_executed_sets')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /**
@@ -293,21 +344,24 @@ export async function listExecutedSetsForExerciseByReps(
   exerciseId: string,
   reps: number,
 ): Promise<ExecutedSet[]> {
-  const sessionExerciseIds = await db.training_session_exercises
-    .where('exerciseId')
-    .equals(exerciseId)
-    .filter((se) => se.deletedAt === null)
-    .primaryKeys()
-
+  const { data, error } = await client()
+    .from('training_session_exercises')
+    .select('id')
+    .eq('exerciseId', exerciseId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const sessionExerciseIds = (data as Array<{ id: string }>).map((se) => se.id)
   if (sessionExerciseIds.length === 0) return []
 
-  const sets = await db.training_executed_sets
-    .where('sessionExerciseId')
-    .anyOf(sessionExerciseIds)
-    .filter((s) => s.deletedAt === null && s.reps === reps)
-    .toArray()
+  const { data: setsData, error: setsError } = await client()
+    .from('training_executed_sets')
+    .select('*')
+    .in('sessionExerciseId', sessionExerciseIds)
+    .eq('reps', reps)
+    .is('deletedAt', null)
+  if (setsError) throw new Error(setsError.message)
 
-  return sets.sort(
+  return (setsData as ExecutedSet[]).sort(
     (a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
   )
 }

@@ -1,6 +1,4 @@
-import { useLiveQuery } from 'dexie-react-hooks'
 import { useCallback, useState } from 'react'
-import { db } from '../../../shared/db/database'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { BodyMap } from './BodyMap'
@@ -14,6 +12,7 @@ import {
   listMesocyclesWithContext,
   listWeeksWithContext,
 } from '../db/planningRepository'
+import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../db/trainingRepository'
 import { matchBodyRegion } from '../lib/bodyMap'
 import type { BodyRegionKey } from '../lib/bodyMap'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
@@ -62,35 +61,18 @@ function defaultCurrentOrPastId(
 
 export function ProgressPage() {
   const session = useSupabaseSession()
-  const setsWithContext = useLiveQuery(() => listAllExecutedSetsWithContext(), [])
-  const exercises = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).toArray(),
-    [],
+  const { data: setsWithContext } = useRemoteQuery(
+    useCallback(() => listAllExecutedSetsWithContext(), []),
   )
-  const muscleGroups = useLiveQuery(
-    () => db.training_muscle_groups.filter((g) => g.deletedAt === null).toArray(),
-    [],
+  const { data: exercises } = useRemoteQuery(useCallback(() => listExercises(), []))
+  const { data: muscleGroups } = useRemoteQuery(useCallback(() => listMuscleGroups(), []))
+  const { data: contributions } = useRemoteQuery(
+    useCallback(() => listAllMuscleContributions(), []),
   )
-  const contributions = useLiveQuery(
-    () =>
-      db.training_exercise_muscle_contributions
-        .filter((c) => c.deletedAt === null)
-        .toArray(),
-    [],
-  )
-  const macrocycles = useLiveQuery(() => listMacrocycles(), [])
-  const mesocycles = useLiveQuery(() => listMesocyclesWithContext(), [])
-  const weeks = useLiveQuery(() => listWeeksWithContext(), [])
-  // La bitácora ya no está en Dexie: sin sesión no hay perfil ni métricas que
-  // mostrar, pero el resto de la página (series de entrenamiento) sigue
-  // funcionando igual, porque todavía pasa por Dexie (le toca en el módulo
-  // de Entrenamiento).
-  const { data: profile } = useRemoteQuery(
-    useCallback(async () => {
-      if (session === undefined) return undefined
-      return session ? getProfile() : null
-    }, [session]),
-  )
+  const { data: macrocycles } = useRemoteQuery(useCallback(() => listMacrocycles(), []))
+  const { data: mesocycles } = useRemoteQuery(useCallback(() => listMesocyclesWithContext(), []))
+  const { data: weeks } = useRemoteQuery(useCallback(() => listWeeksWithContext(), []))
+  const { data: profile } = useRemoteQuery(useCallback(() => getProfile(), []))
 
   const [selectedExerciseId, setSelectedExerciseId] = useState('')
   const [scopeKind, setScopeKind] = useState<ScopeKind>('day')
@@ -136,15 +118,30 @@ export function ProgressPage() {
 
   const { data: dailyMetrics } = useRemoteQuery(
     useCallback(
-      async () => {
-        if (session === undefined) return undefined
-        if (!session || !activeRange) return []
-        return listDailyMetricsInRange(activeRange)
-      },
+      async () => (activeRange ? listDailyMetricsInRange(activeRange) : []),
       // oxlint-disable-next-line react-hooks/exhaustive-deps
-      [session, activeRange?.start, activeRange?.end],
+      [activeRange?.start, activeRange?.end],
     ),
   )
+
+  // Ya no hay copia local: sin sesión no hay progreso que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Progreso</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Progreso</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver tu progreso.
+        </p>
+      </div>
+    )
+  }
 
   if (
     !setsWithContext ||

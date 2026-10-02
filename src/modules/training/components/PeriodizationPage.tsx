@@ -1,7 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useEffect, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   copyPlannedExercisesToDay,
   createDay,
@@ -17,7 +17,16 @@ import {
   deletePlannedSet,
   deleteWeek,
   duplicateWeek,
+  getDayById,
+  getMesocycleById,
+  getWeekById,
+  listAllPlannedSets,
+  listDays,
+  listMacrocycles,
+  listMesocycles,
   listPlannedDaysWithExercises,
+  listPlannedExercises,
+  listWeeks,
   reorderPlannedExercise,
   reorderWeek,
   setDayPlanClosed,
@@ -27,6 +36,7 @@ import {
   updateMesocycle,
   updatePlannedSet,
 } from '../db/planningRepository'
+import { listExercises } from '../db/trainingRepository'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { parseReps } from '../lib/reps'
 import { formatDate, formatRestMinutes } from '../lib/format'
@@ -62,6 +72,7 @@ export function PeriodizationPage({
   jumpToDayId,
   onJumpHandled,
 }: PeriodizationPageProps) {
+  const session = useSupabaseSession()
   const [macrocycleId, setMacrocycleId] = useState<string | null>(null)
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
@@ -71,15 +82,13 @@ export function PeriodizationPage({
   const [mesoView, setMesoView] = useState<'planilla' | 'semanas'>('planilla')
 
   useEffect(() => {
-    if (!jumpToDayId) return
+    if (!jumpToDayId || !session) return
     let cancelled = false
     async function resolveAndJump() {
-      const day = await db.training_days.get(jumpToDayId as string)
+      const day = await getDayById(jumpToDayId as string)
       if (!day || cancelled) return
-      const week = day.weekId ? await db.training_weeks.get(day.weekId) : null
-      const mesocycle = week
-        ? await db.training_mesocycles.get(week.mesocycleId)
-        : null
+      const week = day.weekId ? await getWeekById(day.weekId) : null
+      const mesocycle = week ? await getMesocycleById(week.mesocycleId) : null
       if (cancelled) return
       setMacrocycleId(mesocycle?.macrocycleId ?? null)
       setMesocycleId(week?.mesocycleId ?? null)
@@ -91,82 +100,62 @@ export function PeriodizationPage({
     return () => {
       cancelled = true
     }
-  }, [jumpToDayId, onJumpHandled])
+  }, [jumpToDayId, onJumpHandled, session])
 
   // Desde el calendario se toca un día suelto: hay que reconstruir la ruta
   // (mesociclo y semana) para que el detalle y las migas de pan cuadren.
   async function openDayFromCalendar(id: string) {
-    const day = await db.training_days.get(id)
+    const day = await getDayById(id)
     if (!day) return
-    const week = day.weekId ? await db.training_weeks.get(day.weekId) : null
+    const week = day.weekId ? await getWeekById(day.weekId) : null
     setMesocycleId(week?.mesocycleId ?? null)
     setWeekId(day.weekId)
     setDayId(id)
   }
 
-  const macrocycles = useLiveQuery(
-    () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
-    [],
+  const { data: macrocycles, refresh: refreshMacrocycles } = useRemoteQuery(
+    useCallback(() => listMacrocycles(), []),
   )
-  const mesocycles = useLiveQuery(
-    () =>
-      macrocycleId
-        ? db.training_mesocycles
-            .where('macrocycleId')
-            .equals(macrocycleId)
-            .filter((m) => m.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<Mesocycle[]>([]),
-    [macrocycleId],
+  const { data: mesocycles, refresh: refreshMesocycles } = useRemoteQuery(
+    useCallback(
+      () => (macrocycleId ? listMesocycles(macrocycleId) : Promise.resolve<Mesocycle[]>([])),
+      [macrocycleId],
+    ),
   )
-  const weeks = useLiveQuery(
-    () =>
-      mesocycleId
-        ? db.training_weeks
-            .where('mesocycleId')
-            .equals(mesocycleId)
-            .filter((w) => w.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<Week[]>([]),
-    [mesocycleId],
+  const { data: weeks, refresh: refreshWeeks } = useRemoteQuery(
+    useCallback(
+      () => (mesocycleId ? listWeeks(mesocycleId) : Promise.resolve<Week[]>([])),
+      [mesocycleId],
+    ),
   )
-  const days = useLiveQuery(
-    () =>
-      weekId
-        ? db.training_days
-            .where('weekId')
-            .equals(weekId)
-            .filter((d) => d.deletedAt === null)
-            .sortBy('date')
-        : Promise.resolve<Day[]>([]),
-    [weekId],
+  const { data: days, refresh: refreshDays } = useRemoteQuery(
+    useCallback(() => (weekId ? listDays(weekId) : Promise.resolve<Day[]>([])), [weekId]),
   )
-  const plannedExercises = useLiveQuery(
-    () =>
-      dayId
-        ? db.training_planned_exercises
-            .where('dayId')
-            .equals(dayId)
-            .filter((pe) => pe.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<PlannedExercise[]>([]),
-    [dayId],
+  const { data: plannedExercises, refresh: refreshPlannedExercises } = useRemoteQuery(
+    useCallback(
+      () => (dayId ? listPlannedExercises(dayId) : Promise.resolve<PlannedExercise[]>([])),
+      [dayId],
+    ),
   )
-  const exercisesLibrary = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
-    [],
+  const { data: exercisesLibrary } = useRemoteQuery(useCallback(() => listExercises(), []))
+  const { data: plannedSets, refresh: refreshPlannedSets } = useRemoteQuery(
+    useCallback(() => listAllPlannedSets(), []),
   )
-  const plannedSets = useLiveQuery(
-    () =>
-      db.training_planned_sets
-        .filter((ps) => ps.deletedAt === null)
-        .toArray(),
-    [],
+  const { data: plannedDayOptions, refresh: refreshPlannedDayOptions } = useRemoteQuery(
+    useCallback(() => listPlannedDaysWithExercises(), []),
   )
-  const plannedDayOptions = useLiveQuery(
-    () => listPlannedDaysWithExercises(),
-    [],
-  )
+
+  async function refreshAll() {
+    await Promise.all([
+      refreshMacrocycles(),
+      refreshMesocycles(),
+      refreshWeeks(),
+      refreshDays(),
+      refreshPlannedExercises(),
+      refreshPlannedSets(),
+      refreshPlannedDayOptions(),
+    ])
+  }
 
   const selectedMacrocycle = macrocycles?.find((m) => m.id === macrocycleId)
   const selectedMesocycle = mesocycles?.find((m) => m.id === mesocycleId)
@@ -298,6 +287,7 @@ export function PeriodizationPage({
         const m = await createMacrocycle(input)
         setMacrocycleId(m.id)
       }
+      await refreshAll()
       resetMacroForm()
     })
   }
@@ -318,6 +308,7 @@ export function PeriodizationPage({
         const m = await createMesocycle({ macrocycleId, ...input })
         setMesocycleId(m.id)
       }
+      await refreshAll()
       resetMesoForm()
     })
   }
@@ -326,12 +317,14 @@ export function PeriodizationPage({
     if (!mesocycleId) return
     await guardWeek(async () => {
       const w = await createWeek(mesocycleId)
+      await refreshAll()
       setWeekId(w.id)
     })
   }
 
   async function handleDuplicateWeek(sourceWeekId: string) {
     const w = await duplicateWeek(sourceWeekId)
+    await refreshAll()
     setWeekId(w.id)
   }
 
@@ -354,6 +347,7 @@ export function PeriodizationPage({
           await copyPlannedExercisesToDay(copyFromDayId, d.id)
         }
       }
+      await refreshAll()
       resetDayForm()
     })
   }
@@ -367,6 +361,7 @@ export function PeriodizationPage({
         exerciseId: newExerciseId,
         notes: newExerciseNotes,
       })
+      await refreshAll()
       setNewExerciseId('')
       setNewExerciseNotes('')
     })
@@ -395,6 +390,7 @@ export function PeriodizationPage({
           restSecondsTarget: null,
         })
       }
+      await refreshAll()
       setSetForms((prev) => ({
         ...prev,
         [plannedExerciseId]: { weight: '', reps: '', rpe: '', dropSet: false, restPause: false },
@@ -419,6 +415,7 @@ export function PeriodizationPage({
         dropSet: previa.dropSet === true,
         restPause: previa.restPause === true,
       })
+      await refreshAll()
     })
   }
 
@@ -446,6 +443,25 @@ export function PeriodizationPage({
 
   function exerciseName(id: string): string {
     return exercisesLibrary?.find((e) => e.id === id)?.name ?? '?'
+  }
+
+  // Ya no hay copia local: sin sesión no hay periodización que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Periodización</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Periodización</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar la periodización.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -497,7 +513,7 @@ export function PeriodizationPage({
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() => deleteMacrocycle(m.id)}
+                    onConfirm={() => deleteMacrocycle(m.id).then(refreshAll)}
                   />
                 </div>
               </li>
@@ -553,7 +569,7 @@ export function PeriodizationPage({
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() => deleteMesocycle(m.id)}
+                    onConfirm={() => deleteMesocycle(m.id).then(refreshAll)}
                   />
                 </div>
               </li>
@@ -634,7 +650,7 @@ export function PeriodizationPage({
                     className="icon-button"
                     aria-label="Mover semana hacia arriba"
                     disabled={index === 0}
-                    onClick={() => reorderWeek(w.id, 'up')}
+                    onClick={() => void reorderWeek(w.id, 'up').then(refreshAll)}
                   >
                     ↑
                   </button>
@@ -643,20 +659,20 @@ export function PeriodizationPage({
                     className="icon-button"
                     aria-label="Mover semana hacia abajo"
                     disabled={index === (weeks?.length ?? 0) - 1}
-                    onClick={() => reorderWeek(w.id, 'down')}
+                    onClick={() => void reorderWeek(w.id, 'down').then(refreshAll)}
                   >
                     ↓
                   </button>
                   <button
                     type="button"
                     className="list-row-secondary"
-                    onClick={() => handleDuplicateWeek(w.id)}
+                    onClick={() => void handleDuplicateWeek(w.id)}
                   >
                     Duplicar como punto de partida
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage={`¿Eliminar la Semana ${w.order + 1}? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() => deleteWeek(w.id)}
+                    onConfirm={() => deleteWeek(w.id).then(refreshAll)}
                   />
                 </div>
               </li>
@@ -689,7 +705,7 @@ export function PeriodizationPage({
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage="¿Eliminar este día? Si tenía una sesión o cardio registrado, también se elimina."
-                    onConfirm={() => deleteDay(d.id)}
+                    onConfirm={() => deleteDay(d.id).then(refreshAll)}
                   />
                 </div>
               </li>
@@ -738,7 +754,7 @@ export function PeriodizationPage({
             <h2>Plan del día</h2>
             <button
               type="button"
-              onClick={() => setDayPlanClosed(dayId, !dayLocked)}
+              onClick={() => void setDayPlanClosed(dayId, !dayLocked).then(refreshAll)}
             >
               {dayLocked ? 'Reabrir día' : 'Cerrar día'}
             </button>
@@ -770,7 +786,7 @@ export function PeriodizationPage({
                             className="icon-button"
                             aria-label="Mover ejercicio hacia arriba"
                             disabled={index === 0}
-                            onClick={() => reorderPlannedExercise(pe.id, 'up')}
+                            onClick={() => void reorderPlannedExercise(pe.id, 'up').then(refreshAll)}
                           >
                             ↑
                           </button>
@@ -779,7 +795,7 @@ export function PeriodizationPage({
                             className="icon-button"
                             aria-label="Mover ejercicio hacia abajo"
                             disabled={index === (plannedExercises?.length ?? 0) - 1}
-                            onClick={() => reorderPlannedExercise(pe.id, 'down')}
+                            onClick={() => void reorderPlannedExercise(pe.id, 'down').then(refreshAll)}
                           >
                             ↓
                           </button>
@@ -788,7 +804,7 @@ export function PeriodizationPage({
                       {!dayLocked && (
                         <button
                           type="button"
-                          onClick={() => setPlannedExerciseClosed(pe.id, !exerciseClosed)}
+                          onClick={() => void setPlannedExerciseClosed(pe.id, !exerciseClosed).then(refreshAll)}
                         >
                           {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
                         </button>
@@ -796,7 +812,7 @@ export function PeriodizationPage({
                       <ConfirmDeleteButton
                         label="Quitar"
                         confirmMessage="¿Quitar este ejercicio del plan?"
-                        onConfirm={() => deletePlannedExercise(pe.id)}
+                        onConfirm={() => deletePlannedExercise(pe.id).then(refreshAll)}
                       />
                     </div>
                   </div>
@@ -831,7 +847,7 @@ export function PeriodizationPage({
                               variant="icon"
                               label="Eliminar serie planificada"
                               confirmMessage="¿Eliminar esta serie planificada?"
-                              onConfirm={() => deletePlannedSet(s.id)}
+                              onConfirm={() => deletePlannedSet(s.id).then(refreshAll)}
                             />
                           </>
                         )}

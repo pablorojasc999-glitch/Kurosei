@@ -60,7 +60,10 @@ export function createFakeSupabaseClient(
         }
         return Promise.resolve({ data: null, error: null })
       }
-      const found = rows.filter((r) => matches(r, filters))
+      // Clonadas: el Supabase real deserializa JSON fresco en cada lectura, así
+      // que una fila leída nunca es la misma referencia que la tabla en
+      // memoria — mutar una no debe mutar la otra, ni la que ya se devolvió.
+      const found = rows.filter((r) => matches(r, filters)).map((r) => ({ ...r }))
       return Promise.resolve({
         data: single ? (found[0] ?? null) : found,
         error: null,

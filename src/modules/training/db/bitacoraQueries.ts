@@ -1,5 +1,7 @@
-import { db } from '../../../shared/db/database'
 import { listDailyLogs } from './bitacoraRepository'
+import { listAllCardioSessions } from './cardioRepository'
+import { listAllExecutedSets, listAllSessionExercises, listAllSessions } from './executionRepository'
+import { listAllDays } from './planningRepository'
 import { toDateKey } from '../lib/calendarGrid'
 import type { DateRange } from '../lib/progressScope'
 import { sessionDurationMinutes } from '../lib/sessionTimes'
@@ -40,10 +42,7 @@ export interface DailyMetric {
  * drives Progreso's charts relating training to the bitácora.
  */
 export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMetric[]> {
-  const [days, dailyLogs] = await Promise.all([
-    db.training_days.filter((d) => d.deletedAt === null).toArray(),
-    listDailyLogs(),
-  ])
+  const [days, dailyLogs] = await Promise.all([listAllDays(), listDailyLogs()])
 
   const domainDates: string[] = []
   for (
@@ -64,14 +63,12 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
   }
   const relevantDayIds = new Set(dayIdToDateKey.keys())
 
-  const [sessions, cardioSessions] = await Promise.all([
-    db.training_sessions
-      .filter((s) => s.deletedAt === null && relevantDayIds.has(s.dayId))
-      .toArray(),
-    db.training_cardio_sessions
-      .filter((c) => c.deletedAt === null && relevantDayIds.has(c.dayId))
-      .toArray(),
+  const [allSessions, allCardioSessions] = await Promise.all([
+    listAllSessions(),
+    listAllCardioSessions(),
   ])
+  const sessions = allSessions.filter((s) => relevantDayIds.has(s.dayId))
+  const cardioSessions = allCardioSessions.filter((c) => relevantDayIds.has(c.dayId))
 
   const cardioCaloriesByDate = new Map<string, number>()
   const cardioDistanceByDate = new Map<string, number>()
@@ -99,9 +96,9 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
   }
   const relevantSessionIds = new Set(sessionIdToDateKey.keys())
 
-  const sessionExercises = await db.training_session_exercises
-    .filter((se) => se.deletedAt === null && relevantSessionIds.has(se.sessionId))
-    .toArray()
+  const sessionExercises = (await listAllSessionExercises()).filter((se) =>
+    relevantSessionIds.has(se.sessionId),
+  )
   const sessionExerciseIdToDateKey = new Map<string, string>()
   for (const se of sessionExercises) {
     const dateKey = sessionIdToDateKey.get(se.sessionId)
@@ -109,9 +106,9 @@ export async function listDailyMetricsInRange(range: DateRange): Promise<DailyMe
   }
   const relevantSessionExerciseIds = new Set(sessionExerciseIdToDateKey.keys())
 
-  const executedSets = await db.training_executed_sets
-    .filter((s) => s.deletedAt === null && relevantSessionExerciseIds.has(s.sessionExerciseId))
-    .toArray()
+  const executedSets = (await listAllExecutedSets()).filter((s) =>
+    relevantSessionExerciseIds.has(s.sessionExerciseId),
+  )
   const strengthSetCountByDate = new Map<string, number>()
   for (const set of executedSets) {
     const dateKey = sessionExerciseIdToDateKey.get(set.sessionExerciseId)

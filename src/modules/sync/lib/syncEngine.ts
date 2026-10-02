@@ -5,47 +5,26 @@ import { supabase } from '../../../shared/supabase/client'
 import type { SyncedEntity } from '../../training/domain/types'
 
 /**
- * Every Dexie store that mirrors to Supabase, in a stable sync order.
+ * Every Dexie store that mirrors to Supabase, en orden estable.
  *
- * "grocery_items", las cuatro tablas de "finance_", las siete de
- * "nutrition_", "training_user_profile", "training_daily_logs" y
- * "day_closures" ya no están: Súper, Finanzas, Nutrición y la
- * Bitácora/cierre de día dejaron de pasar por Dexie y hablan directo con
- * Supabase (ver groceryRepository.ts, financeRepository.ts,
- * nutritionRepository.ts, bitacoraRepository.ts y closingRepository.ts), así
- * que no hay nada local que subir ni bajar para esas tablas.
+ * Vacía a propósito: el último módulo en pasar por acá era Entrenamiento
+ * (training_muscle_groups, ..., training_cardio_sessions), y ya habla
+ * directo con Supabase (ver trainingRepository.ts, planningRepository.ts,
+ * executionRepository.ts y cardioRepository.ts), como el resto de los
+ * módulos desde Súper (#104). No queda ninguna tabla que este motor tenga
+ * que subir ni bajar — lo que sigue acá es la mecánica genérica de
+ * push/pull, que la limpieza final (borrar Dexie y este archivo) todavía no
+ * hizo.
  */
-export const SYNC_TABLE_NAMES = [
-  'training_muscle_groups',
-  'training_exercises',
-  'training_exercise_muscle_contributions',
-  'training_macrocycles',
-  'training_mesocycles',
-  'training_weeks',
-  'training_days',
-  'training_planned_exercises',
-  'training_planned_sets',
-  'training_sessions',
-  'training_session_exercises',
-  'training_executed_sets',
-  'training_cardio_sessions',
-] as const
-
-export type SyncTableName = (typeof SYNC_TABLE_NAMES)[number]
+export const SYNC_TABLE_NAMES = [] as const
 
 /**
- * La biblioteca de ejercicios se comparte entre las cuentas que Supabase
- * marca como miembros de `shared_library_members`: cada fila se sigue
- * subiendo con el `userId` de quien la creó (eso no cambia), pero al bajar
- * no se filtra por dueño — la política RLS ya deja pasar tanto las propias
- * como las de cualquier otro miembro. El resto de las tablas sigue filtrando
- * por `userId` como siempre, así que una cuenta nueva no ve nada de la otra
- * salvo esto. (La biblioteca de alimentos, `nutrition_foods`, es la otra
- * mitad de esa misma excepción — pero ya no pasa por acá: ver la nota en
- * `nutritionRepository.ts` sobre por qué sus lecturas tampoco filtran por
- * dueño.)
+ * Las bibliotecas compartidas no se filtran por dueño al bajar: la política
+ * RLS es la que decide qué filas de otros miembros se pueden ver. Ninguna
+ * tabla pasa hoy por este motor (ver `SYNC_TABLE_NAMES`), pero la distinción
+ * se deja escrita para cuando una tabla sí la necesite otra vez.
  */
-const SHARED_LIBRARY_TABLES: ReadonlySet<SyncTableName> = new Set([
+const SHARED_LIBRARY_TABLES: ReadonlySet<string> = new Set([
   'training_muscle_groups',
   'training_exercises',
   'training_exercise_muscle_contributions',
@@ -89,14 +68,14 @@ function isAfter(a: string, b: string): boolean {
   return Date.parse(a) > Date.parse(b)
 }
 
-function localTable(tableName: SyncTableName): EntityTable<SyncedEntity, 'id'> {
+function localTable(tableName: string): EntityTable<SyncedEntity, 'id'> {
   return db.table(tableName)
 }
 
 /** Upserts every local row changed since `since` to Supabase. */
 export async function pushTable(
   client: SupabaseClient,
-  tableName: SyncTableName,
+  tableName: string,
   userId: string,
   since: string,
 ): Promise<void> {
@@ -128,7 +107,7 @@ export async function pushTable(
  */
 export async function pullTable(
   client: SupabaseClient,
-  tableName: SyncTableName,
+  tableName: string,
   userId: string,
   since: string,
 ): Promise<string | null> {

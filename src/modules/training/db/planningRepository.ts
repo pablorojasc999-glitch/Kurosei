@@ -1,4 +1,5 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import { deleteCardioSession, listCardioSessions } from './cardioRepository'
@@ -20,10 +21,16 @@ import type {
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
+/** Ya no pasa por Dexie: habla directo con Supabase. */
+function client() {
+  if (!supabase) throw new Error('La periodización necesita conexión para funcionar.')
+  return supabase
+}
+
 export async function listMacrocycles(): Promise<Macrocycle[]> {
-  return db.training_macrocycles
-    .filter((m) => m.deletedAt === null)
-    .sortBy('startDate')
+  const { data, error } = await client().from('training_macrocycles').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Macrocycle[]).sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
 export interface CreateMacrocycleInput {
@@ -44,7 +51,9 @@ export async function createMacrocycle(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_macrocycles.add(macrocycle)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_macrocycles').insert({ ...macrocycle, userId })
+  if (error) throw new Error(error.message)
   return macrocycle
 }
 
@@ -52,17 +61,33 @@ export async function updateMacrocycle(
   id: string,
   input: CreateMacrocycleInput,
 ): Promise<void> {
-  await db.training_macrocycles.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('training_macrocycles')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+export async function getMesocycleById(id: string): Promise<Mesocycle | null> {
+  const { data, error } = await client()
+    .from('training_mesocycles')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data as Mesocycle | null
 }
 
 export async function listMesocycles(
   macrocycleId: string,
 ): Promise<Mesocycle[]> {
-  return db.training_mesocycles
-    .where('macrocycleId')
-    .equals(macrocycleId)
-    .filter((m) => m.deletedAt === null)
-    .sortBy('order')
+  const { data, error } = await client()
+    .from('training_mesocycles')
+    .select('*')
+    .eq('macrocycleId', macrocycleId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Mesocycle[]).sort((a, b) => a.order - b.order)
 }
 
 export interface CreateMesocycleInput {
@@ -89,7 +114,9 @@ export async function createMesocycle(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_mesocycles.add(mesocycle)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_mesocycles').insert({ ...mesocycle, userId })
+  if (error) throw new Error(error.message)
   return mesocycle
 }
 
@@ -97,15 +124,21 @@ export async function updateMesocycle(
   id: string,
   input: Omit<CreateMesocycleInput, 'macrocycleId'>,
 ): Promise<void> {
-  await db.training_mesocycles.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('training_mesocycles')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function listWeeks(mesocycleId: string): Promise<Week[]> {
-  return db.training_weeks
-    .where('mesocycleId')
-    .equals(mesocycleId)
-    .filter((w) => w.deletedAt === null)
-    .sortBy('order')
+  const { data, error } = await client()
+    .from('training_weeks')
+    .select('*')
+    .eq('mesocycleId', mesocycleId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Week[]).sort((a, b) => a.order - b.order)
 }
 
 export async function createWeek(mesocycleId: string): Promise<Week> {
@@ -122,8 +155,20 @@ export async function createWeek(mesocycleId: string): Promise<Week> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_weeks.add(week)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_weeks').insert({ ...week, userId })
+  if (error) throw new Error(error.message)
   return week
+}
+
+export async function getWeekById(id: string): Promise<Week | null> {
+  const { data, error } = await client()
+    .from('training_weeks')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data as Week | null
 }
 
 /**
@@ -134,7 +179,7 @@ export async function reorderWeek(
   id: string,
   direction: 'up' | 'down',
 ): Promise<void> {
-  const week = await db.training_weeks.get(id)
+  const week = await getWeekById(id)
   if (!week) return
   const siblings = await listWeeks(week.mesocycleId)
   const index = siblings.findIndex((w) => w.id === id)
@@ -143,18 +188,43 @@ export async function reorderWeek(
   if (!target) return
 
   const timestamp = nowIso()
-  await db.transaction('rw', db.training_weeks, async () => {
-    await db.training_weeks.update(week.id, { order: target.order, updatedAt: timestamp })
-    await db.training_weeks.update(target.id, { order: week.order, updatedAt: timestamp })
-  })
+  const { error: error1 } = await client()
+    .from('training_weeks')
+    .update({ order: target.order, updatedAt: timestamp })
+    .eq('id', week.id)
+  if (error1) throw new Error(error1.message)
+  const { error: error2 } = await client()
+    .from('training_weeks')
+    .update({ order: week.order, updatedAt: timestamp })
+    .eq('id', target.id)
+  if (error2) throw new Error(error2.message)
 }
 
 export async function listDays(weekId: string): Promise<Day[]> {
-  return db.training_days
-    .where('weekId')
-    .equals(weekId)
-    .filter((d) => d.deletedAt === null)
-    .sortBy('date')
+  const { data, error } = await client()
+    .from('training_days')
+    .select('*')
+    .eq('weekId', weekId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Day[]).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+/** Todos los días no borrados — para cruces con otras tablas (ver metricsQueries.ts). */
+export async function listAllDays(): Promise<Day[]> {
+  const { data, error } = await client().from('training_days').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as Day[]
+}
+
+export async function getDayById(id: string): Promise<Day | null> {
+  const { data, error } = await client()
+    .from('training_days')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data as Day | null
 }
 
 export interface CreateDayInput {
@@ -173,7 +243,9 @@ export async function createDay(input: CreateDayInput): Promise<Day> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_days.add(day)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_days').insert({ ...day, userId })
+  if (error) throw new Error(error.message)
   return day
 }
 
@@ -183,15 +255,20 @@ export interface UpdateDayInput {
 }
 
 export async function updateDay(id: string, input: UpdateDayInput): Promise<void> {
-  await db.training_days.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('training_days')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Closes or reopens a Day's plan, locking/unlocking every planned exercise and set inside it. */
 export async function setDayPlanClosed(id: string, closed: boolean): Promise<void> {
-  await db.training_days.update(id, {
-    planClosedAt: closed ? nowIso() : null,
-    updatedAt: nowIso(),
-  })
+  const { error } = await client()
+    .from('training_days')
+    .update({ planClosedAt: closed ? nowIso() : null, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** True if a strength session or cardio session was already logged for this day. */
@@ -223,33 +300,27 @@ export async function deleteDay(id: string): Promise<void> {
   }
 
   const timestamp = nowIso()
-  await db.transaction(
-    'rw',
-    db.training_days,
-    db.training_planned_exercises,
-    db.training_planned_sets,
-    async () => {
-      await db.training_days.update(id, {
-        deletedAt: timestamp,
-        updatedAt: timestamp,
-      })
-      for (const pe of plannedExercises) {
-        await db.training_planned_exercises.update(pe.id, {
-          deletedAt: timestamp,
-          updatedAt: timestamp,
-        })
-        const sets = await listPlannedSets(pe.id)
-        await Promise.all(
-          sets.map((s) =>
-            db.training_planned_sets.update(s.id, {
-              deletedAt: timestamp,
-              updatedAt: timestamp,
-            }),
-          ),
-        )
-      }
-    },
-  )
+  const { error } = await client()
+    .from('training_days')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+
+  for (const pe of plannedExercises) {
+    const { error: peError } = await client()
+      .from('training_planned_exercises')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', pe.id)
+    if (peError) throw new Error(peError.message)
+    const sets = await listPlannedSets(pe.id)
+    for (const s of sets) {
+      const { error: setError } = await client()
+        .from('training_planned_sets')
+        .update({ deletedAt: timestamp, updatedAt: timestamp })
+        .eq('id', s.id)
+      if (setError) throw new Error(setError.message)
+    }
+  }
 }
 
 /** Deletes a Week and every day inside it (see deleteDay). */
@@ -259,7 +330,11 @@ export async function deleteWeek(id: string): Promise<void> {
     await deleteDay(day.id)
   }
   const timestamp = nowIso()
-  await db.training_weeks.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('training_weeks')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Deletes a Mesocycle and every week inside it (see deleteWeek). */
@@ -269,7 +344,11 @@ export async function deleteMesocycle(id: string): Promise<void> {
     await deleteWeek(week.id)
   }
   const timestamp = nowIso()
-  await db.training_mesocycles.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('training_mesocycles')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Deletes a Macrocycle and every mesocycle inside it (see deleteMesocycle). */
@@ -279,17 +358,46 @@ export async function deleteMacrocycle(id: string): Promise<void> {
     await deleteMesocycle(mesocycle.id)
   }
   const timestamp = nowIso()
-  await db.training_macrocycles.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('training_macrocycles')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function listPlannedExercises(
   dayId: string,
 ): Promise<PlannedExercise[]> {
-  return db.training_planned_exercises
-    .where('dayId')
-    .equals(dayId)
-    .filter((pe) => pe.deletedAt === null)
-    .sortBy('order')
+  const { data, error } = await client()
+    .from('training_planned_exercises')
+    .select('*')
+    .eq('dayId', dayId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as PlannedExercise[]).sort((a, b) => a.order - b.order)
+}
+
+/** Todos los ejercicios planificados de un ejercicio, en cualquier día — para getRecentRpeDeviations (ver metricsQueries.ts). */
+export async function listPlannedExercisesForExercise(
+  exerciseId: string,
+): Promise<PlannedExercise[]> {
+  const { data, error } = await client()
+    .from('training_planned_exercises')
+    .select('*')
+    .eq('exerciseId', exerciseId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as PlannedExercise[]
+}
+
+async function getPlannedExerciseById(id: string): Promise<PlannedExercise | null> {
+  const { data, error } = await client()
+    .from('training_planned_exercises')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return data as PlannedExercise | null
 }
 
 export interface CreatePlannedExerciseInput {
@@ -315,7 +423,11 @@ export async function createPlannedExercise(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_planned_exercises.add(plannedExercise)
+  const userId = await requireUserId()
+  const { error } = await client()
+    .from('training_planned_exercises')
+    .insert({ ...plannedExercise, userId })
+  if (error) throw new Error(error.message)
   return plannedExercise
 }
 
@@ -327,7 +439,7 @@ export async function reorderPlannedExercise(
   id: string,
   direction: 'up' | 'down',
 ): Promise<void> {
-  const plannedExercise = await db.training_planned_exercises.get(id)
+  const plannedExercise = await getPlannedExerciseById(id)
   if (!plannedExercise) return
   const siblings = await listPlannedExercises(plannedExercise.dayId)
   const index = siblings.findIndex((pe) => pe.id === id)
@@ -336,16 +448,16 @@ export async function reorderPlannedExercise(
   if (!target) return
 
   const timestamp = nowIso()
-  await db.transaction('rw', db.training_planned_exercises, async () => {
-    await db.training_planned_exercises.update(plannedExercise.id, {
-      order: target.order,
-      updatedAt: timestamp,
-    })
-    await db.training_planned_exercises.update(target.id, {
-      order: plannedExercise.order,
-      updatedAt: timestamp,
-    })
-  })
+  const { error: error1 } = await client()
+    .from('training_planned_exercises')
+    .update({ order: target.order, updatedAt: timestamp })
+    .eq('id', plannedExercise.id)
+  if (error1) throw new Error(error1.message)
+  const { error: error2 } = await client()
+    .from('training_planned_exercises')
+    .update({ order: plannedExercise.order, updatedAt: timestamp })
+    .eq('id', target.id)
+  if (error2) throw new Error(error2.message)
 }
 
 /** Closes or reopens a single planned exercise, independent of its Day's plan lock. */
@@ -353,20 +465,30 @@ export async function setPlannedExerciseClosed(
   id: string,
   closed: boolean,
 ): Promise<void> {
-  await db.training_planned_exercises.update(id, {
-    closedAt: closed ? nowIso() : null,
-    updatedAt: nowIso(),
-  })
+  const { error } = await client()
+    .from('training_planned_exercises')
+    .update({ closedAt: closed ? nowIso() : null, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function listPlannedSets(
   plannedExerciseId: string,
 ): Promise<PlannedSet[]> {
-  return db.training_planned_sets
-    .where('plannedExerciseId')
-    .equals(plannedExerciseId)
-    .filter((ps) => ps.deletedAt === null)
-    .sortBy('setNumber')
+  const { data, error } = await client()
+    .from('training_planned_sets')
+    .select('*')
+    .eq('plannedExerciseId', plannedExerciseId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as PlannedSet[]).sort((a, b) => a.setNumber - b.setNumber)
+}
+
+/** Todas las series planificadas no borradas — para cruces con otras tablas (ver SessionView.tsx). */
+export async function listAllPlannedSets(): Promise<PlannedSet[]> {
+  const { data, error } = await client().from('training_planned_sets').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as PlannedSet[]
 }
 
 export interface CreatePlannedSetInput {
@@ -395,7 +517,9 @@ export async function createPlannedSet(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_planned_sets.add(plannedSet)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_planned_sets').insert({ ...plannedSet, userId })
+  if (error) throw new Error(error.message)
   return plannedSet
 }
 
@@ -420,43 +544,41 @@ export async function updatePlannedSet(
   // Pasarla como `undefined` en el update la dejaría en undefined, que no es
   // lo mismo que no haberla pasado.
   const { restSecondsTarget, ...rest } = input
-  await db.training_planned_sets.update(id, {
-    ...rest,
-    ...(restSecondsTarget === undefined ? {} : { restSecondsTarget }),
-    updatedAt: nowIso(),
-  })
+  const { error } = await client()
+    .from('training_planned_sets')
+    .update({
+      ...rest,
+      ...(restSecondsTarget === undefined ? {} : { restSecondsTarget }),
+      updatedAt: nowIso(),
+    })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function deletePlannedSet(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.training_planned_sets.update(id, {
-    deletedAt: timestamp,
-    updatedAt: timestamp,
-  })
+  const { error } = await client()
+    .from('training_planned_sets')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function deletePlannedExercise(id: string): Promise<void> {
   const timestamp = nowIso()
   const sets = await listPlannedSets(id)
-  await db.transaction(
-    'rw',
-    db.training_planned_exercises,
-    db.training_planned_sets,
-    async () => {
-      await db.training_planned_exercises.update(id, {
-        deletedAt: timestamp,
-        updatedAt: timestamp,
-      })
-      await Promise.all(
-        sets.map((s) =>
-          db.training_planned_sets.update(s.id, {
-            deletedAt: timestamp,
-            updatedAt: timestamp,
-          }),
-        ),
-      )
-    },
-  )
+  const { error } = await client()
+    .from('training_planned_exercises')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+  for (const s of sets) {
+    const { error: setError } = await client()
+      .from('training_planned_sets')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', s.id)
+    if (setError) throw new Error(setError.message)
+  }
 }
 
 /**
@@ -505,7 +627,9 @@ async function copyPlannedExerciseTo(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.training_planned_exercises.add(copy)
+  const userId = await requireUserId()
+  const { error } = await client().from('training_planned_exercises').insert({ ...copy, userId })
+  if (error) throw new Error(error.message)
   const sourceSets = await listPlannedSets(source.id)
   if (sourceSets.length > 0) {
     await setPlannedSets(copy.id, setsToCopy(sourceSets, source))
@@ -523,16 +647,9 @@ export async function copyPlannedExercisesToDay(
   targetDayId: string,
 ): Promise<void> {
   const sourcePlannedExercises = await listPlannedExercises(sourceDayId)
-  await db.transaction(
-    'rw',
-    db.training_planned_exercises,
-    db.training_planned_sets,
-    async () => {
-      for (const sourcePe of sourcePlannedExercises) {
-        await copyPlannedExerciseTo(sourcePe, targetDayId)
-      }
-    },
-  )
+  for (const sourcePe of sourcePlannedExercises) {
+    await copyPlannedExerciseTo(sourcePe, targetDayId)
+  }
 }
 
 /**
@@ -541,28 +658,23 @@ export async function copyPlannedExercisesToDay(
  * exercises/sets copied 1:1 so they can be edited independently.
  */
 export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
-  const sourceWeek = await db.training_weeks.get(sourceWeekId)
+  const sourceWeek = await getWeekById(sourceWeekId)
   if (!sourceWeek) {
     throw new Error('Semana de origen no encontrada.')
   }
 
   const sourceDays = await listDays(sourceWeekId)
-  const timestamp = nowIso()
   const newWeek = await createWeek(sourceWeek.mesocycleId)
 
-  const newDays: Day[] = sourceDays.map((sourceDay) => ({
-    id: generateId(),
-    weekId: newWeek.id,
-    date: new Date(
-      new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS,
-    ).toISOString(),
-    label: sourceDay.label,
-    planClosedAt: null,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    deletedAt: null,
-  }))
-  await db.training_days.bulkAdd(newDays)
+  const newDays: Day[] = []
+  for (const sourceDay of sourceDays) {
+    const newDay = await createDay({
+      weekId: newWeek.id,
+      date: new Date(new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS).toISOString(),
+      label: sourceDay.label,
+    })
+    newDays.push(newDay)
+  }
 
   for (let i = 0; i < sourceDays.length; i++) {
     await copyPlannedExercisesToDay(sourceDays[i].id, newDays[i].id)
@@ -585,16 +697,22 @@ export interface PlannedDaySummary {
  */
 export async function listPlannedDaysWithExercises(): Promise<PlannedDaySummary[]> {
   const [days, plannedExercises] = await Promise.all([
-    db.training_days
-      .filter((d) => d.deletedAt === null && d.weekId !== null)
-      .toArray(),
-    db.training_planned_exercises.filter((pe) => pe.deletedAt === null).toArray(),
+    listAllDays(),
+    (async () => {
+      const { data, error } = await client()
+        .from('training_planned_exercises')
+        .select('*')
+        .is('deletedAt', null)
+      if (error) throw new Error(error.message)
+      return data as PlannedExercise[]
+    })(),
   ])
+  const plannedDays = days.filter((d) => d.weekId !== null)
   const countByDay = new Map<string, number>()
   for (const pe of plannedExercises) {
     countByDay.set(pe.dayId, (countByDay.get(pe.dayId) ?? 0) + 1)
   }
-  return days
+  return plannedDays
     .map((d) => ({
       id: d.id,
       date: d.date,
@@ -619,12 +737,19 @@ export interface WeekWithContext {
  * Progreso's per-week volume view.
  */
 export async function listWeeksWithContext(): Promise<WeekWithContext[]> {
-  const [weeks, mesocycles, macrocycles, days] = await Promise.all([
-    db.training_weeks.filter((w) => w.deletedAt === null).toArray(),
-    db.training_mesocycles.filter((m) => m.deletedAt === null).toArray(),
-    db.training_macrocycles.filter((m) => m.deletedAt === null).toArray(),
-    db.training_days.filter((d) => d.deletedAt === null).toArray(),
+  const [weeksRes, mesocyclesRes, macrocyclesRes, days] = await Promise.all([
+    client().from('training_weeks').select('*').is('deletedAt', null),
+    client().from('training_mesocycles').select('*').is('deletedAt', null),
+    client().from('training_macrocycles').select('*').is('deletedAt', null),
+    listAllDays(),
   ])
+  if (weeksRes.error) throw new Error(weeksRes.error.message)
+  if (mesocyclesRes.error) throw new Error(mesocyclesRes.error.message)
+  if (macrocyclesRes.error) throw new Error(macrocyclesRes.error.message)
+  const weeks = weeksRes.data as Week[]
+  const mesocycles = mesocyclesRes.data as Mesocycle[]
+  const macrocycles = macrocyclesRes.data as Macrocycle[]
+
   const mesoById = new Map(mesocycles.map((m) => [m.id, m]))
   const macroById = new Map(macrocycles.map((m) => [m.id, m]))
   const dayDatesByWeek = new Map<string, string[]>()
@@ -664,10 +789,14 @@ export interface MesocycleWithContext {
  * by start date — drives the mesocycle picker for Progreso's scope selector.
  */
 export async function listMesocyclesWithContext(): Promise<MesocycleWithContext[]> {
-  const [mesocycles, macrocycles] = await Promise.all([
-    db.training_mesocycles.filter((m) => m.deletedAt === null).toArray(),
-    db.training_macrocycles.filter((m) => m.deletedAt === null).toArray(),
+  const [mesocyclesRes, macrocyclesRes] = await Promise.all([
+    client().from('training_mesocycles').select('*').is('deletedAt', null),
+    client().from('training_macrocycles').select('*').is('deletedAt', null),
   ])
+  if (mesocyclesRes.error) throw new Error(mesocyclesRes.error.message)
+  if (macrocyclesRes.error) throw new Error(macrocyclesRes.error.message)
+  const mesocycles = mesocyclesRes.data as Mesocycle[]
+  const macrocycles = macrocyclesRes.data as Macrocycle[]
   const macroById = new Map(macrocycles.map((m) => [m.id, m]))
 
   return mesocycles
@@ -682,18 +811,17 @@ export async function listMesocyclesWithContext(): Promise<MesocycleWithContext[
     .sort((a, b) => a.startDate.localeCompare(b.startDate))
 }
 
-/** Finds the Day (if any) whose date falls on the same calendar day as `date`. */
 /**
  * The Day matching `date`, if one exists. If more than one row somehow
  * matches (a leftover duplicate from a race before `getOrCreateDayForDate`
- * became transactional), the most recently updated one wins — an unsorted
- * `.first()` would pick an arbitrary one by primary key instead.
+ * guarded against it), the most recently updated one wins — an unsorted
+ * read would pick an arbitrary one instead.
  */
 export async function findDayByDate(date: Date): Promise<Day | null> {
   const dateKey = date.toDateString()
-  const days = await db.training_days
-    .filter((d) => d.deletedAt === null && new Date(d.date).toDateString() === dateKey)
-    .toArray()
+  const days = (await listAllDays()).filter(
+    (d) => new Date(d.date).toDateString() === dateKey,
+  )
   if (days.length === 0) return null
   return days.reduce((latest, d) => (d.updatedAt > latest.updatedAt ? d : latest))
 }
@@ -701,18 +829,17 @@ export async function findDayByDate(date: Date): Promise<Day | null> {
 /**
  * Returns the Day for `date`, creating an unplanned/ad-hoc one (weekId
  * null) on the fly if none exists yet — used when logging a session or
- * cardio for a day that was never planned. Runs as one transaction so two
- * near-simultaneous calls (e.g. a fast double-tap) can't both pass the
- * "doesn't exist yet" check and create two Day rows for the same date.
+ * cardio for a day that was never planned.
+ *
+ * No hay transacción entre cliente y Supabase que evite que dos toques casi
+ * simultáneos pasen juntos el "no existe todavía" y creen dos días — el
+ * mismo riesgo que ya se acepta en el resto de los repositorios migrados.
  */
 export async function getOrCreateDayForDate(date: Date): Promise<Day> {
-  return db.transaction('rw', db.training_days, async () => {
-    const existing = await findDayByDate(date)
-    if (existing) return existing
-    return createDay({ weekId: null, date: date.toISOString(), label: '' })
-  })
+  const existing = await findDayByDate(date)
+  if (existing) return existing
+  return createDay({ weekId: null, date: date.toISOString(), label: '' })
 }
-
 
 // ---------------------------------------------------------------------
 // Planilla del bloque
@@ -732,32 +859,74 @@ export interface BlockGridData {
 
 export async function getBlockGridData(mesocycleId: string): Promise<BlockGridData> {
   const weeks = await listWeeks(mesocycleId)
-  const weekIds = new Set(weeks.map((w) => w.id))
-  const days = (
-    await db.training_days.filter((d) => d.deletedAt === null && d.weekId !== null).toArray()
-  ).filter((d) => weekIds.has(d.weekId as string))
+  const weekIds = weeks.map((w) => w.id)
+  if (weekIds.length === 0) {
+    return { weeks, days: [], plannedExercises: [], plannedSets: [], sessions: [], sessionExercises: [], executedSets: [] }
+  }
 
-  const dayIds = new Set(days.map((d) => d.id))
-  const plannedExercises = (
-    await db.training_planned_exercises.filter((pe) => pe.deletedAt === null).toArray()
-  ).filter((pe) => dayIds.has(pe.dayId))
+  const { data: daysData, error: daysError } = await client()
+    .from('training_days')
+    .select('*')
+    .in('weekId', weekIds)
+    .is('deletedAt', null)
+  if (daysError) throw new Error(daysError.message)
+  const days = daysData as Day[]
 
-  const peIds = new Set(plannedExercises.map((pe) => pe.id))
-  const plannedSets = (
-    await db.training_planned_sets.filter((ps) => ps.deletedAt === null).toArray()
-  ).filter((ps) => peIds.has(ps.plannedExerciseId))
+  const dayIds = days.map((d) => d.id)
+  let plannedExercises: PlannedExercise[] = []
+  let sessions: StrengthSession[] = []
+  if (dayIds.length > 0) {
+    const [peRes, sessionsRes] = await Promise.all([
+      client().from('training_planned_exercises').select('*').in('dayId', dayIds).is('deletedAt', null),
+      client().from('training_sessions').select('*').in('dayId', dayIds).is('deletedAt', null),
+    ])
+    if (peRes.error) throw new Error(peRes.error.message)
+    if (sessionsRes.error) throw new Error(sessionsRes.error.message)
+    plannedExercises = peRes.data as PlannedExercise[]
+    sessions = sessionsRes.data as StrengthSession[]
+  }
 
-  const sessions = (
-    await db.training_sessions.filter((s) => s.deletedAt === null).toArray()
-  ).filter((s) => dayIds.has(s.dayId))
-  const sessionIds = new Set(sessions.map((s) => s.id))
-  const sessionExercises = (
-    await db.training_session_exercises.filter((se) => se.deletedAt === null).toArray()
-  ).filter((se) => sessionIds.has(se.sessionId))
-  const seIds = new Set(sessionExercises.map((se) => se.id))
-  const executedSets = (
-    await db.training_executed_sets.filter((es) => es.deletedAt === null).toArray()
-  ).filter((es) => seIds.has(es.sessionExerciseId))
+  const peIds = plannedExercises.map((pe) => pe.id)
+  const plannedSets =
+    peIds.length === 0
+      ? []
+      : ((await (async () => {
+          const { data, error } = await client()
+            .from('training_planned_sets')
+            .select('*')
+            .in('plannedExerciseId', peIds)
+            .is('deletedAt', null)
+          if (error) throw new Error(error.message)
+          return data as PlannedSet[]
+        })()) ?? [])
+
+  const sessionIds = sessions.map((s) => s.id)
+  const sessionExercises =
+    sessionIds.length === 0
+      ? []
+      : ((await (async () => {
+          const { data, error } = await client()
+            .from('training_session_exercises')
+            .select('*')
+            .in('sessionId', sessionIds)
+            .is('deletedAt', null)
+          if (error) throw new Error(error.message)
+          return data as SessionExercise[]
+        })()) ?? [])
+
+  const seIds = sessionExercises.map((se) => se.id)
+  const executedSets =
+    seIds.length === 0
+      ? []
+      : ((await (async () => {
+          const { data, error } = await client()
+            .from('training_executed_sets')
+            .select('*')
+            .in('sessionExerciseId', seIds)
+            .is('deletedAt', null)
+          if (error) throw new Error(error.message)
+          return data as ExecutedSet[]
+        })()) ?? [])
 
   return {
     weeks,
@@ -813,22 +982,26 @@ export async function setPlannedSets(
 
   const timestamp = nowIso()
   const existing = await listPlannedSets(plannedExerciseId)
+  const userId = await requireUserId()
 
-  await db.transaction('rw', db.training_planned_sets, async () => {
-    for (let i = 0; i < rows.length; i++) {
-      const { dropSet, restPause, countsAsEffective, ...rest } = rows[i]
-      const fields = {
-        ...rest,
-        setNumber: i + 1,
-        updatedAt: timestamp,
-        ...(dropSet === undefined ? {} : { dropSet }),
-        ...(restPause === undefined ? {} : { restPause }),
-        ...(countsAsEffective === undefined ? {} : { countsAsEffective }),
-      }
-      const current = existing[i]
-      if (current) await db.training_planned_sets.update(current.id, fields)
-      else {
-        await db.training_planned_sets.add({
+  for (let i = 0; i < rows.length; i++) {
+    const { dropSet, restPause, countsAsEffective, ...rest } = rows[i]
+    const fields = {
+      ...rest,
+      setNumber: i + 1,
+      updatedAt: timestamp,
+      ...(dropSet === undefined ? {} : { dropSet }),
+      ...(restPause === undefined ? {} : { restPause }),
+      ...(countsAsEffective === undefined ? {} : { countsAsEffective }),
+    }
+    const current = existing[i]
+    if (current) {
+      const { error } = await client().from('training_planned_sets').update(fields).eq('id', current.id)
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await client()
+        .from('training_planned_sets')
+        .insert({
           id: generateId(),
           plannedExerciseId,
           dropSet: dropSet === true,
@@ -836,17 +1009,19 @@ export async function setPlannedSets(
           ...fields,
           createdAt: timestamp,
           deletedAt: null,
+          userId,
         })
-      }
+      if (error) throw new Error(error.message)
     }
-    // Las que sobran se borran: bajar de 5 a 3 series tiene que dejar 3.
-    for (const extra of existing.slice(rows.length)) {
-      await db.training_planned_sets.update(extra.id, {
-        deletedAt: timestamp,
-        updatedAt: timestamp,
-      })
-    }
-  })
+  }
+  // Las que sobran se borran: bajar de 5 a 3 series tiene que dejar 3.
+  for (const extra of existing.slice(rows.length)) {
+    const { error } = await client()
+      .from('training_planned_sets')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', extra.id)
+    if (error) throw new Error(error.message)
+  }
 }
 
 /**
@@ -891,7 +1066,7 @@ export async function pinExerciseAcrossBlock(
   exerciseId: string,
   sourcePlannedExerciseId: string,
 ): Promise<PinExerciseResult> {
-  const source = await db.training_planned_exercises.get(sourcePlannedExerciseId)
+  const source = await getPlannedExerciseById(sourcePlannedExerciseId)
   if (!source) throw new Error('No se encontró el ejercicio de origen.')
   const sourceSets = await listPlannedSets(sourcePlannedExerciseId)
 
@@ -1012,15 +1187,17 @@ export async function reorderSlotExercise(
 
   const rank = new Map(next.map((id, index) => [id, index]))
   const timestamp = nowIso()
-  await db.transaction('rw', db.training_planned_exercises, async () => {
-    for (const list of peByDay.values()) {
-      for (const pe of list) {
-        const order = rank.get(pe.exerciseId)
-        if (order === undefined || order === pe.order) continue
-        await db.training_planned_exercises.update(pe.id, { order, updatedAt: timestamp })
-      }
+  for (const list of peByDay.values()) {
+    for (const pe of list) {
+      const order = rank.get(pe.exerciseId)
+      if (order === undefined || order === pe.order) continue
+      const { error } = await client()
+        .from('training_planned_exercises')
+        .update({ order, updatedAt: timestamp })
+        .eq('id', pe.id)
+      if (error) throw new Error(error.message)
     }
-  })
+  }
 }
 
 export interface MoveExerciseResult {
@@ -1069,11 +1246,11 @@ export async function moveSlotExerciseToSlot(
     const nextOrder = targets.length
       ? Math.max(...targets.map((pe) => pe.order)) + 1
       : 0
-    await db.training_planned_exercises.update(source.id, {
-      dayId: to.id,
-      order: nextOrder,
-      updatedAt: timestamp,
-    })
+    const { error } = await client()
+      .from('training_planned_exercises')
+      .update({ dayId: to.id, order: nextOrder, updatedAt: timestamp })
+      .eq('id', source.id)
+    if (error) throw new Error(error.message)
     moved += 1
   }
 
@@ -1102,10 +1279,11 @@ export async function setSlotExerciseCounts(
     for (const pe of await listPlannedExercises(day.id)) {
       if (pe.exerciseId !== exerciseId) continue
       for (const set of await listPlannedSets(pe.id)) {
-        await db.training_planned_sets.update(set.id, {
-          countsAsEffective: counts,
-          updatedAt: timestamp,
-        })
+        const { error } = await client()
+          .from('training_planned_sets')
+          .update({ countsAsEffective: counts, updatedAt: timestamp })
+          .eq('id', set.id)
+        if (error) throw new Error(error.message)
       }
     }
   }

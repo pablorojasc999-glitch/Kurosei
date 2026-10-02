@@ -1,10 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { db } from '../../../shared/db/database'
 import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
-import { createCardioSession } from './cardioRepository'
-import { addSessionExercise, createExecutedSet, endSession, startSession } from './executionRepository'
-import { getOrCreateDayForDate } from './planningRepository'
-import { createExercise, createMuscleGroup } from './trainingRepository'
 import { inclusiveRange } from '../lib/progressScope'
 
 const fake = createFakeSupabaseClient()
@@ -20,14 +15,23 @@ vi.mock('../../sync/lib/auth', () => ({
 
 const { listDailyMetricsInRange } = await import('./bitacoraQueries')
 const { upsertDailyLog } = await import('./bitacoraRepository')
+const { createCardioSession } = await import('./cardioRepository')
+const { addSessionExercise, createExecutedSet, endSession, startSession } = await import(
+  './executionRepository'
+)
+const { getOrCreateDayForDate } = await import('./planningRepository')
+const { createExercise, createMuscleGroup } = await import('./trainingRepository')
 
-beforeEach(async () => {
+beforeEach(() => {
   fake.tables.training_daily_logs = []
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+  fake.tables.training_days = []
+  fake.tables.training_sessions = []
+  fake.tables.training_session_exercises = []
+  fake.tables.training_executed_sets = []
+  fake.tables.training_cardio_sessions = []
+  fake.tables.training_exercises = []
+  fake.tables.training_muscle_groups = []
+  fake.tables.training_exercise_muscle_contributions = []
 })
 
 const EMPTY_LOG_INPUT = {

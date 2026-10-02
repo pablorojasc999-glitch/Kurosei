@@ -1,12 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { db } from '../../../shared/db/database'
+import { generateId } from '../../../shared/lib/id'
+import { nowIso } from '../../../shared/lib/timestamps'
 import { pullTable, pushTable, syncNow } from './syncEngine'
-import {
-  createExercise,
-  createMuscleGroup,
-  softDeleteExercise,
-} from '../../training/db/trainingRepository'
 
 beforeEach(async () => {
   await db.transaction('rw', db.tables, async () =>
@@ -14,6 +11,40 @@ beforeEach(async () => {
   )
   localStorage.clear()
 })
+
+// Las tablas de entrenamiento ya no pasan por Dexie (ver trainingRepository.ts),
+// así que estas pruebas de la mecánica genérica del motor de sync siembran
+// filas de Dexie a mano en vez de usar ese repositorio.
+async function seedMuscleGroup(name: string) {
+  const row = {
+    id: generateId(),
+    name,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    deletedAt: null,
+  }
+  await db.training_muscle_groups.add(row)
+  return row
+}
+
+async function seedExercise(name: string) {
+  const row = {
+    id: generateId(),
+    name,
+    type: 'cardio' as const,
+    category: null,
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    deletedAt: null,
+  }
+  await db.training_exercises.add(row)
+  return row
+}
+
+async function softDeleteExercise(id: string) {
+  const timestamp = nowIso()
+  await db.training_exercises.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+}
 
 interface FakeRow {
   id: string
@@ -94,7 +125,7 @@ const EPOCH = '1970-01-01T00:00:00.000Z'
 
 describe('pushTable', () => {
   it('upserts local rows changed since the cutoff, attaching userId', async () => {
-    const group = await createMuscleGroup('Pecho')
+    const group = await seedMuscleGroup('Pecho')
     const { client, store } = createFakeSupabaseClient()
 
     await pushTable(client, 'training_muscle_groups', USER_ID, EPOCH)
@@ -108,7 +139,7 @@ describe('pushTable', () => {
   })
 
   it('does not push rows older than the cutoff', async () => {
-    const group = await createMuscleGroup('Pecho')
+    const group = await seedMuscleGroup('Pecho')
     const { client, store } = createFakeSupabaseClient()
 
     // cutoff after the row's updatedAt -> nothing to push
@@ -121,7 +152,7 @@ describe('pushTable', () => {
   })
 
   it('throws a readable Error carrying the table name and Supabase message on failure', async () => {
-    await createMuscleGroup('Pecho')
+    await seedMuscleGroup('Pecho')
     const { client } = createFakeSupabaseClient([], 'column "factor" does not exist')
 
     await expect(
@@ -130,12 +161,7 @@ describe('pushTable', () => {
   })
 
   it('pushes a soft-delete as an update (a delete must bump updatedAt or it never syncs)', async () => {
-    const exercise = await createExercise({
-      name: 'Bicicleta',
-      type: 'cardio',
-      category: null,
-      muscleContributions: [],
-    })
+    const exercise = await seedExercise('Bicicleta')
     const { client, store } = createFakeSupabaseClient()
 
     // Sync once right after creation, as a real client would before deleting.
@@ -171,7 +197,7 @@ describe('pullTable', () => {
   })
 
   it('overwrites the local row when the remote one is newer', async () => {
-    const group = await createMuscleGroup('Pecho')
+    const group = await seedMuscleGroup('Pecho')
     const newerRemote = {
       ...group,
       userId: USER_ID,
@@ -189,7 +215,7 @@ describe('pullTable', () => {
   })
 
   it('keeps the local row when it is newer than the remote one (last-write-wins)', async () => {
-    const group = await createMuscleGroup('Pecho')
+    const group = await seedMuscleGroup('Pecho')
     const olderRemote = {
       ...group,
       userId: USER_ID,
@@ -273,7 +299,7 @@ describe('pullTable', () => {
   it('compara por instante y no por texto al decidir cuál gana', async () => {
     // Postgres devuelve `.26+00:00` donde toISOString() da `.260Z`: el mismo
     // instante escrito distinto, que comparado como texto se invierte.
-    const group = await createMuscleGroup('Pecho')
+    const group = await seedMuscleGroup('Pecho')
     const mismoInstante = new Date(group.updatedAt).toISOString().replace(/\.(\d)00Z$/, '.$1+00:00')
     const remoto = {
       ...group,
