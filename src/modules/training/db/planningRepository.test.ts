@@ -99,6 +99,37 @@ async function seedMesocycle() {
   return mesocycle
 }
 
+describe('createPlannedSet', () => {
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({
+      weekId: week.id,
+      date: '2026-01-05T00:00:00.000Z',
+      label: 'Tren superior',
+    })
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const plannedExercise = await createPlannedExercise({ dayId: day.id, exerciseId: exercise.id, notes: '' })
+
+    const set = await createPlannedSet({
+      id: 'optimistic-id',
+      plannedExerciseId: plannedExercise.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: 180, dropSet: false, restPause: false })
+
+    expect(set.id).toBe('optimistic-id')
+    expect(getRow('training_planned_sets', 'optimistic-id')).toBeDefined()
+  })
+})
+
 describe('listPlannedSetsForExercises', () => {
   it('returns only the sets of the requested exercises, across any day', async () => {
     const mesocycle = await seedMesocycle()

@@ -24,6 +24,8 @@ import {
   listPlannedExercises,
 } from '../db/planningRepository'
 import { listExercises } from '../db/trainingRepository'
+import { generateId } from '../../../shared/lib/id'
+import { nowIso } from '../../../shared/lib/timestamps'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
@@ -83,7 +85,7 @@ export function SessionView({ dayId }: SessionViewProps) {
   // pantalla, así que se refrescan juntas (`refresh`) sin arrastrar al plan ni
   // a la biblioteca de ejercicios, que acá nunca se editan — pedirlos de
   // nuevo en cada serie registrada sería tráfico de sobra.
-  const { data: sessionData, refresh } = useRemoteQuery(
+  const { data: sessionData, refresh, setOptimistic: setSessionData } = useRemoteQuery(
     useCallback(async () => {
       const session = await getSessionForDay(dayId)
       const sessionExercises = session ? await listSessionExercises(session.id) : []
@@ -223,6 +225,14 @@ export function SessionView({ dayId }: SessionViewProps) {
     })
   }
 
+  /**
+   * Muestra la serie (nueva o editada) al toque, calculándola igual que la
+   * calcularía el servidor, y recién después manda la escritura real — la
+   * pantalla no espera esa vuelta para reflejar el cambio. `refresh()` al
+   * final reconcilia con lo que quedó guardado de verdad, en el `finally`
+   * para que una escritura que falla deshaga lo optimista en vez de dejarlo
+   * pisado para siempre.
+   */
   async function handleSubmitSet(sessionExerciseId: string) {
     const form = setForms[sessionExerciseId] ?? EMPTY_SET_FORM
     if (!form.reps) return
@@ -237,16 +247,63 @@ export function SessionView({ dayId }: SessionViewProps) {
         restPause: form.restPause,
       }
       const editingId = editingSetId[sessionExerciseId]
-      if (editingId) {
-        await updateExecutedSet(editingId, input)
-      } else {
-        await createExecutedSet({ sessionExerciseId, ...input })
-        // El nonce hace que el cronómetro se monte de nuevo y empiece limpio.
-        setRest((prev) => ({ sessionExerciseId, nonce: (prev?.nonce ?? 0) + 1 }))
-      }
-      await refresh()
       setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
       setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
+      if (editingId) {
+        const timestamp = nowIso()
+        // `current` existe siempre que se llega acá: este handler sólo corre
+        // con una sesión ya cargada en pantalla.
+        setSessionData((current) => ({
+          ...current!,
+          executedSets: current!.executedSets.map((s) =>
+            s.id === editingId ? { ...s, ...input, updatedAt: timestamp } : s,
+          ),
+        }))
+        try {
+          await updateExecutedSet(editingId, input)
+        } finally {
+          await refresh()
+        }
+      } else {
+        const siblings = (executedSets ?? []).filter(
+          (s) => s.sessionExerciseId === sessionExerciseId,
+        )
+        const nextSetNumber = siblings.length
+          ? Math.max(...siblings.map((s) => s.setNumber)) + 1
+          : 1
+        const previousSet = [...siblings].sort((a, b) => a.setNumber - b.setNumber).at(-1)
+        const timestamp = nowIso()
+        const restTakenSeconds = previousSet
+          ? Math.round(
+              (new Date(timestamp).getTime() - new Date(previousSet.performedAt).getTime()) / 1000,
+            )
+          : null
+        const id = generateId()
+        const optimisticSet: ExecutedSet = {
+          id,
+          sessionExerciseId,
+          ...input,
+          setNumber: nextSetNumber,
+          performedAt: timestamp,
+          restTakenSeconds,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        }
+        setSessionData((current) => ({
+          ...current!,
+          executedSets: [...current!.executedSets, optimisticSet],
+        }))
+        // El nonce hace que el cronómetro se monte de nuevo y empiece limpio,
+        // ya mismo: esperar a que el servidor confirme la serie sería el
+        // mismo segundo de más que esto evita en todo lo demás.
+        setRest((prev) => ({ sessionExerciseId, nonce: (prev?.nonce ?? 0) + 1 }))
+        try {
+          await createExecutedSet({ id, sessionExerciseId, ...input })
+        } finally {
+          await refresh()
+        }
+      }
     })
   }
 

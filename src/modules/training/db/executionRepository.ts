@@ -281,6 +281,13 @@ export async function countExecutedSetsForSession(sessionId: string): Promise<nu
 }
 
 export interface CreateExecutedSetInput {
+  /**
+   * Opcional a propósito: una pantalla que ya mostró la serie de forma
+   * optimista (ver `useRemoteQuery.setOptimistic`) pasa el mismo id que le
+   * puso a esa fila, para que la confirmación del servidor no la reemplace
+   * por otra con id distinto.
+   */
+  id?: string
   sessionExerciseId: string
   weightKg: number | null
   reps: number
@@ -294,7 +301,8 @@ export interface CreateExecutedSetInput {
 export async function createExecutedSet(
   input: CreateExecutedSetInput,
 ): Promise<ExecutedSet> {
-  const siblings = await listExecutedSets(input.sessionExerciseId)
+  const { id, ...rest } = input
+  const siblings = await listExecutedSets(rest.sessionExerciseId)
   const nextSetNumber = siblings.length
     ? Math.max(...siblings.map((s) => s.setNumber)) + 1
     : 1
@@ -309,8 +317,8 @@ export async function createExecutedSet(
     : null
 
   const executedSet: ExecutedSet = {
-    id: generateId(),
-    ...input,
+    id: id ?? generateId(),
+    ...rest,
     setNumber: nextSetNumber,
     performedAt: timestamp,
     restTakenSeconds,
