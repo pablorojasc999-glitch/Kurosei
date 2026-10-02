@@ -203,6 +203,13 @@ export function getEntryMacroTotals(entries: NutritionEntry[]): MacroTotals {
 }
 
 export interface AddFoodEntryInput {
+  /**
+   * Opcional a propósito: una pantalla que ya mostró el registro de forma
+   * optimista (ver `useRemoteQuery.setOptimistic`) pasa el mismo id que le
+   * puso a esa fila, para que la confirmación del servidor no la reemplace
+   * por otra con id distinto.
+   */
+  id?: string
   date: string
   sectionId: string
   foodId: string
@@ -211,24 +218,28 @@ export interface AddFoodEntryInput {
 }
 
 export async function addFoodEntry(input: AddFoodEntryInput): Promise<NutritionEntry> {
-  const food = await getFood(input.foodId)
+  const { id, ...rest } = input
+  const food = await getFood(rest.foodId)
   if (!food) throw new Error('Alimento no encontrado.')
-  const macros = scaleMacros(food, input.quantity)
+  const macros = scaleMacros(food, rest.quantity)
   const entry = await insertEntry({
-    date: input.date,
-    sectionId: input.sectionId,
+    id,
+    date: rest.date,
+    sectionId: rest.sectionId,
     kind: 'food',
-    foodId: input.foodId,
-    quantity: input.quantity,
+    foodId: rest.foodId,
+    quantity: rest.quantity,
     manualName: '',
-    notes: input.notes,
+    notes: rest.notes,
     ...macros,
   })
-  await syncNutritionTotalsToDailyLog(input.date)
+  await syncNutritionTotalsToDailyLog(rest.date)
   return entry
 }
 
 export interface AddManualEntryInput {
+  /** Ver `AddFoodEntryInput.id`. */
+  id?: string
   date: string
   sectionId: string
   manualName: string
@@ -240,24 +251,27 @@ export interface AddManualEntryInput {
 }
 
 export async function addManualEntry(input: AddManualEntryInput): Promise<NutritionEntry> {
+  const { id, ...rest } = input
   const entry = await insertEntry({
-    date: input.date,
-    sectionId: input.sectionId,
+    id,
+    date: rest.date,
+    sectionId: rest.sectionId,
     kind: 'manual',
     foodId: null,
     quantity: null,
-    manualName: input.manualName,
-    notes: input.notes,
-    calories: input.calories,
-    proteinG: input.proteinG,
-    carbsG: input.carbsG,
-    fatG: input.fatG,
+    manualName: rest.manualName,
+    notes: rest.notes,
+    calories: rest.calories,
+    proteinG: rest.proteinG,
+    carbsG: rest.carbsG,
+    fatG: rest.fatG,
   })
-  await syncNutritionTotalsToDailyLog(input.date)
+  await syncNutritionTotalsToDailyLog(rest.date)
   return entry
 }
 
 interface InsertEntryInput extends MacroTotals {
+  id?: string
   date: string
   sectionId: string
   kind: NutritionEntryKind
@@ -268,14 +282,15 @@ interface InsertEntryInput extends MacroTotals {
 }
 
 async function insertEntry(input: InsertEntryInput): Promise<NutritionEntry> {
-  const siblings = (await listEntriesForDate(input.date)).filter(
-    (e) => e.sectionId === input.sectionId,
+  const { id, ...rest } = input
+  const siblings = (await listEntriesForDate(rest.date)).filter(
+    (e) => e.sectionId === rest.sectionId,
   )
   const nextOrder = siblings.length ? Math.max(...siblings.map((e) => e.order)) + 1 : 0
   const timestamp = nowIso()
   const entry: NutritionEntry = {
-    id: generateId(),
-    ...input,
+    id: id ?? generateId(),
+    ...rest,
     order: nextOrder,
     checked: false,
     createdAt: timestamp,
