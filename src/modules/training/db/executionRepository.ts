@@ -249,6 +249,24 @@ export async function listExecutedSets(
   return (data as ExecutedSet[]).sort((a, b) => a.setNumber - b.setNumber)
 }
 
+/**
+ * Las series ejecutadas de varios ejercicios de sesión a la vez — evita traer
+ * la tabla entera cuando ya se sabe a qué ejercicios de sesión limitarse (ver
+ * SessionView.tsx).
+ */
+export async function listExecutedSetsForSessionExercises(
+  sessionExerciseIds: string[],
+): Promise<ExecutedSet[]> {
+  if (sessionExerciseIds.length === 0) return []
+  const { data, error } = await client()
+    .from('training_executed_sets')
+    .select('*')
+    .in('sessionExerciseId', sessionExerciseIds)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as ExecutedSet[]
+}
+
 /** Total executed sets across every exercise in a session, for calorie estimation. */
 export async function countExecutedSetsForSession(sessionId: string): Promise<number> {
   const sessionExercises = await listSessionExercises(sessionId)

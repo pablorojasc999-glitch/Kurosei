@@ -23,6 +23,7 @@ const {
   createExecutedSet,
   endSession,
   getSessionForDay,
+  listExecutedSetsForSessionExercises,
   reopenSession,
   reorderSessionExercise,
   setSessionExerciseClosed,
@@ -295,6 +296,44 @@ describe('reorderSessionExercise', () => {
     await reorderSessionExercise(se.id, 'up')
     const unchanged = fake.tables.training_session_exercises.find((row) => row.id === se.id)
     expect(unchanged?.order).toBe(se.order)
+  })
+})
+
+describe('listExecutedSetsForSessionExercises', () => {
+  it('returns only the sets of the requested session exercises', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exerciseA = await seedExercise()
+    const legs = await createMuscleGroup('Piernas')
+    const exerciseB = await createExercise({
+      name: 'Sentadilla',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: legs.id, factor: 1 }],
+    })
+    const seA = await addSessionExercise({ sessionId: session.id, exerciseId: exerciseA.id, notes: '' })
+    const seB = await addSessionExercise({ sessionId: session.id, exerciseId: exerciseB.id, notes: '' })
+    const setA = await createExecutedSet({
+      sessionExerciseId: seA.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '', dropSet: false, restPause: false })
+    await createExecutedSet({
+      sessionExerciseId: seB.id,
+      weightKg: 80,
+      reps: 8,
+      rpe: 7,
+      eva: null,
+      notes: '', dropSet: false, restPause: false })
+
+    const sets = await listExecutedSetsForSessionExercises([seA.id])
+    expect(sets.map((s) => s.id)).toEqual([setA.id])
+  })
+
+  it('returns an empty list without hitting the client when no exercises are given', async () => {
+    expect(await listExecutedSetsForSessionExercises([])).toEqual([])
   })
 })
 
