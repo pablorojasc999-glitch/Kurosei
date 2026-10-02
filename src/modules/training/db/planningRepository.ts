@@ -503,6 +503,13 @@ export async function listPlannedSetsForExercises(
 }
 
 export interface CreatePlannedSetInput {
+  /**
+   * Opcional a propósito: una pantalla que ya mostró la serie de forma
+   * optimista (ver `useRemoteQuery.setOptimistic`) pasa el mismo id que le
+   * puso a esa fila, para que la confirmación del servidor no la reemplace
+   * por otra con id distinto.
+   */
+  id?: string
   plannedExerciseId: string
   targetWeightKg: number | null
   targetReps: number
@@ -515,14 +522,15 @@ export interface CreatePlannedSetInput {
 export async function createPlannedSet(
   input: CreatePlannedSetInput,
 ): Promise<PlannedSet> {
-  const siblings = await listPlannedSets(input.plannedExerciseId)
+  const { id, ...rest } = input
+  const siblings = await listPlannedSets(rest.plannedExerciseId)
   const nextSetNumber = siblings.length
     ? Math.max(...siblings.map((ps) => ps.setNumber)) + 1
     : 1
   const timestamp = nowIso()
   const plannedSet: PlannedSet = {
-    id: generateId(),
-    ...input,
+    id: id ?? generateId(),
+    ...rest,
     setNumber: nextSetNumber,
     createdAt: timestamp,
     updatedAt: timestamp,

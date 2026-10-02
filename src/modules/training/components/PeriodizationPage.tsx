@@ -37,6 +37,8 @@ import {
   updatePlannedSet,
 } from '../db/planningRepository'
 import { listExercises } from '../db/trainingRepository'
+import { generateId } from '../../../shared/lib/id'
+import { nowIso } from '../../../shared/lib/timestamps'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { parseReps } from '../lib/reps'
 import { formatDate, formatRestMinutes } from '../lib/format'
@@ -143,7 +145,7 @@ export function PeriodizationPage({
   // efecto colateral, se refresca solo cada vez que `plannedExercises` lo
   // hace — así que agregar/quitar/reordenar un ejercicio ya no necesita
   // pedirla aparte.
-  const { data: plannedSets, refresh: refreshPlannedSets } = useRemoteQuery(
+  const { data: plannedSets, refresh: refreshPlannedSets, setOptimistic: setPlannedSetsOptimistic } = useRemoteQuery(
     useCallback(
       () => listPlannedSetsForExercises((plannedExercises ?? []).map((pe) => pe.id)),
       [plannedExercises],
@@ -363,6 +365,14 @@ export function PeriodizationPage({
     })
   }
 
+  /**
+   * Muestra la serie (nueva o editada) al toque, calculándola igual que la
+   * calcularía el servidor, y recién después manda la escritura real — la
+   * pantalla no espera esa vuelta para reflejar el cambio. `refresh()` al
+   * final reconcilia con lo que quedó guardado de verdad, en el `finally`
+   * para que una escritura que falla deshaga lo optimista en vez de dejarlo
+   * pisado para siempre.
+   */
   async function handleSubmitPlannedSet(plannedExerciseId: string) {
     const form = setForms[plannedExerciseId]
     if (!form || !form.reps) return
@@ -375,23 +385,46 @@ export function PeriodizationPage({
         restPause: form.restPause,
       }
       const editingId = editingSetId[plannedExerciseId]
-      if (editingId) {
-        // Sin `restSecondsTarget`: el descanso ya no se planifica, pero el que
-        // tengan las series viejas se respeta.
-        await updatePlannedSet(editingId, input)
-      } else {
-        await createPlannedSet({
-          plannedExerciseId,
-          ...input,
-          restSecondsTarget: null,
-        })
-      }
-      await refreshPlannedSets()
       setSetForms((prev) => ({
         ...prev,
         [plannedExerciseId]: { weight: '', reps: '', rpe: '', dropSet: false, restPause: false },
       }))
       setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+      if (editingId) {
+        const timestamp = nowIso()
+        // Sin `restSecondsTarget`: el descanso ya no se planifica, pero el que
+        // tengan las series viejas se respeta.
+        setPlannedSetsOptimistic(
+          (current) =>
+            current?.map((s) => (s.id === editingId ? { ...s, ...input, updatedAt: timestamp } : s)) ?? [],
+        )
+        try {
+          await updatePlannedSet(editingId, input)
+        } finally {
+          await refreshPlannedSets()
+        }
+      } else {
+        const siblings = (plannedSets ?? []).filter((ps) => ps.plannedExerciseId === plannedExerciseId)
+        const nextSetNumber = siblings.length ? Math.max(...siblings.map((ps) => ps.setNumber)) + 1 : 1
+        const timestamp = nowIso()
+        const id = generateId()
+        const optimisticSet: PlannedSet = {
+          id,
+          plannedExerciseId,
+          ...input,
+          restSecondsTarget: null,
+          setNumber: nextSetNumber,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        }
+        setPlannedSetsOptimistic((current) => [...(current ?? []), optimisticSet])
+        try {
+          await createPlannedSet({ id, plannedExerciseId, ...input, restSecondsTarget: null })
+        } finally {
+          await refreshPlannedSets()
+        }
+      }
     })
   }
 
@@ -402,16 +435,33 @@ export function PeriodizationPage({
    */
   async function handleRepeatPlannedSet(plannedExerciseId: string, previa: PlannedSet) {
     await guardSet(async () => {
-      await createPlannedSet({
-        plannedExerciseId,
+      const siblings = (plannedSets ?? []).filter((ps) => ps.plannedExerciseId === plannedExerciseId)
+      const nextSetNumber = siblings.length ? Math.max(...siblings.map((ps) => ps.setNumber)) + 1 : 1
+      const timestamp = nowIso()
+      const id = generateId()
+      const repeatedInput = {
         targetWeightKg: previa.targetWeightKg,
         targetReps: previa.targetReps,
         targetRpe: previa.targetRpe,
         restSecondsTarget: previa.restSecondsTarget,
         dropSet: previa.dropSet === true,
         restPause: previa.restPause === true,
-      })
-      await refreshPlannedSets()
+      }
+      const optimisticSet: PlannedSet = {
+        id,
+        plannedExerciseId,
+        ...repeatedInput,
+        setNumber: nextSetNumber,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+      }
+      setPlannedSetsOptimistic((current) => [...(current ?? []), optimisticSet])
+      try {
+        await createPlannedSet({ id, plannedExerciseId, ...repeatedInput })
+      } finally {
+        await refreshPlannedSets()
+      }
     })
   }
 

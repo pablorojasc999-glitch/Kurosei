@@ -155,6 +155,29 @@ describe('createExecutedSet', () => {
     expect(second.setNumber).toBe(2)
   })
 
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exercise = await seedExercise()
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+
+    const set = await createExecutedSet({
+      id: 'optimistic-id',
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '', dropSet: false, restPause: false })
+
+    expect(set.id).toBe('optimistic-id')
+    expect(fake.tables.training_executed_sets.find((s) => s.id === 'optimistic-id')).toBeDefined()
+  })
+
   it('computes restTakenSeconds from the previous set, null for the first', async () => {
     const day = await seedDay()
     const session = await startSession(day.id)
