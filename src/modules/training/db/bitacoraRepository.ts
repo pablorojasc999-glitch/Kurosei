@@ -105,8 +105,7 @@ export async function getDailyLog(date: string): Promise<DailyLog | null> {
 
 /**
  * Todas las bitácoras sin borrar, sin filtrar por fecha — para el cruce con
- * las demás tablas de Entrenamiento (todavía en Dexie), ver
- * `bitacoraQueries.ts`.
+ * las demás tablas de Entrenamiento, ver `bitacoraQueries.ts`.
  */
 export async function listDailyLogs(): Promise<DailyLog[]> {
   const { data, error } = await client().from('training_daily_logs').select('*').is('deletedAt', null)

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { db } from '../../../shared/db/database'
 import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
 
 const fake = createFakeSupabaseClient()
@@ -81,7 +80,6 @@ beforeEach(async () => {
   fake.tables.nutrition_meal_template_entries = []
   fake.tables.nutrition_goal_plans = []
   fake.tables.training_daily_logs = []
-  await db.transaction('rw', db.tables, async () => Promise.all(db.tables.map((t) => t.clear())))
 })
 
 describe('foods', () => {

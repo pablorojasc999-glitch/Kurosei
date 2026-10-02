@@ -2,9 +2,6 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../../../shared/supabase/client'
 import { getSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from '../lib/auth'
-import { getSyncStatus, subscribeSyncStatus, syncNow, type SyncStatus } from '../lib/syncEngine'
-
-const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000
 
 function IconAccount() {
   return (
@@ -24,29 +21,10 @@ function IconAccount() {
   )
 }
 
-function formatRelativeTime(iso: string): string {
-  const deltaMs = Date.now() - new Date(iso).getTime()
-  const minutes = Math.floor(deltaMs / 60000)
-  if (minutes < 1) return 'recién'
-  if (minutes < 60) return `hace ${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `hace ${hours} h`
-  const days = Math.floor(hours / 24)
-  return `hace ${days} d`
-}
-
-function syncStatusText(status: SyncStatus): string {
-  if (status.kind === 'syncing') return 'Sincronizando…'
-  if (status.kind === 'error') return `Error al sincronizar: ${status.message}`
-  if (status.lastSyncedAt) return `Sincronizado ${formatRelativeTime(status.lastSyncedAt)}`
-  return 'Todavía no sincronizaste'
-}
-
 export function AccountPanel() {
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [sessionLoaded, setSessionLoaded] = useState(false)
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
 
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
@@ -61,24 +39,6 @@ export function AccountPanel() {
     })
     return onAuthStateChange((s) => setSession(s))
   }, [])
-
-  useEffect(() => subscribeSyncStatus(setSyncStatus), [])
-
-  useEffect(() => {
-    if (!session) return
-    syncNow(session.user.id).catch(() => {})
-    const interval = window.setInterval(() => {
-      syncNow(session.user.id).catch(() => {})
-    }, AUTO_SYNC_INTERVAL_MS)
-    const handleOnline = () => {
-      syncNow(session.user.id).catch(() => {})
-    }
-    window.addEventListener('online', handleOnline)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener('online', handleOnline)
-    }
-  }, [session])
 
   if (!isSupabaseConfigured) return null
 
@@ -106,7 +66,7 @@ export function AccountPanel() {
         type="button"
         className="account-button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Cuenta y sincronización"
+        aria-label="Cuenta"
       >
         <IconAccount />
       </button>
@@ -116,14 +76,6 @@ export function AccountPanel() {
           {!sessionLoaded ? null : session ? (
             <>
               <p className="account-email">{session.user.email}</p>
-              <p className="account-sync-status">{syncStatusText(syncStatus)}</p>
-              <button
-                type="button"
-                onClick={() => syncNow(session.user.id).catch(() => {})}
-                disabled={syncStatus.kind === 'syncing'}
-              >
-                Sincronizar ahora
-              </button>
               <button
                 type="button"
                 className="account-signout"
