@@ -158,6 +158,34 @@ describe('entries', () => {
     expect(entry.carbsG).toBe(11.5)
   })
 
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const food = await createFood({
+      name: 'Manzana',
+      brand: '',
+      emoji: '🍎',
+      servingAmount: 166,
+      servingUnit: 'g',
+      calories: 95,
+      proteinG: 0.5,
+      carbsG: 23,
+      fatG: 0.2,
+      ...NO_MICROS,
+    })
+    const section = await createMealSection('Desayuno')
+    const entry = await addFoodEntry({
+      id: 'optimistic-id',
+      date: '2026-08-30',
+      sectionId: section.id,
+      foodId: food.id,
+      quantity: 83,
+      notes: '',
+    })
+    expect(entry.id).toBe('optimistic-id')
+    expect(
+      (await listEntriesForDate('2026-08-30')).find((e) => e.id === 'optimistic-id'),
+    ).toBeDefined()
+  })
+
   it('re-scales macros when the quantity is updated', async () => {
     const food = await createFood({
       name: 'Avena',
@@ -199,6 +227,25 @@ describe('entries', () => {
     })
     expect(entry.foodId).toBeNull()
     expect(entry.calories).toBe(800)
+  })
+
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const section = await createMealSection('Almuerzo')
+    const entry = await addManualEntry({
+      id: 'optimistic-id',
+      date: '2026-08-30',
+      sectionId: section.id,
+      manualName: 'Almuerzo restaurante X',
+      calories: 800,
+      proteinG: 40,
+      carbsG: 90,
+      fatG: 25,
+      notes: '',
+    })
+    expect(entry.id).toBe('optimistic-id')
+    expect(
+      (await listEntriesForDate('2026-08-30')).find((e) => e.id === 'optimistic-id'),
+    ).toBeDefined()
   })
 
   it('adds a new entry unchecked, so it does not count toward the day total yet', async () => {
