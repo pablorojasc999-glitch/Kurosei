@@ -34,6 +34,7 @@ export function SupermercadoPage() {
     data: items,
     error: loadError,
     refresh,
+    setOptimistic: setItems,
   } = useRemoteQuery(
     useCallback(() => (session ? listItems() : Promise.resolve(undefined)), [session]),
   )
@@ -56,7 +57,12 @@ export function SupermercadoPage() {
     items?.map((i) => ({ ...i, sectionId: i.cadence })),
     PURCHASE_CADENCES.map((c) => ({ id: c })),
     (id, targetCadence) => {
-      void updateItem(id, { cadence: targetCadence as PurchaseCadence }).then(refresh)
+      // Al soltar ya queda en la lista nueva — sin esto, volvía a la lista
+      // vieja hasta que `refresh()` terminaba de confirmar el cambio.
+      setItems((current) =>
+        current!.map((i) => (i.id === id ? { ...i, cadence: targetCadence as PurchaseCadence } : i)),
+      )
+      void updateItem(id, { cadence: targetCadence as PurchaseCadence }).finally(refresh)
     },
   )
 
