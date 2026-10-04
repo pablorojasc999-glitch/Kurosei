@@ -49,6 +49,8 @@ export interface GridCell {
   dayId: string | null
   /** El ejercicio planificado en esa celda; `null` si esa semana no lo tiene. */
   plannedExerciseId: string | null
+  /** La nota libre del plan de esa semana — se repite al registrar el entrenamiento, de sólo lectura ahí. */
+  plannedExerciseNotes: string
   planned: CellSummary
   /** El plan serie a serie, en orden. */
   plannedSets: GridSet[]
@@ -344,6 +346,7 @@ export function buildBlockGrid({
           weekId: week.id,
           dayId: day?.id ?? null,
           plannedExerciseId: pe?.id ?? null,
+          plannedExerciseNotes: pe?.notes ?? '',
           planned: summarizeSets(plannedSetList),
           plannedSets: plannedSetList,
           executedSets: executedList,

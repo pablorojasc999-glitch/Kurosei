@@ -13,6 +13,7 @@ import {
   reorderSlotExercise,
   setPlannedSets,
   setSlotExerciseCounts,
+  updatePlannedExerciseNotes,
 } from '../db/planningRepository'
 import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../db/trainingRepository'
 import {
@@ -914,6 +915,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChang
       ? cell.plannedSets.map(toDraft)
       : [{ weight: '', reps: '5', rpe: '', counts: true }],
   )
+  const [notes, setNotes] = useState(cell.plannedExerciseNotes)
 
   function updateSet(index: number, patch: Partial<SetDraft>) {
     setDrafts((current) => current.map((d, i) => (i === index ? { ...d, ...patch } : d)))
@@ -967,6 +969,7 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChang
     onClose()
     void guard(async () => {
       await setPlannedSets(plannedExerciseId, rows)
+      await updatePlannedExerciseNotes(plannedExerciseId, notes)
       if (pin) {
         const result = await pinExerciseAcrossBlock(
           mesocycleId,
@@ -1013,11 +1016,14 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChang
       )}
 
       {cell.sessionEnded ? (
-        // El día está cerrado: cambiar el plan ya no cambia nada, y dejar el
-        // formulario invitaba a editar una prescripción que ya se ejecutó.
-        <p className="cell-closed-note">
-          Este día está finalizado: el plan queda como quedó.
-        </p>
+        <>
+          {/* El día está cerrado: cambiar el plan ya no cambia nada, y dejar el
+              formulario invitaba a editar una prescripción que ya se ejecutó. */}
+          <p className="cell-closed-note">
+            Este día está finalizado: el plan queda como quedó.
+          </p>
+          {cell.plannedExerciseNotes && <p className="cell-note-readonly">{cell.plannedExerciseNotes}</p>}
+        </>
       ) : (
         <>
       <div className="set-editor">
@@ -1094,6 +1100,16 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChang
             </button>
           )}
         </div>
+
+        <label className="cell-note-field">
+          Nota
+          <textarea
+            value={notes}
+            rows={2}
+            placeholder="Técnica, aviso, sensación… se ve al registrar el entrenamiento"
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </label>
         </>
       )}
 
