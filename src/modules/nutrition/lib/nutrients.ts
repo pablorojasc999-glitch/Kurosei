@@ -28,16 +28,13 @@ export const MICRO_FIELDS: Array<{ key: MicroFieldKey; label: string; unit: stri
   { key: 'vitaminB12Mcg', label: 'Vitamina B12', unit: 'mcg' },
 ]
 
-/** One decimal everywhere a nutrient value is displayed — calories, macros and micros alike. */
+/** Redondeado a entero en todas partes donde se muestra un nutriente — calorías, macros y micros por igual: una visual limpia importa más que el decimal. */
 export function formatNutrient(n: number): string {
-  return n.toFixed(1)
+  // -0 se formatea como "-0" y acá no tiene sentido mostrarlo.
+  return (Math.round(n) || 0).toString()
 }
 
-/**
- * El total del día en el resumen va redondeado y con separador de miles: es un
- * número que se lee de un vistazo. El decimal queda para el detalle de cada
- * alimento, donde sí importa la diferencia entre 12,4 y 12,6 g.
- */
+/** El total del día en el resumen va además con separador de miles: es un número que se lee de un vistazo. */
 export function formatSummaryAmount(n: number): string {
   // -0 se formatea como "-0" y en un total no tiene sentido mostrarlo.
   const rounded = Math.round(n) || 0
