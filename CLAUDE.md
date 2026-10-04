@@ -89,6 +89,18 @@ src/App.css               casi todos los estilos
   introducir ese patrón sin acordarlo antes.
 - **Todo tiene que caber en una pantalla de teléfono.** Es el único lugar donde se
   usa la app. Nada de desbordes horizontales.
+- **Hay modo claro y oscuro.** Todo color sale de una variable CSS (`src/index.css`),
+  nunca de un hex o un `rgba(...)` sueltos en `App.css` — eso es justo lo que no se
+  adapta al cambiar de tema. Si el color necesita opacidad (`rgba`), la variable base
+  guarda sólo el triplete (`--success-rgb: 74, 222, 128;`) y se arma con
+  `rgba(var(--success-rgb), 0.1)` en el punto de uso. Cada variable nueva necesita su
+  valor para claro y para oscuro: el bloque oscuro de siempre en `:root`, y el mismo
+  valor repetido en `:root[data-theme='light']` y dentro de
+  `@media (prefers-color-scheme: light) { :root:not([data-theme='dark']):not([data-theme='light']) { ... } }`
+  de `index.css` (el primero es la elección explícita "Claro"; el segundo, "Sistema"
+  siguiendo un teléfono en modo claro). El tema se elige desde el panel de cuenta
+  (`useTheme`, `src/shared/hooks/useTheme.ts`) y vive en `localStorage`, nunca en
+  Supabase: es una preferencia de pantalla, no de la cuenta.
 
 ## Vercel
 
