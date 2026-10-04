@@ -29,6 +29,7 @@ import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans
 import { scaleMacros, type MacroTotals } from '../lib/macros'
 import { formatNutrient, formatSummaryAmount } from '../lib/nutrients'
 import { moveItem } from '../lib/reorder'
+import { suggestionWindow } from '../lib/suggestedFoods'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { weekDates } from '../lib/weekStrip'
 import { DayCloseCard } from '../../closing/components/DayCloseCard'
@@ -147,22 +148,28 @@ export function RegistroPage() {
   const entries = entryData?.entries
   const weekEntries = entryData?.weekEntries
 
+  // Fija al montar, no en cada render: si dependiera de `new Date()` suelto,
+  // la consulta de abajo se rehacía en cada tecla del buscador de Agregar.
+  const recentWindow = useMemo(() => suggestionWindow(), [])
+
   const { data: referenceData, refresh: refreshReferenceData } = useRemoteQuery(
     useCallback(async () => {
       if (!session) return undefined
-      const [sections, goalPlans, foods, templates] = await Promise.all([
+      const [sections, goalPlans, foods, templates, recentEntries] = await Promise.all([
         listMealSections(),
         listGoalPlans(),
         listFoods(),
         listMealTemplates(),
+        listEntriesForDateRange(recentWindow.from, recentWindow.to),
       ])
-      return { sections, goalPlans, foods, templates }
-    }, [session]),
+      return { sections, goalPlans, foods, templates, recentEntries }
+    }, [session, recentWindow]),
   )
   const sections = referenceData?.sections
   const goalPlans = referenceData?.goalPlans
   const foods = referenceData?.foods
   const templates = referenceData?.templates
+  const recentEntries = referenceData?.recentEntries
   const foodById = new Map((foods ?? []).map((f) => [f.id, f]))
 
   /**
@@ -423,6 +430,8 @@ export function RegistroPage() {
             {addingToSectionId === section.id && (
               <AddEntryForm
                 foods={foods ?? []}
+                recentEntries={recentEntries ?? []}
+                recentSince={recentWindow.recentSince}
                 title={`Agregar a ${section.name}`}
                 subtitle={formatDateSubtitle(selectedDate)}
                 onAddFood={async (foodId, quantity, notes) => {
