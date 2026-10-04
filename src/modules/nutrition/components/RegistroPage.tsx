@@ -28,6 +28,7 @@ import type { NutritionEntry, NutritionGoalPlan } from '../domain/types'
 import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans'
 import { scaleMacros, type MacroTotals } from '../lib/macros'
 import { formatNutrient, formatSummaryAmount } from '../lib/nutrients'
+import { moveItem } from '../lib/reorder'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { weekDates } from '../lib/weekStrip'
 import { DayCloseCard } from '../../closing/components/DayCloseCard'
@@ -208,7 +209,23 @@ export function RegistroPage() {
     handlePointerUp,
     consumeJustDragged,
   } = useEntryDragReorder(entries, sections, (entryId, targetSectionId, targetIndex) => {
-    void moveEntry(entryId, targetSectionId, targetIndex).then(refresh)
+    // Se suelta y ya queda en su lugar nuevo, calculado igual que lo haría el
+    // servidor — sin esto, el ítem soltado volvía a su posición vieja hasta
+    // que `refresh()` terminaba de confirmar el reordenamiento.
+    const changed = moveItem(entries ?? [], entryId, targetSectionId, targetIndex)
+    if (changed.length > 0) {
+      const changedById = new Map(changed.map((c) => [c.id, c]))
+      const apply = (list: NutritionEntry[]) =>
+        list.map((e) => {
+          const c = changedById.get(e.id)
+          return c ? { ...e, sectionId: c.sectionId, order: c.order } : e
+        })
+      setEntryData((current) => ({
+        entries: apply(current!.entries),
+        weekEntries: apply(current!.weekEntries),
+      }))
+    }
+    void moveEntry(entryId, targetSectionId, targetIndex).finally(refresh)
   })
 
   async function handleCreateSection(e: React.FormEvent) {
@@ -431,11 +448,11 @@ export function RegistroPage() {
                     updatedAt: timestamp,
                     deletedAt: null,
                   })
-                  try {
-                    await addFoodEntry({ id, date: dateKey, sectionId: section.id, foodId, quantity, notes })
-                  } finally {
-                    await refresh()
-                  }
+                  // Sin esperar: el panel ya cierra con la fila puesta en la
+                  // lista — si la escritura falla, el refresh() la saca sola.
+                  void addFoodEntry({ id, date: dateKey, sectionId: section.id, foodId, quantity, notes }).finally(
+                    refresh,
+                  )
                 }}
                 onAddManual={async (input) => {
                   const siblings = (entries ?? []).filter((e) => e.sectionId === section.id)
@@ -461,11 +478,7 @@ export function RegistroPage() {
                     updatedAt: timestamp,
                     deletedAt: null,
                   })
-                  try {
-                    await addManualEntry({ id, date: dateKey, sectionId: section.id, ...input })
-                  } finally {
-                    await refresh()
-                  }
+                  void addManualEntry({ id, date: dateKey, sectionId: section.id, ...input }).finally(refresh)
                 }}
                 onDone={() => setAddingToSectionId(null)}
               />
