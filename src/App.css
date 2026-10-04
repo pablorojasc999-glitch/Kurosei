@@ -61,7 +61,7 @@
   width: 26px;
   height: 26px;
   object-fit: contain;
-  filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.45));
+  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.45));
 }
 
 .app-logo-word {
@@ -358,7 +358,7 @@ section {
 .error {
   color: var(--danger);
   background: var(--danger-bg);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: var(--radius-sm);
   font-size: 13px;
   padding: 6px 10px;
@@ -496,7 +496,7 @@ section {
 .day-closed-badge {
   display: inline-block;
   margin-left: 8px;
-  color: #4ade80;
+  color: var(--success);
   font-weight: 700;
 }
 
@@ -576,8 +576,8 @@ section {
    yet), green once it's closed — a glance at the list should say which
    exercises are still pending without reading each header. */
 .planned-exercise-item--open {
-  background: rgba(248, 113, 113, 0.04);
-  border-color: rgba(248, 113, 113, 0.25);
+  background: rgba(var(--danger-rgb), 0.04);
+  border-color: rgba(var(--danger-rgb), 0.25);
 }
 
 .planned-exercise-item--open strong,
@@ -592,17 +592,17 @@ section {
 }
 
 .planned-exercise-item--open .plan-target-row {
-  border-color: rgba(248, 113, 113, 0.2);
+  border-color: rgba(var(--danger-rgb), 0.2);
 }
 
 .planned-exercise-item--open .set-row,
 .planned-exercise-item--open .set-compare-row {
-  background: rgba(248, 113, 113, 0.04);
+  background: rgba(var(--danger-rgb), 0.04);
 }
 
 .planned-exercise-item--closed {
-  background: rgba(74, 222, 128, 0.04);
-  border-color: rgba(74, 222, 128, 0.25);
+  background: rgba(var(--success-rgb), 0.04);
+  border-color: rgba(var(--success-rgb), 0.25);
 }
 
 .planned-exercise-item--closed strong,
@@ -617,12 +617,12 @@ section {
 }
 
 .planned-exercise-item--closed .plan-target-row {
-  border-color: rgba(74, 222, 128, 0.2);
+  border-color: rgba(var(--success-rgb), 0.2);
 }
 
 .planned-exercise-item--closed .set-row,
 .planned-exercise-item--closed .set-compare-row {
-  background: rgba(74, 222, 128, 0.04);
+  background: rgba(var(--success-rgb), 0.04);
 }
 
 .planned-exercise-header {
@@ -679,7 +679,7 @@ section {
 .planned-exercise-actions .btn-danger {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: rgba(var(--danger-rgb), 0.3);
 }
 
 .btn-danger:hover {
@@ -1059,7 +1059,7 @@ section {
   align-items: center;
   gap: 8px;
   background: var(--danger-bg);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: 10px;
   padding: 8px 10px;
   margin-bottom: 16px;
@@ -1333,9 +1333,9 @@ section {
 
 .deload-alert {
   font-size: 13px;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: var(--warning);
+  background: rgba(var(--warning-rgb), 0.1);
+  border: 1px solid rgba(var(--warning-rgb), 0.3);
   border-radius: 8px;
   padding: 6px 10px;
   margin-bottom: 10px;
@@ -1559,7 +1559,7 @@ section {
 }
 
 .calendar-dot--cardio {
-  background: #34d399;
+  background: var(--success);
 }
 
 .calendar-dot--planned {
@@ -1799,18 +1799,18 @@ section {
 }
 
 .stress-row--facil .stress-badge {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+  background: rgba(var(--success-rgb), 0.15);
 }
 
 .stress-row--media .stress-badge {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.15);
+  color: var(--warning);
+  background: rgba(var(--warning-rgb), 0.15);
 }
 
 .stress-row--dificil .stress-badge {
-  color: #fb923c;
-  background: rgba(251, 146, 60, 0.15);
+  color: var(--warning-strong);
+  background: rgba(var(--warning-strong-rgb), 0.15);
 }
 
 .stress-row--muyDificil .stress-badge {
@@ -2271,13 +2271,13 @@ section {
 }
 
 .finance-category-card--expense {
-  background: rgba(248, 113, 113, 0.08);
-  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(var(--danger-rgb), 0.08);
+  border-color: rgba(var(--danger-rgb), 0.3);
 }
 
 .finance-category-card--income {
-  background: rgba(74, 222, 128, 0.08);
-  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(var(--success-rgb), 0.08);
+  border-color: rgba(var(--success-rgb), 0.3);
 }
 
 .finance-category-card-body {
@@ -3631,7 +3631,7 @@ section {
 .grocery-run-message {
   margin: 10px 0 0;
   padding: 8px 10px;
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  border: 1px solid rgba(var(--success-rgb), 0.3);
   border-radius: var(--radius-sm);
   background: var(--success-bg);
   color: var(--success);
@@ -3990,8 +3990,8 @@ section {
 }
 
 .block-grid-cell--differs {
-  background: rgba(251, 191, 36, 0.1);
-  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(var(--warning-rgb), 0.1);
+  border-color: rgba(var(--warning-rgb), 0.4);
 }
 
 .block-grid-cell--differs .block-grid-volume {
@@ -4416,7 +4416,7 @@ section {
 
 .cell-verdict--differs {
   background: var(--warning-bg);
-  border: 1px solid rgba(251, 191, 36, 0.34);
+  border: 1px solid rgba(var(--warning-rgb), 0.34);
   color: var(--warning);
 }
 
@@ -4513,7 +4513,7 @@ section {
   gap: 2px;
   margin-top: 14px;
   padding: 10px;
-  border: 1px solid rgba(74, 222, 128, 0.25);
+  border: 1px solid rgba(var(--success-rgb), 0.25);
   border-radius: var(--radius-sm);
   background: var(--success-bg);
 }
@@ -4927,6 +4927,24 @@ button.macro-cell {
   --mod-bitacora: #38bdf8;
 }
 
+/* Mismos cuatro, en su versión para fondo claro — ver el bloque equivalente
+   de index.css sobre por qué va repetido dos veces. */
+:root[data-theme='light'] {
+  --mod-training: #7c3aed;
+  --mod-nutrition: #16a34a;
+  --mod-finance: #d97706;
+  --mod-bitacora: #0284c7;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    --mod-training: #7c3aed;
+    --mod-nutrition: #16a34a;
+    --mod-finance: #d97706;
+    --mod-bitacora: #0284c7;
+  }
+}
+
 .completion-ring {
   position: relative;
   display: inline-flex;
@@ -5007,7 +5025,7 @@ button.macro-cell {
 .day-close-primary {
   background: var(--accent);
   border: 1px solid var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .day-close-secondary {
@@ -5037,7 +5055,7 @@ button.macro-cell {
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--success);
-  color: #0b1120;
+  color: var(--on-success);
   font-size: 12px;
   font-weight: 700;
 }

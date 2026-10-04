@@ -1,4 +1,5 @@
 :root {
+  /* Oscuro: el de siempre, y el que se usa si no hay nada elegido. */
   --bg: #000000;
   --surface: #150f1c;
   --surface-2: #1d1526;
@@ -7,18 +8,27 @@
   --text: #ece8f2;
   --text-muted: #948da3;
   --accent: #8b5cf6;
+  --accent-rgb: 139, 92, 246;
   --accent-2: #a78bfa;
   --accent-dark: #4c1d95;
-  --accent-bg: rgba(139, 92, 246, 0.12);
-  --accent-border: rgba(139, 92, 246, 0.4);
+  --accent-bg: rgba(var(--accent-rgb), 0.12);
+  --accent-border: rgba(var(--accent-rgb), 0.4);
+  --on-accent: #ffffff;
   --danger: #f87171;
-  --danger-bg: rgba(248, 113, 113, 0.1);
+  --danger-rgb: 248, 113, 113;
+  --danger-bg: rgba(var(--danger-rgb), 0.1);
   --danger-muted: #c05959;
   --success: #4ade80;
-  --success-bg: rgba(74, 222, 128, 0.1);
+  --success-rgb: 74, 222, 128;
+  --success-bg: rgba(var(--success-rgb), 0.1);
   --success-muted: #53ac72;
+  --on-success: #0b1120;
   --warning: #fbbf24;
-  --warning-bg: rgba(251, 191, 36, 0.12);
+  --warning-rgb: 251, 191, 36;
+  --warning-bg: rgba(var(--warning-rgb), 0.12);
+  /* Para distinguir "difícil" de un aviso corriente (ver .stress-row--dificil). */
+  --warning-strong: #fb923c;
+  --warning-strong-rgb: 251, 146, 60;
 
   /* Secondary/tertiary series colors for multi-line charts (Progreso) —
      validated for CVD-safe separation against --accent (ΔE > 15, see
@@ -46,6 +56,90 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/*
+ * Claro: mismas variables, otros valores. Va dos veces a propósito —
+ * `[data-theme="light"]` es la elección explícita (ver useTheme.ts), y el
+ * bloque dentro del media query es "Sistema" siguiendo el modo claro del
+ * teléfono, sin que `data-theme` esté puesto. `:not([data-theme="dark"])`
+ * evita que el media query pise a alguien que eligió "Oscuro" a mano estando
+ * en un teléfono en modo claro.
+ */
+:root[data-theme='light'] {
+  --bg: #faf9fc;
+  --surface: #ffffff;
+  --surface-2: #f3f0f8;
+  --surface-3: #e9e3f3;
+  --border: #ddd6e8;
+  --text: #211a2e;
+  --text-muted: #6b6478;
+  --accent: #7c3aed;
+  --accent-rgb: 124, 58, 237;
+  --accent-2: #6d28d9;
+  --accent-dark: #ede3fe;
+  --accent-bg: rgba(var(--accent-rgb), 0.08);
+  --accent-border: rgba(var(--accent-rgb), 0.35);
+  --on-accent: #ffffff;
+  --danger: #dc2626;
+  --danger-rgb: 220, 38, 38;
+  --danger-bg: rgba(var(--danger-rgb), 0.08);
+  --danger-muted: #b91c1c;
+  --success: #16a34a;
+  --success-rgb: 22, 163, 74;
+  --success-bg: rgba(var(--success-rgb), 0.08);
+  --success-muted: #15803d;
+  --on-success: #ffffff;
+  --warning: #d97706;
+  --warning-rgb: 217, 119, 6;
+  --warning-bg: rgba(var(--warning-rgb), 0.1);
+  --warning-strong: #c2410c;
+  --warning-strong-rgb: 194, 65, 12;
+  --chart-secondary: #0284c7;
+  --chart-tertiary: #e11d48;
+  --shadow-sm: 0 1px 2px rgba(33, 26, 46, 0.08);
+  --shadow-md: 0 2px 4px rgba(33, 26, 46, 0.06), 0 8px 20px rgba(33, 26, 46, 0.08);
+  --shadow-glow: 0 0 0 1px var(--accent-border), 0 4px 16px rgba(124, 58, 237, 0.18);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    --bg: #faf9fc;
+    --surface: #ffffff;
+    --surface-2: #f3f0f8;
+    --surface-3: #e9e3f3;
+    --border: #ddd6e8;
+    --text: #211a2e;
+    --text-muted: #6b6478;
+    --accent: #7c3aed;
+    --accent-rgb: 124, 58, 237;
+    --accent-2: #6d28d9;
+    --accent-dark: #ede3fe;
+    --accent-bg: rgba(var(--accent-rgb), 0.08);
+    --accent-border: rgba(var(--accent-rgb), 0.35);
+    --on-accent: #ffffff;
+    --danger: #dc2626;
+    --danger-rgb: 220, 38, 38;
+    --danger-bg: rgba(var(--danger-rgb), 0.08);
+    --danger-muted: #b91c1c;
+    --success: #16a34a;
+    --success-rgb: 22, 163, 74;
+    --success-bg: rgba(var(--success-rgb), 0.08);
+    --success-muted: #15803d;
+    --on-success: #ffffff;
+    --warning: #d97706;
+    --warning-rgb: 217, 119, 6;
+    --warning-bg: rgba(var(--warning-rgb), 0.1);
+    --warning-strong: #c2410c;
+    --warning-strong-rgb: 194, 65, 12;
+    --chart-secondary: #0284c7;
+    --chart-tertiary: #e11d48;
+    --shadow-sm: 0 1px 2px rgba(33, 26, 46, 0.08);
+    --shadow-md: 0 2px 4px rgba(33, 26, 46, 0.06), 0 8px 20px rgba(33, 26, 46, 0.08);
+    --shadow-glow: 0 0 0 1px var(--accent-border), 0 4px 16px rgba(124, 58, 237, 0.18);
+    color-scheme: light;
+  }
 }
 
 * {

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../../../shared/supabase/client'
+import { useTheme, type Theme } from '../../../shared/hooks/useTheme'
 import { getSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from '../lib/auth'
+
+const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
+  { value: 'system', label: 'Sistema' },
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Oscuro' },
+]
 
 function IconAccount() {
   return (
@@ -25,6 +32,7 @@ export function AccountPanel() {
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [sessionLoaded, setSessionLoaded] = useState(false)
+  const { theme, setTheme } = useTheme()
 
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
@@ -33,14 +41,15 @@ export function AccountPanel() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
+    // Sin Supabase configurado no hay sesión que pedir — el tema de abajo
+    // sigue andando igual, sin cuenta.
+    if (!isSupabaseConfigured) return
     getSession().then((s) => {
       setSession(s)
       setSessionLoaded(true)
     })
     return onAuthStateChange((s) => setSession(s))
   }, [])
-
-  if (!isSupabaseConfigured) return null
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -73,7 +82,21 @@ export function AccountPanel() {
 
       {open && (
         <div className="account-panel">
-          {!sessionLoaded ? null : session ? (
+          <h3>Tema</h3>
+          <div className="account-mode-toggle">
+            {THEME_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={theme === option.value ? 'active' : ''}
+                onClick={() => setTheme(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {!isSupabaseConfigured ? null : !sessionLoaded ? null : session ? (
             <>
               <p className="account-email">{session.user.email}</p>
               <button
