@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
@@ -10,6 +10,7 @@ import {
   applyTemplateToDate,
   createMealSection,
   createMealTemplate,
+  listEntriesForDateRange,
   listFoods,
   listMealSections,
   listMealTemplates,
@@ -22,6 +23,7 @@ import {
 } from '../db/nutritionRepository'
 import { sumMacros } from '../lib/macros'
 import { formatNutrient } from '../lib/nutrients'
+import { suggestionWindow } from '../lib/suggestedFoods'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { AddEntryForm } from './AddEntryForm'
 import { EntryEditor } from './EntryEditor'
@@ -29,6 +31,8 @@ import { EntryRow } from './EntryRow'
 
 export function PlantillasPage() {
   const session = useSupabaseSession()
+  // Fija al montar — ver el mismo criterio en RegistroPage.tsx.
+  const recentWindow = useMemo(() => suggestionWindow(), [])
   const {
     data,
     error: loadError,
@@ -36,17 +40,19 @@ export function PlantillasPage() {
   } = useRemoteQuery(
     useCallback(async () => {
       if (!session) return undefined
-      const [templates, sections, foods] = await Promise.all([
+      const [templates, sections, foods, recentEntries] = await Promise.all([
         listMealTemplates(),
         listMealSections(),
         listFoods(),
+        listEntriesForDateRange(recentWindow.from, recentWindow.to),
       ])
-      return { templates, sections, foods }
-    }, [session]),
+      return { templates, sections, foods, recentEntries }
+    }, [session, recentWindow]),
   )
   const templates = data?.templates
   const sections = data?.sections
   const foods = data?.foods
+  const recentEntries = data?.recentEntries
 
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [newTemplateName, setNewTemplateName] = useState('')
@@ -247,6 +253,8 @@ export function PlantillasPage() {
               {addingToSectionId === section.id && (
                 <AddEntryForm
                   foods={foods ?? []}
+                  recentEntries={recentEntries ?? []}
+                  recentSince={recentWindow.recentSince}
                   title={`Agregar a ${section.name}`}
                   subtitle={openTemplate.name}
                   onAddFood={async (foodId, quantity, notes) => {

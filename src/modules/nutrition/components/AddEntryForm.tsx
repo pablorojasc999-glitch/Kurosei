@@ -1,10 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
-import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
-import { toDateKey } from '../../training/lib/calendarGrid'
-import { listEntriesForDateRange } from '../db/nutritionRepository'
-import type { FoodItem } from '../domain/types'
+import type { FoodItem, NutritionEntry } from '../domain/types'
 import { formatNutrient, scaleNutrientProfile } from '../lib/nutrients'
 import { suggestedFoods } from '../lib/suggestedFoods'
 import { FoodDetail } from './FoodDetail'
@@ -20,6 +17,16 @@ export interface ManualEntryValues {
 
 interface AddEntryFormProps {
   foods: FoodItem[]
+  /**
+   * Los registros de los últimos 30 días, para las sugerencias — ya
+   * cargados por la pantalla que abre este panel (ver `suggestionWindow` en
+   * lib/suggestedFoods.ts). Pedirlos acá adentro los traía recién *después*
+   * de abrir el panel: la lista con la que se abría cambiaba de golpe un
+   * instante más tarde, debajo del dedo.
+   */
+  recentEntries: NutritionEntry[]
+  /** Fecha desde la que un registro cuenta como "reciente" — ver `suggestedFoods`. */
+  recentSince: string
   /** Cabecera del panel, p. ej. "Agregar a Almuerzo". */
   title: string
   subtitle?: string
@@ -27,9 +34,6 @@ interface AddEntryFormProps {
   onAddManual: (input: ManualEntryValues) => Promise<void>
   onDone: () => void
 }
-
-/** Cuántos días atrás se miran los registros para proponer alimentos. */
-const SUGGESTION_DAYS = 30
 
 /** Los atajos de porción, como múltiplos de la porción de referencia del alimento. */
 const PORTIONS: Array<{ factor: number; label: string }> = [
@@ -52,6 +56,8 @@ function trimNumber(n: number): string {
 /** Adds an entry to whatever the caller is building — a date's Registro or a Plantilla — the caller supplies where it actually gets saved via `onAddFood`/`onAddManual`. */
 export function AddEntryForm({
   foods,
+  recentEntries,
+  recentSince,
   title,
   subtitle,
   onAddFood,
@@ -70,27 +76,9 @@ export function AddEntryForm({
   const [error, setError] = useState<string | null>(null)
   const { isSubmitting, guard } = useSubmitGuard()
 
-  // La ventana se fija al abrir el panel: si dependiera de `new Date()` en cada
-  // render, la consulta se rehacía en cada tecla del buscador.
-  const suggestionWindow = useMemo(() => {
-    const today = new Date()
-    const from = new Date(today)
-    from.setDate(from.getDate() - SUGGESTION_DAYS)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    return { from: toDateKey(from), to: toDateKey(today), recentSince: toDateKey(yesterday) }
-  }, [])
-
-  const { data: recentEntries } = useRemoteQuery(
-    useCallback(
-      () => listEntriesForDateRange(suggestionWindow.from, suggestionWindow.to),
-      [suggestionWindow.from, suggestionWindow.to],
-    ),
-  )
-
   const suggestions = useMemo(
-    () => suggestedFoods(foods, recentEntries ?? [], { recentSince: suggestionWindow.recentSince }),
-    [foods, recentEntries, suggestionWindow.recentSince],
+    () => suggestedFoods(foods, recentEntries, { recentSince }),
+    [foods, recentEntries, recentSince],
   )
 
   const trimmedSearch = search.trim().toLowerCase()
