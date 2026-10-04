@@ -50,6 +50,7 @@ const {
   updateDay,
   updateMacrocycle,
   updateMesocycle,
+  updatePlannedExerciseNotes,
   updatePlannedSet,
 } = await import('./planningRepository')
 const {
@@ -482,6 +483,42 @@ describe('setPlannedExerciseClosed', () => {
     expect(
       getRow<{ closedAt: string | null }>('training_planned_exercises', plannedExercise.id)?.closedAt,
     ).toBeNull()
+  })
+})
+
+describe('updatePlannedExerciseNotes', () => {
+  it('overwrites the note without touching its sets', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const plannedExercise = await createPlannedExercise({
+      dayId: day.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+    await createPlannedSet({
+      plannedExerciseId: plannedExercise.id,
+      targetWeightKg: 80,
+      targetReps: 5,
+      targetRpe: null,
+      restSecondsTarget: null,
+      dropSet: false,
+      restPause: false,
+    })
+
+    await updatePlannedExerciseNotes(plannedExercise.id, 'Codos pegados al cuerpo')
+
+    expect(
+      getRow<{ notes: string }>('training_planned_exercises', plannedExercise.id)?.notes,
+    ).toBe('Codos pegados al cuerpo')
+    expect(await listPlannedSets(plannedExercise.id)).toHaveLength(1)
   })
 })
 

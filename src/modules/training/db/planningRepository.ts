@@ -460,6 +460,22 @@ export async function reorderPlannedExercise(
   if (error2) throw new Error(error2.message)
 }
 
+/**
+ * Edita sólo la nota de un ejercicio planificado, sin tocar sus series.
+ *
+ * La nota se copia a la sesión al cargar el plan (ver `addSessionExercise` en
+ * `SessionView.tsx`), así que queda visible al registrar el entrenamiento —
+ * ahí de sólo lectura, porque editarla desde la sesión cambiaría el plan en
+ * vez de anotar algo sobre lo ejecutado.
+ */
+export async function updatePlannedExerciseNotes(id: string, notes: string): Promise<void> {
+  const { error } = await client()
+    .from('training_planned_exercises')
+    .update({ notes, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 /** Closes or reopens a single planned exercise, independent of its Day's plan lock. */
 export async function setPlannedExerciseClosed(
   id: string,

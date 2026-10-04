@@ -599,6 +599,8 @@ export function SessionView({ dayId }: SessionViewProps) {
                 )}
               </div>
 
+              {se.notes && <p className="cell-note-readonly">{se.notes}</p>}
+
               {showComparison ? (
                 (targetSets && targetSets.length > 0) || sets.length > 0 ? (
                   <ul className="set-compare-list">
