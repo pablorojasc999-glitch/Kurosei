@@ -130,13 +130,15 @@ export function BlockGrid({ mesocycleId, onOpenDay }: BlockGridProps) {
       ? { slot: found.slot, row: found.row, cell: editingCell, weekIndex: editing.weekIndex }
       : null
 
-  async function handleAddExercise(exerciseId: string) {
+  function handleAddExercise(exerciseId: string) {
     if (!adding) return
     const week = grid.weeks[adding.weekIndex]
-    const created = await addExerciseToSlot(week.id, adding.slot.slotIndex, exerciseId)
-    if (!created) setNotice('Esa semana no tiene ese día, así que no se pudo añadir.')
-    await refresh()
     setAdding(null)
+    void addExerciseToSlot(week.id, adding.slot.slotIndex, exerciseId)
+      .then((created) => {
+        if (!created) setNotice('Esa semana no tiene ese día, así que no se pudo añadir.')
+      })
+      .finally(refresh)
   }
 
   return (
@@ -655,13 +657,13 @@ function WeekMenu({ weekIndex, slots, mesocycleId, onClose, onNotice, onChange }
   const { isSubmitting: isBusy, guard } = useSubmitGuard()
   const from = weekIndex
 
-  async function traer(slotIndex?: number) {
-    await guard(async () => {
+  function traer(slotIndex?: number) {
+    onClose()
+    void guard(async () => {
       const result = await copyPreviousWeekPlan(mesocycleId, weekIndex, slotIndex)
       onNotice(describePreviousWeekCopy(result, from))
       await onChange()
     })
-    onClose()
   }
 
   return (
@@ -733,16 +735,21 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice, onChange }:
   const index = slot.rows.findIndex((r) => r.exerciseId === row.exerciseId)
   const cuenta = row.countsState !== 'none'
 
-  async function mover(direction: 'up' | 'down') {
-    await guard(async () => {
+  // Las tres cierran la hoja al toque y recién ahí mandan la escritura real:
+  // esperar a `onChange()` para cerrar dejaba la hoja colgada 1-2 segundos
+  // por cada acción, aunque la celda tardara lo mismo en actualizarse de
+  // todos modos.
+  function mover(direction: 'up' | 'down') {
+    onClose()
+    void guard(async () => {
       await reorderSlotExercise(mesocycleId, slot.slotIndex, row.exerciseId, direction)
       await onChange()
     })
-    onClose()
   }
 
-  async function quitar() {
-    await guard(async () => {
+  function quitar() {
+    onClose()
+    void guard(async () => {
       const { removed, skipped } = await removeSlotExercise(
         mesocycleId,
         slot.slotIndex,
@@ -757,11 +764,11 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice, onChange }:
       }
       await onChange()
     })
-    onClose()
   }
 
-  async function aOtroDia(toSlotIndex: number) {
-    await guard(async () => {
+  function aOtroDia(toSlotIndex: number) {
+    onClose()
+    void guard(async () => {
       const { moved, skipped } = await moveSlotExerciseToSlot(
         mesocycleId,
         slot.slotIndex,
@@ -777,7 +784,6 @@ function RowMenu({ slot, row, slots, mesocycleId, onClose, onNotice, onChange }:
       }
       await onChange()
     })
-    onClose()
   }
 
   return (
@@ -942,41 +948,54 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChang
     setDrafts(previous.plannedSets.map(toDraft))
   }
 
-  async function handleSave(pin: boolean) {
+  /**
+   * Valida primero — si algo está mal, la hoja se queda abierta mostrando el
+   * error, como antes. Si está todo bien, la hoja cierra al toque y la
+   * escritura real (que de paso puede fijar la prescripción en el resto del
+   * bloque) sigue en segundo plano: esperarla para cerrar era el mismo
+   * segundo de más que ya se sacó de Entreno y Periodización.
+   */
+  function handleSave(pin: boolean) {
     setError(null)
-    await guard(async () => {
-      try {
-        const rows = drafts.map((d) => {
-          const reps = Number(d.reps)
-          if (!Number.isInteger(reps) || reps < 1) {
-            throw new Error('Cada serie necesita un número entero de repeticiones, 1 o más.')
-          }
-          return {
-            targetWeightKg: parseOptional(d.weight),
-            targetReps: reps,
-            targetRpe: parseOptional(d.rpe),
-            restSecondsTarget: null,
-            countsAsEffective: d.counts,
-          }
-        })
-        await setPlannedSets(plannedExerciseId, rows)
-        if (pin) {
-          const result = await pinExerciseAcrossBlock(
-            mesocycleId,
-            slot.slotIndex,
-            row.exerciseId,
-            plannedExerciseId,
-          )
-          onNotice(
-            result.skipped === 0
-              ? `${row.exerciseName} quedó igual en ${slot.label} de las ${result.applied} semanas.`
-              : `${row.exerciseName} se aplicó en ${result.applied} semanas. ${result.skipped} no tienen ${slot.label}.`,
-          )
-        }
-        await onChange()
-        onClose()
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Error desconocido')
+    let rows: ReturnType<typeof buildRows>
+    try {
+      rows = buildRows()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error desconocido')
+      return
+    }
+    onClose()
+    void guard(async () => {
+      await setPlannedSets(plannedExerciseId, rows)
+      if (pin) {
+        const result = await pinExerciseAcrossBlock(
+          mesocycleId,
+          slot.slotIndex,
+          row.exerciseId,
+          plannedExerciseId,
+        )
+        onNotice(
+          result.skipped === 0
+            ? `${row.exerciseName} quedó igual en ${slot.label} de las ${result.applied} semanas.`
+            : `${row.exerciseName} se aplicó en ${result.applied} semanas. ${result.skipped} no tienen ${slot.label}.`,
+        )
+      }
+      await onChange()
+    })
+  }
+
+  function buildRows() {
+    return drafts.map((d) => {
+      const reps = Number(d.reps)
+      if (!Number.isInteger(reps) || reps < 1) {
+        throw new Error('Cada serie necesita un número entero de repeticiones, 1 o más.')
+      }
+      return {
+        targetWeightKg: parseOptional(d.weight),
+        targetReps: reps,
+        targetRpe: parseOptional(d.rpe),
+        restSecondsTarget: null,
+        countsAsEffective: d.counts,
       }
     })
   }
@@ -1088,10 +1107,9 @@ function CellEditor({ target, mesocycleId, onClose, onNotice, onOpenDay, onChang
         <ConfirmDeleteButton
           label="Quitar de esta semana"
           confirmMessage={`¿Quitar ${row.exerciseName} de la semana ${weekIndex + 1}?`}
-          onConfirm={async () => {
-            await deletePlannedExercise(cell.plannedExerciseId as string)
-            await onChange()
+          onConfirm={() => {
             onClose()
+            void deletePlannedExercise(cell.plannedExerciseId as string).then(onChange)
           }}
         />
       )}
