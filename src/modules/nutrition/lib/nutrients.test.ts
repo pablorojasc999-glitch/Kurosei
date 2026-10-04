@@ -54,10 +54,14 @@ describe('scaleNutrientProfile', () => {
 })
 
 describe('formatNutrient', () => {
-  it('always shows exactly one decimal', () => {
-    expect(formatNutrient(47.5)).toBe('47.5')
-    expect(formatNutrient(0)).toBe('0.0')
-    expect(formatNutrient(11.456)).toBe('11.5')
+  it('redondea a entero, sin decimales', () => {
+    expect(formatNutrient(47.5)).toBe('48')
+    expect(formatNutrient(0)).toBe('0')
+    expect(formatNutrient(11.456)).toBe('11')
+  })
+
+  it('no muestra "-0"', () => {
+    expect(formatNutrient(-0.2)).toBe('0')
   })
 })
 

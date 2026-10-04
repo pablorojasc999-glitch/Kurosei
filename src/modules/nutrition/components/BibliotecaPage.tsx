@@ -351,7 +351,7 @@ export function BibliotecaPage() {
                 </strong>{' '}
                 {food.brand && <span className="tag">{food.brand}</span>}
                 <div className="finance-transaction-subtitle">
-                  {formatNutrient(food.calories)} kcal por {food.servingAmount}{' '}
+                  {formatNutrient(food.calories)} kcal por {Math.round(food.servingAmount)}{' '}
                   {food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}
                 </div>
               </div>

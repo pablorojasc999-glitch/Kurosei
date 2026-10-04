@@ -54,7 +54,7 @@ export function EntryRow({
         : entry.manualName
   const quantityLabel =
     entry.kind === 'food' && food
-      ? `${entry.quantity} ${food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}`
+      ? `${Math.round(entry.quantity ?? 0)} ${food.servingUnit === 'unidad' ? 'unidad' : food.servingUnit}`
       : null
   const canExpand = entry.kind === 'manual' || (entry.kind === 'food' && !!food)
 
@@ -93,21 +93,13 @@ export function EntryRow({
           {checked ? '✓' : ''}
         </button>
       )}
-      <span className="nutrition-entry-drag-handle" aria-hidden="true">
-        ⠿
-      </span>
       {emoji && (
         <span className="nutrition-entry-emoji" aria-hidden="true">
           {emoji}
         </span>
       )}
       <span className="nutrition-entry-info">
-        <strong>
-          {name}
-          {quantityLabel && (
-            <span className="nutrition-entry-quantity-inline"> | {quantityLabel}</span>
-          )}
-        </strong>
+        <strong>{name}</strong>
         <span className="nutrition-entry-macro-line">
           <span className="nutrition-entry-macro-item">
             {formatNutrient(entry.calories)} kcal
@@ -117,6 +109,7 @@ export function EntryRow({
           <span className="nutrition-entry-macro-item">G {formatNutrient(entry.fatG)}</span>
         </span>
       </span>
+      {quantityLabel && <span className="nutrition-entry-quantity">{quantityLabel}</span>}
       <span onClick={(e) => e.stopPropagation()}>
         <ConfirmDeleteButton
           variant="icon"
