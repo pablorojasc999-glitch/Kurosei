@@ -3,11 +3,20 @@ import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../../../shared/supabase/client'
 import { useTheme, type Theme } from '../../../shared/hooks/useTheme'
 import { getSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from '../lib/auth'
+import { getPreferences, setHomeTab, type HomeTab } from '../db/preferencesRepository'
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
   { value: 'system', label: 'Sistema' },
   { value: 'light', label: 'Claro' },
   { value: 'dark', label: 'Oscuro' },
+]
+
+const HOME_TAB_OPTIONS: Array<{ value: HomeTab; label: string }> = [
+  { value: 'constancia', label: 'Constancia' },
+  { value: 'entrenamiento', label: 'Entreno' },
+  { value: 'nutricion', label: 'Nutrición' },
+  { value: 'finanzas', label: 'Finanzas' },
+  { value: 'supermercado', label: 'Súper' },
 ]
 
 function IconAccount() {
@@ -33,6 +42,10 @@ export function AccountPanel() {
   const [session, setSession] = useState<Session | null>(null)
   const [sessionLoaded, setSessionLoaded] = useState(false)
   const { theme, setTheme } = useTheme()
+  // A diferencia del tema (una preferencia de pantalla, ver `useTheme`), la
+  // pantalla de inicio es de la cuenta: vive en Supabase, no en localStorage,
+  // así que no hay nada que leer sin sesión.
+  const [homeTab, setHomeTabState] = useState<HomeTab | null>(null)
 
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
@@ -50,6 +63,18 @@ export function AccountPanel() {
     })
     return onAuthStateChange((s) => setSession(s))
   }, [])
+
+  useEffect(() => {
+    const request: Promise<HomeTab | null> = session
+      ? getPreferences().then((p) => p?.homeTab ?? 'constancia')
+      : Promise.resolve(null)
+    request.then(setHomeTabState)
+  }, [session])
+
+  function handleHomeTabChange(next: HomeTab) {
+    setHomeTabState(next)
+    void setHomeTab(next)
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -99,6 +124,19 @@ export function AccountPanel() {
           {!isSupabaseConfigured ? null : !sessionLoaded ? null : session ? (
             <>
               <p className="account-email">{session.user.email}</p>
+
+              <h3>Pantalla de inicio</h3>
+              <select
+                value={homeTab ?? 'constancia'}
+                onChange={(e) => handleHomeTabChange(e.target.value as HomeTab)}
+              >
+                {HOME_TAB_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+
               <button
                 type="button"
                 className="account-signout"
