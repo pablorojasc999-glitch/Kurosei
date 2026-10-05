@@ -625,6 +625,22 @@ section {
   background: rgba(var(--success-rgb), 0.04);
 }
 
+/* Gris: el plan del día antes de iniciar la sesión. No es "pendiente" (rojo)
+   ni "hecho" (verde) — esos dos hablan de una sesión que existe, y acá
+   todavía no hay ninguna. */
+.planned-exercise-item--pending {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.planned-exercise-item--pending strong,
+.planned-exercise-item--pending .plan-target-title,
+.planned-exercise-item--pending .plan-target-row,
+.planned-exercise-item--pending .set-number,
+.planned-exercise-item--pending .empty-hint {
+  color: var(--text-muted);
+}
+
 .planned-exercise-header {
   display: flex;
   flex-wrap: wrap;

@@ -41,7 +41,7 @@ import {
   toTimeInput,
   withTimeOfDay,
 } from '../lib/sessionTimes'
-import type { ExecutedSet } from '../domain/types'
+import type { ExecutedSet, PlannedSet } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
 
@@ -54,6 +54,26 @@ function e1rmSuffix(set: Pick<ExecutedSet, 'weightKg' | 'reps' | 'rpe'>): string
     rpe: set.rpe ?? undefined,
   })
   return ` · e1RM ${Math.round(e1rm)}`
+}
+
+/** Las series planificadas de un ejercicio, en orden — se reutiliza antes de iniciar la sesión y durante ella. */
+function PlanTargetList({ sets }: { sets: PlannedSet[] }) {
+  if (sets.length === 0) return null
+  return (
+    <ul className="plan-target-list">
+      <li className="plan-target-title">Objetivo</li>
+      {sets.map((ps) => (
+        <li key={ps.id} className="plan-target-row">
+          <span className="set-number">{ps.setNumber}</span>
+          <span>
+            {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
+            {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
+            {ps.restSecondsTarget !== null && ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 interface SetFormState {
@@ -382,6 +402,30 @@ export function SessionView({ dayId }: SessionViewProps) {
             </button>
           </div>
         )}
+
+        {/* El plan del día se enseña aunque la sesión no haya arrancado: antes
+            había que iniciarla para ver siquiera qué tocaba entrenar. Gris
+            porque todavía no es ni "pendiente" (rojo) ni "hecho" (verde) —
+            esos dos sólo existen una vez que hay sesión. */}
+        {(plannedExercises?.length ?? 0) > 0 && (
+          <ul className="planned-exercise-list">
+            {[...(plannedExercises ?? [])]
+              .sort((a, b) => a.order - b.order)
+              .map((pe) => (
+                <li key={pe.id} className="planned-exercise-item planned-exercise-item--pending">
+                  <div className="planned-exercise-header">
+                    <strong>{exerciseName(pe.exerciseId)}</strong>
+                  </div>
+                  {pe.notes && <p className="cell-note-readonly">{pe.notes}</p>}
+                  <PlanTargetList
+                    sets={(plannedSets ?? [])
+                      .filter((ps) => ps.plannedExerciseId === pe.id)
+                      .sort((a, b) => a.setNumber - b.setNumber)}
+                  />
+                </li>
+              ))}
+          </ul>
+        )}
       </div>
     )
   }
@@ -644,23 +688,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                   <p className="empty-hint">Sin series registradas.</p>
                 )
               ) : (
-                targetSets &&
-                targetSets.length > 0 && (
-                  <ul className="plan-target-list">
-                    <li className="plan-target-title">Objetivo</li>
-                    {targetSets.map((ps) => (
-                      <li key={ps.id} className="plan-target-row">
-                        <span className="set-number">{ps.setNumber}</span>
-                        <span>
-                          {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
-                          {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
-                          {ps.restSecondsTarget !== null &&
-                            ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )
+                <PlanTargetList sets={targetSets ?? []} />
               )}
 
               <DeloadAlert exerciseId={se.exerciseId} />
