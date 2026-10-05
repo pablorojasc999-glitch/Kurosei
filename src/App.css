@@ -245,6 +245,10 @@
   border-color: var(--accent-border);
 }
 
+.account-panel select {
+  width: 100%;
+}
+
 .app-content {
   flex: 1;
   padding-bottom: 24px;

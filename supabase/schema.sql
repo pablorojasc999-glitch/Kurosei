@@ -881,6 +881,37 @@ create trigger "day_closures_synced_at" before insert or update on "day_closures
   for each row execute function public.set_synced_at();
 
 -- ---------------------------------------------------------------------
+-- Preferencias de la cuenta
+--
+-- Una fila por cuenta, igual que "training_user_profile". Hoy sólo guarda
+-- qué pestaña de Registro abre la app al entrar — cada cuenta la suya, no es
+-- una preferencia de pantalla como el tema (ver `useTheme`, que vive en
+-- localStorage): acá importa quién inició sesión, no en qué dispositivo.
+-- ---------------------------------------------------------------------
+
+create table if not exists "app_preferences" (
+  "id" uuid primary key,
+  "userId" uuid not null references auth.users(id) on delete cascade,
+  "homeTab" text not null,
+  "createdAt" timestamptz not null,
+  "updatedAt" timestamptz not null,
+  "deletedAt" timestamptz,
+  "syncedAt" timestamptz not null default now()
+);
+
+create index if not exists "app_preferences_sync_idx" on "app_preferences" ("userId", "updatedAt");
+create index if not exists "app_preferences_pull_idx" on "app_preferences" ("userId", "syncedAt");
+
+alter table "app_preferences" enable row level security;
+drop policy if exists "owner_all" on "app_preferences";
+create policy "owner_all" on "app_preferences" for all
+  using ("userId" = auth.uid()) with check ("userId" = auth.uid());
+
+drop trigger if exists "app_preferences_synced_at" on "app_preferences";
+create trigger "app_preferences_synced_at" before insert or update on "app_preferences"
+  for each row execute function public.set_synced_at();
+
+-- ---------------------------------------------------------------------
 -- Biblioteca compartida de ejercicios y de alimentos
 --
 -- Todo lo demás es estrictamente por cuenta (ver "owner_all" arriba): esto

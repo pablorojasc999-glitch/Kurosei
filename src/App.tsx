@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { CategoriasPage } from './modules/finance/components/CategoriasPage'
 import { CuentasPage } from './modules/finance/components/CuentasPage'
 import { EstadisticasPage } from './modules/finance/components/EstadisticasPage'
@@ -41,7 +41,9 @@ import { ProgressPage } from './modules/training/components/ProgressPage'
 import { RegistroPage } from './modules/training/components/RegistroPage'
 import { ReloadPrompt } from './modules/training/components/ReloadPrompt'
 import { AccountPanel } from './modules/sync/components/AccountPanel'
+import { getPreferences, type HomeTab } from './modules/sync/db/preferencesRepository'
 import { AppSidebar, type AppModule } from './shared/components/AppSidebar'
+import { useRemoteQuery } from './shared/hooks/useRemoteQuery'
 import './App.css'
 
 type Tab = 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca' | 'calculadora'
@@ -50,18 +52,17 @@ type FinanceTab = 'cuentas' | 'categorias' | 'estadisticas'
 
 type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
 
-type RegistroTab =
-  | 'constancia'
-  | 'entrenamiento'
-  | 'nutricion'
-  | 'finanzas'
-  | 'supermercado'
+/** Las mismas cinco pestañas que puede ser "pantalla de inicio" — ver `preferencesRepository`. */
+type RegistroTab = HomeTab
 
 function App() {
   const [appModule, setAppModule] = useState<AppModule>('registro')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  // El calendario es la pantalla de inicio: lo primero que conviene ver al
-  // abrir la app es qué días quedaron a medias.
+  // Constancia es el valor por omisión: lo primero que conviene ver al abrir
+  // la app es qué días quedaron a medias. Cada cuenta puede cambiarlo desde
+  // el panel de cuenta (ver `preferencesRepository`) — se aplica una sola
+  // vez, apenas se sabe cuál es, y nunca si la persona ya navegó a otra
+  // pestaña mientras tanto (`navigated` corta eso).
   const [registroTab, setRegistroTab] = useState<RegistroTab>('constancia')
   const [tab, setTab] = useState<Tab>('periodizacion')
   const [financeTab, setFinanceTab] = useState<FinanceTab>('cuentas')
@@ -69,7 +70,24 @@ function App() {
   const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
 
+  const { data: preferences } = useRemoteQuery(useCallback(() => getPreferences(), []))
+  const [navigated, setNavigated] = useState(false)
+  // Ajusta `registroTab` en el render, no en un efecto: así no hace falta
+  // esperar un ciclo extra para que se vea, y React ya sabe tratar esto como
+  // "ajustar estado cuando cambia un dato" en vez de un efecto secundario.
+  const [homeTabApplied, setHomeTabApplied] = useState(false)
+  if (!homeTabApplied && !navigated && preferences !== undefined) {
+    setHomeTabApplied(true)
+    if (preferences) setRegistroTab(preferences.homeTab)
+  }
+
+  function selectRegistroTab(nextTab: RegistroTab) {
+    setNavigated(true)
+    setRegistroTab(nextTab)
+  }
+
   function handleOpenDay(date: Date) {
+    setNavigated(true)
     setJumpToDate(date)
     setAppModule('registro')
     setRegistroTab('entrenamiento')
@@ -170,7 +188,7 @@ function App() {
           <button
             type="button"
             className={registroTab === 'constancia' ? 'active' : ''}
-            onClick={() => setRegistroTab('constancia')}
+            onClick={() => selectRegistroTab('constancia')}
           >
             <IconCalendar />
             Constancia
@@ -178,7 +196,7 @@ function App() {
           <button
             type="button"
             className={registroTab === 'entrenamiento' ? 'active' : ''}
-            onClick={() => setRegistroTab('entrenamiento')}
+            onClick={() => selectRegistroTab('entrenamiento')}
           >
             <IconRegistro />
             Entreno
@@ -186,7 +204,7 @@ function App() {
           <button
             type="button"
             className={registroTab === 'nutricion' ? 'active' : ''}
-            onClick={() => setRegistroTab('nutricion')}
+            onClick={() => selectRegistroTab('nutricion')}
           >
             <IconNutritionRegistro />
             Nutrición
@@ -194,7 +212,7 @@ function App() {
           <button
             type="button"
             className={registroTab === 'finanzas' ? 'active' : ''}
-            onClick={() => setRegistroTab('finanzas')}
+            onClick={() => selectRegistroTab('finanzas')}
           >
             <IconTransactions />
             Finanzas
@@ -202,7 +220,7 @@ function App() {
           <button
             type="button"
             className={registroTab === 'supermercado' ? 'active' : ''}
-            onClick={() => setRegistroTab('supermercado')}
+            onClick={() => selectRegistroTab('supermercado')}
           >
             <IconGrocery />
             Súper
