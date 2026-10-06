@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   extendRest,
   formatRestClock,
+  parsePersistedRest,
   pauseRest,
   remainingSeconds,
+  restStorageKey,
   resumeRest,
   startRest,
 } from './restTimer'
@@ -97,5 +99,43 @@ describe('formatRestClock', () => {
   it('marca con + lo que se pasó', () => {
     expect(formatRestClock(-12)).toBe('+0:12')
     expect(formatRestClock(-90)).toBe('+1:30')
+  })
+})
+
+describe('restStorageKey', () => {
+  it('es distinta para cada día, para no mezclar el descanso de uno con el de otro', () => {
+    expect(restStorageKey('d1')).not.toBe(restStorageKey('d2'))
+  })
+})
+
+describe('parsePersistedRest', () => {
+  it('recupera un descanso corriendo tal como se guardó', () => {
+    const saved = JSON.stringify({ sessionExerciseId: 'se1', state: { status: 'running', endsAt: T0 } })
+    expect(parsePersistedRest(saved)).toEqual({
+      sessionExerciseId: 'se1',
+      state: { status: 'running', endsAt: T0 },
+    })
+  })
+
+  it('recupera uno pausado', () => {
+    const saved = JSON.stringify({ sessionExerciseId: 'se1', state: { status: 'paused', remainingMs: 5000 } })
+    expect(parsePersistedRest(saved)).toEqual({
+      sessionExerciseId: 'se1',
+      state: { status: 'paused', remainingMs: 5000 },
+    })
+  })
+
+  it('un JSON roto no es un error, es "no hay nada que restaurar"', () => {
+    expect(parsePersistedRest('{roto')).toBeNull()
+  })
+
+  it('sin sessionExerciseId no hay a qué ejercicio devolverle el descanso', () => {
+    expect(parsePersistedRest(JSON.stringify({ state: { status: 'running', endsAt: T0 } }))).toBeNull()
+  })
+
+  it('un estado con una forma desconocida tampoco se usa', () => {
+    expect(
+      parsePersistedRest(JSON.stringify({ sessionExerciseId: 'se1', state: { status: 'done' } })),
+    ).toBeNull()
   })
 })

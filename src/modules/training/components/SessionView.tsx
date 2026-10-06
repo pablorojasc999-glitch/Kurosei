@@ -34,6 +34,7 @@ import { SessionSummary } from './SessionSummary'
 import { parseReps } from '../lib/reps'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import { parsePersistedRest, restStorageKey, type RestTimerState } from '../lib/restTimer'
 import {
   endIsoFromTime,
   formatSessionDuration,
@@ -44,6 +45,26 @@ import {
 import type { ExecutedSet, PlannedSet } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
+
+interface ActiveRest {
+  sessionExerciseId: string
+  nonce: number
+  /** Sólo se usa en el primer render del cronómetro — ver `RestTimer`. */
+  initialState?: RestTimerState
+}
+
+/** Lo que haya quedado corriendo de antes de refrescar la página, si hay algo. */
+function loadPersistedRest(dayId: string): ActiveRest | null {
+  try {
+    const raw = localStorage.getItem(restStorageKey(dayId))
+    if (!raw) return null
+    const persisted = parsePersistedRest(raw)
+    if (!persisted) return null
+    return { sessionExerciseId: persisted.sessionExerciseId, nonce: 0, initialState: persisted.state }
+  } catch {
+    return null
+  }
+}
 
 /** e1RM suffix for a logged set's summary line — omitted when there's no weight to estimate from. */
 function e1rmSuffix(set: Pick<ExecutedSet, 'weightKg' | 'reps' | 'rpe'>): string {
@@ -140,10 +161,9 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [setForms, setSetForms] = useState<Record<string, SetFormState>>({})
   // Un solo descanso a la vez, el del ejercicio en el que acabas de anotar.
   // Antes había un cronómetro por ejercicio con series: tres ejercicios, tres
-  // relojes corriendo y pitando cada uno por su cuenta.
-  const [rest, setRest] = useState<{ sessionExerciseId: string; nonce: number } | null>(
-    null,
-  )
+  // relojes corriendo y pitando cada uno por su cuenta. Si quedó uno corriendo
+  // de antes de refrescar la página, se retoma (ver `loadPersistedRest`).
+  const [rest, setRest] = useState<ActiveRest | null>(() => loadPersistedRest(dayId))
   const [pickedSourceDayId, setPickedSourceDayId] = useState('')
   const [historyReps, setHistoryReps] = useState<Record<string, string>>({})
   const [confirmingReopen, setConfirmingReopen] = useState(false)
@@ -767,7 +787,10 @@ export function SessionView({ dayId }: SessionViewProps) {
               {rest?.sessionExerciseId === se.id && !locked && (
                 <RestTimer
                   key={rest.nonce}
+                  sessionExerciseId={se.id}
                   targetSeconds={target}
+                  initialState={rest.initialState}
+                  persistKey={restStorageKey(dayId)}
                   onDismiss={() => setRest(null)}
                 />
               )}
