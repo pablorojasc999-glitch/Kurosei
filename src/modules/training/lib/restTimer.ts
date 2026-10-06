@@ -60,3 +60,46 @@ export function formatRestClock(totalSeconds: number): string {
   const seconds = abs % 60
   return `${sign}${minutes}:${seconds.toString().padStart(2, '0')}`
 }
+
+/**
+ * La clave de `localStorage` donde vive el descanso activo de un día — se
+ * guarda ahí (no en Supabase) porque es puramente de esta pestaña: al
+ * refrescar la página, en web, se perdía todo el estado de React y el
+ * cronómetro arrancaba de cero aunque el descanso siguiera corriendo de
+ * verdad. Guardando el mismo `RestTimerState` que ya se contaba contra el
+ * reloj (ver arriba), reabrirlo no es distinto de haber cambiado de pantalla
+ * y vuelto.
+ */
+export function restStorageKey(dayId: string): string {
+  return `kurosei:rest:${dayId}`
+}
+
+/** El único descanso visible a la vez, con a qué ejercicio de la sesión pertenece. */
+export interface PersistedRest {
+  sessionExerciseId: string
+  state: RestTimerState
+}
+
+function isRestTimerState(value: unknown): value is RestTimerState {
+  if (typeof value !== 'object' || value === null) return false
+  const v = value as Record<string, unknown>
+  if (v.status === 'running') return typeof v.endsAt === 'number'
+  if (v.status === 'paused') return typeof v.remainingMs === 'number'
+  return false
+}
+
+/**
+ * Valida lo que vino de `localStorage` antes de confiar en ello: puede estar
+ * corrompido, vacío, o de una versión vieja de la app que guardaba otra
+ * forma. `null` en cualquiera de esos casos es "no hay nada que restaurar",
+ * no un error.
+ */
+export function parsePersistedRest(raw: string): PersistedRest | null {
+  try {
+    const parsed = JSON.parse(raw) as { sessionExerciseId?: unknown; state?: unknown }
+    if (typeof parsed.sessionExerciseId !== 'string' || !isRestTimerState(parsed.state)) return null
+    return { sessionExerciseId: parsed.sessionExerciseId, state: parsed.state }
+  } catch {
+    return null
+  }
+}
