@@ -46,6 +46,7 @@ export function AccountPanel() {
   // pantalla de inicio es de la cuenta: vive en Supabase, no en localStorage,
   // así que no hay nada que leer sin sesión.
   const [homeTab, setHomeTabState] = useState<HomeTab | null>(null)
+  const [homeTabError, setHomeTabError] = useState<string | null>(null)
 
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
@@ -68,12 +69,27 @@ export function AccountPanel() {
     const request: Promise<HomeTab | null> = session
       ? getPreferences().then((p) => p?.homeTab ?? 'constancia')
       : Promise.resolve(null)
-    request.then(setHomeTabState)
+    request
+      .then((tab) => {
+        setHomeTabState(tab)
+        setHomeTabError(null)
+      })
+      .catch((err) => {
+        // Sin esto, una lectura que falla (sin conexión, o si la tabla
+        // todavía no existe porque falta correr la migración) dejaba el
+        // selector mudo: se veía en "Constancia" sin decir que no es lo
+        // guardado.
+        setHomeTabState('constancia')
+        setHomeTabError(err instanceof Error ? err.message : 'No se pudo leer la preferencia guardada.')
+      })
   }, [session])
 
   function handleHomeTabChange(next: HomeTab) {
     setHomeTabState(next)
-    void setHomeTab(next)
+    setHomeTabError(null)
+    setHomeTab(next).catch((err) => {
+      setHomeTabError(err instanceof Error ? err.message : 'No se pudo guardar.')
+    })
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -136,6 +152,7 @@ export function AccountPanel() {
                   </option>
                 ))}
               </select>
+              {homeTabError && <p className="error">{homeTabError}</p>}
 
               <button
                 type="button"

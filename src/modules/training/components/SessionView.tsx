@@ -19,6 +19,7 @@ import {
   updateExecutedSet,
 } from '../db/executionRepository'
 import {
+  copyPlannedExercisesToDay,
   listPlannedSetsForExercises,
   listPlannedDaysWithExercises,
   listPlannedExercises,
@@ -232,6 +233,10 @@ export function SessionView({ dayId }: SessionViewProps) {
   async function handleStartSessionFromPickedDay() {
     if (!pickedSourceDayId) return
     await guardStartSession(async () => {
+      // Sin esto, el plan de ese otro día no existía para este día: la
+      // pantalla sólo sabe mostrar lo planificado (y contra qué comparar
+      // cuando se cierra el ejercicio) buscándolo en el plan del propio día.
+      await copyPlannedExercisesToDay(pickedSourceDayId, dayId)
       const newSession = await startSession(dayId)
       const sourceExercises = await listPlannedExercises(pickedSourceDayId)
       for (const pe of sourceExercises) {
@@ -249,6 +254,10 @@ export function SessionView({ dayId }: SessionViewProps) {
   async function handleLoadPlanFromPickedDay() {
     if (!session || !pickedSourceDayId) return
     await guardLoadPlan(async () => {
+      // Ver el comentario de `handleStartSessionFromPickedDay`: sin copiarlo,
+      // este día no tiene de dónde sacar las series a mostrar para esos
+      // ejercicios.
+      await copyPlannedExercisesToDay(pickedSourceDayId, dayId)
       const sourceExercises = await listPlannedExercises(pickedSourceDayId)
       const missing = sourceExercises.filter(
         (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),

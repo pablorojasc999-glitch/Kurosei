@@ -676,13 +676,22 @@ async function copyPlannedExerciseTo(
  * Copies every planned exercise (and its planned sets) from `sourceDayId`
  * into `targetDayId`, as independent new records — editing one day
  * afterwards never touches the other.
+ *
+ * Se salta el que `targetDayId` ya tenga planificado para ese ejercicio: así
+ * se puede llamar sobre un día que ya tiene su propio plan (Registro la usa
+ * para traer el de otro día ya planificado a una sesión) sin duplicarlo, y
+ * llamarla dos veces con el mismo origen no copia dos veces lo mismo.
  */
 export async function copyPlannedExercisesToDay(
   sourceDayId: string,
   targetDayId: string,
 ): Promise<void> {
   const sourcePlannedExercises = await listPlannedExercises(sourceDayId)
+  const alreadyPlanned = new Set(
+    (await listPlannedExercises(targetDayId)).map((pe) => pe.exerciseId),
+  )
   for (const sourcePe of sourcePlannedExercises) {
+    if (alreadyPlanned.has(sourcePe.exerciseId)) continue
     await copyPlannedExerciseTo(sourcePe, targetDayId)
   }
 }
