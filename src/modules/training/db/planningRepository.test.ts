@@ -830,6 +830,33 @@ describe('copyPlannedExercisesToDay', () => {
     await deleteDay(targetDay.id)
     expect(await listPlannedExercises(sourceDay.id)).toHaveLength(1)
   })
+
+  it('no duplica un ejercicio que el día de destino ya tiene planificado', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(mesocycle.id)
+    const chest = await createMuscleGroup('Pecho')
+    const exercise = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const sourceDay = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
+    await createPlannedExercise({ dayId: sourceDay.id, exerciseId: exercise.id, notes: '' })
+
+    const targetDay = await createDay({ weekId: week.id, date: '2026-01-12T00:00:00.000Z', label: '' })
+    const ownPe = await createPlannedExercise({ dayId: targetDay.id, exerciseId: exercise.id, notes: 'Mío' })
+
+    await copyPlannedExercisesToDay(sourceDay.id, targetDay.id)
+
+    const targetExercises = await listPlannedExercises(targetDay.id)
+    expect(targetExercises).toHaveLength(1)
+    expect(targetExercises[0].id).toBe(ownPe.id)
+
+    // Llamarla de nuevo con el mismo origen tampoco crea un segundo duplicado.
+    await copyPlannedExercisesToDay(sourceDay.id, targetDay.id)
+    expect(await listPlannedExercises(targetDay.id)).toHaveLength(1)
+  })
 })
 
 describe('updateMacrocycle / updateMesocycle / updateDay', () => {
