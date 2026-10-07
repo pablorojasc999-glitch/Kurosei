@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { listCardioSessions } from '../db/cardioRepository'
@@ -15,8 +15,6 @@ import { CardioView } from './CardioView'
 import { DayHeaderLabel } from './DayHeaderLabel'
 import { SessionView } from './SessionView'
 
-const SWIPE_THRESHOLD_PX = 50
-
 interface RegistroPageProps {
   jumpToDate?: Date | null
   onEditPlan: (dayId: string) => void
@@ -28,7 +26,6 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
   const [appliedJumpToDate, setAppliedJumpToDate] = useState(jumpToDate)
   const [forceShowContent, setForceShowContent] = useState(false)
   const [appliedForceShowDate, setAppliedForceShowDate] = useState(selectedDate)
-  const touchStartX = useRef<number | null>(null)
 
   if (jumpToDate !== appliedJumpToDate) {
     setAppliedJumpToDate(jumpToDate)
@@ -76,17 +73,6 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
     setSelectedDate((d) => addDays(d, 1))
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
-  }
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
-    const delta = e.changedTouches[0].clientX - touchStartX.current
-    touchStartX.current = null
-    if (delta > SWIPE_THRESHOLD_PX) goToPreviousDay()
-    else if (delta < -SWIPE_THRESHOLD_PX) goToNextDay()
-  }
-
   async function handleCreateDay() {
     await getOrCreateDayForDate(selectedDate)
     await refreshDay()
@@ -113,11 +99,7 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
   }
 
   return (
-    <div
-      className="page"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="page">
       <h1>Registro</h1>
 
       <div className="day-nav">
