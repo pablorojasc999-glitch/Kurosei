@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { rankRepHistory, REP_HISTORY_LIMIT } from './repHistory'
+import { latestSessionSets, rankRepHistory, REP_HISTORY_LIMIT } from './repHistory'
 
 const serie = (performedAt: string, weightKg: number, rpe: number | null = 8) => ({
   performedAt,
@@ -87,5 +87,45 @@ describe('rankRepHistory con series sin peso', () => {
   it('"Recientes" no las trata distinto', () => {
     const r = rankRepHistory([serie('2026-01-05', 100), sinPeso('2026-03-01')], 'recientes')
     expect(r[0].performedAt).toBe('2026-03-01')
+  })
+})
+
+describe('latestSessionSets', () => {
+  const set = (
+    sessionExerciseId: string,
+    setNumber: number,
+    performedAt: string,
+    reps = 5,
+  ) => ({ sessionExerciseId, setNumber, performedAt, weightKg: 100, reps, rpe: 8 })
+
+  it('se queda sólo con las series de la sesión más reciente', () => {
+    const r = latestSessionSets([
+      set('vieja', 1, '2026-01-05'),
+      set('vieja', 2, '2026-01-05'),
+      set('nueva', 1, '2026-02-01'),
+      set('nueva', 2, '2026-02-01'),
+    ])
+    expect(r.map((s) => s.sessionExerciseId)).toEqual(['nueva', 'nueva'])
+  })
+
+  it('las devuelve en orden de serie, no de llegada', () => {
+    const r = latestSessionSets([set('a', 2, '2026-01-05'), set('a', 1, '2026-01-05')])
+    expect(r.map((s) => s.setNumber)).toEqual([1, 2])
+  })
+
+  it('deja afuera la sesión excluida aunque sea la más reciente', () => {
+    const r = latestSessionSets(
+      [set('hoy', 1, '2026-02-01'), set('ayer', 1, '2026-01-05')],
+      'hoy',
+    )
+    expect(r.map((s) => s.sessionExerciseId)).toEqual(['ayer'])
+  })
+
+  it('sin historial no devuelve nada', () => {
+    expect(latestSessionSets([])).toEqual([])
+  })
+
+  it('si sólo queda la sesión excluida, tampoco devuelve nada', () => {
+    expect(latestSessionSets([set('hoy', 1, '2026-02-01')], 'hoy')).toEqual([])
   })
 })

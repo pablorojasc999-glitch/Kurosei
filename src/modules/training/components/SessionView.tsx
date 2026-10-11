@@ -687,6 +687,7 @@ export function SessionView({ dayId, onJumpToDate }: SessionViewProps) {
                     <RepHistory
                       exerciseId={se.exerciseId}
                       reps={Number(historyRepsValue)}
+                      currentSessionExerciseId={se.id}
                     />
                   )}
                 </>

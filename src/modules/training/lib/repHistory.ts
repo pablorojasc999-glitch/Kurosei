@@ -22,6 +22,11 @@ export interface RepHistorySet {
   rpe: number | null
 }
 
+export interface SessionSet extends RepHistorySet {
+  sessionExerciseId: string
+  setNumber: number
+}
+
 /** Null cuando la serie no tiene peso anotado: no hay 1RM que estimar. */
 export function e1rmOfSet(set: RepHistorySet): number | null {
   return e1rmForSet(set)
@@ -53,4 +58,28 @@ export function rankRepHistory<T extends RepHistorySet>(
   }
   const sorted = [...sets].sort(mode === 'e1rm' ? byE1rmDesc : byDateDesc)
   return sorted.slice(0, Math.max(0, limit))
+}
+
+/**
+ * Las series de la última vez que se hizo este ejercicio, sin importar a
+ * cuántas reps — para cuando lo que importa no es repetir el mismo número de
+ * reps de antes, sino saber qué se hizo la vez pasada y tratar de superarlo.
+ *
+ * Se agrupa por `sessionExerciseId` (una sesión concreta) y no por fecha: dos
+ * sesiones el mismo día contarían como una sola si se agrupara por fecha.
+ * `excludeSessionExerciseId` deja afuera la sesión de hoy, que si no
+ * competiría contra sí misma apenas se anota la primera serie.
+ */
+export function latestSessionSets<T extends SessionSet>(
+  sets: T[],
+  excludeSessionExerciseId?: string,
+): T[] {
+  const candidates = sets.filter((s) => s.sessionExerciseId !== excludeSessionExerciseId)
+  if (candidates.length === 0) return []
+  const latestSessionExerciseId = candidates.reduce((latest, s) =>
+    new Date(s.performedAt).getTime() > new Date(latest.performedAt).getTime() ? s : latest,
+  ).sessionExerciseId
+  return candidates
+    .filter((s) => s.sessionExerciseId === latestSessionExerciseId)
+    .sort((a, b) => a.setNumber - b.setNumber)
 }
