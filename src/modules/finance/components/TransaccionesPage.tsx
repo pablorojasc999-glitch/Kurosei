@@ -8,6 +8,7 @@ import { toDateKey } from '../../training/lib/calendarGrid'
 import {
   createTransaction,
   getCategoryTotalsForMonth,
+  getMonthTotals,
   listAccounts,
   listCategories,
   listCategoryBudgets,
@@ -25,7 +26,6 @@ import {
   monthKeyOfDate,
   toMonthKey,
 } from '../lib/month'
-import { useAccountsTotalBalance } from '../lib/useAccountsTotalBalance'
 import { BalanceHeader } from './BalanceHeader'
 import { MonthNav } from './MonthNav'
 
@@ -40,10 +40,9 @@ function formatDateHeader(date: string): string {
 export function TransaccionesPage() {
   const session = useSupabaseSession()
   const [monthKey, setMonthKey] = useState(() => toMonthKey(new Date()))
-  // Sube cada vez que una transacción cambia, para que el saldo (que no viene
-  // de esta misma consulta) se vuelva a pedir también.
+  // Sube cada vez que una transacción cambia, para que el saldo de
+  // BalanceHeader (que no viene de esta misma consulta) se vuelva a pedir también.
   const [balanceTick, setBalanceTick] = useState(0)
-  const finalBalance = useAccountsTotalBalance(balanceTick)
 
   const {
     data,
@@ -54,14 +53,16 @@ export function TransaccionesPage() {
       if (!session) return undefined
       // La lista sigue al mes financiero, no al de la fecha: así lo que se ve
       // acá es exactamente lo que suma Categorías para ese mes.
-      const [transactions, accounts, categories, monthSpend, allBudgets] = await Promise.all([
-        listTransactionsForMonth(monthKey),
-        listAccounts('account'),
-        listCategories(),
-        getCategoryTotalsForMonth(monthKey),
-        listCategoryBudgets(),
-      ])
-      return { transactions, accounts, categories, monthSpend, allBudgets }
+      const [transactions, accounts, categories, monthSpend, allBudgets, monthTotals] =
+        await Promise.all([
+          listTransactionsForMonth(monthKey),
+          listAccounts('account'),
+          listCategories(),
+          getCategoryTotalsForMonth(monthKey),
+          listCategoryBudgets(),
+          getMonthTotals(monthKey),
+        ])
+      return { transactions, accounts, categories, monthSpend, allBudgets, monthTotals }
     }, [session, monthKey]),
   )
   const transactions = data?.transactions
@@ -69,6 +70,7 @@ export function TransaccionesPage() {
   const categories = data?.categories
   const monthSpend = data?.monthSpend
   const allBudgets = data?.allBudgets
+  const monthTotals = data?.monthTotals
 
   async function refreshAfterTransactionChange() {
     await refresh()
@@ -215,13 +217,13 @@ export function TransaccionesPage() {
       {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <div className="finance-summary-row">
-        <div className="finance-summary-card">
-          <span>Saldo inicial</span>
-          <strong>{formatMoney(0)}</strong>
+        <div className="finance-summary-card finance-summary-card--expense">
+          <span>Gastos</span>
+          <strong>{formatMoney(monthTotals?.expense ?? 0)}</strong>
         </div>
-        <div className="finance-summary-card">
-          <span>Saldo final</span>
-          <strong>{formatMoney(finalBalance ?? 0)}</strong>
+        <div className="finance-summary-card finance-summary-card--income">
+          <span>Ingresos</span>
+          <strong>{formatMoney(monthTotals?.income ?? 0)}</strong>
         </div>
       </div>
 
