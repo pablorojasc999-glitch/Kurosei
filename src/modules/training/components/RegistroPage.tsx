@@ -136,7 +136,7 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
 
           <section>
             <h2>Fuerza</h2>
-            <SessionView dayId={day.id} />
+            <SessionView dayId={day.id} onJumpToDate={(date) => setSelectedDate(startOfDay(date))} />
           </section>
 
           <section>
