@@ -19,7 +19,6 @@ import {
   updateExecutedSet,
 } from '../db/executionRepository'
 import {
-  copyPlannedExercisesToDay,
   listPlannedSetsForExercises,
   listPlannedDaysWithExercises,
   listPlannedExercises,
@@ -120,9 +119,11 @@ const EMPTY_SET_FORM: SetFormState = {
 
 interface SessionViewProps {
   dayId: string
+  /** Mueve Registro a otra fecha — ver el botón "Ir a ese día" más abajo. */
+  onJumpToDate: (date: Date) => void
 }
 
-export function SessionView({ dayId }: SessionViewProps) {
+export function SessionView({ dayId, onJumpToDate }: SessionViewProps) {
   // La sesión y sus series ejecutadas cambian con casi cada acción de esta
   // pantalla, así que se refrescan juntas (`refresh`) sin arrastrar al plan ni
   // a la biblioteca de ejercicios, que acá nunca se editan — pedirlos de
@@ -230,48 +231,19 @@ export function SessionView({ dayId }: SessionViewProps) {
     })
   }
 
-  async function handleStartSessionFromPickedDay() {
-    if (!pickedSourceDayId) return
-    await guardStartSession(async () => {
-      // Sin esto, el plan de ese otro día no existía para este día: la
-      // pantalla sólo sabe mostrar lo planificado (y contra qué comparar
-      // cuando se cierra el ejercicio) buscándolo en el plan del propio día.
-      await copyPlannedExercisesToDay(pickedSourceDayId, dayId)
-      const newSession = await startSession(dayId)
-      const sourceExercises = await listPlannedExercises(pickedSourceDayId)
-      for (const pe of sourceExercises) {
-        await addSessionExercise({
-          sessionId: newSession.id,
-          exerciseId: pe.exerciseId,
-          notes: pe.notes,
-        })
-      }
-      await refresh()
-      setPickedSourceDayId('')
-    })
-  }
-
-  async function handleLoadPlanFromPickedDay() {
-    if (!session || !pickedSourceDayId) return
-    await guardLoadPlan(async () => {
-      // Ver el comentario de `handleStartSessionFromPickedDay`: sin copiarlo,
-      // este día no tiene de dónde sacar las series a mostrar para esos
-      // ejercicios.
-      await copyPlannedExercisesToDay(pickedSourceDayId, dayId)
-      const sourceExercises = await listPlannedExercises(pickedSourceDayId)
-      const missing = sourceExercises.filter(
-        (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),
-      )
-      for (const pe of missing) {
-        await addSessionExercise({
-          sessionId: session.id,
-          exerciseId: pe.exerciseId,
-          notes: pe.notes,
-        })
-      }
-      await refresh()
-      setPickedSourceDayId('')
-    })
+  /**
+   * Entrenar el plan de otro día no copia nada: lleva a Registro a la fecha
+   * real de ese día, para que lo que se registre quede marcado ahí y la
+   * planilla del mesociclo no se entere de nada distinto. Copiar el plan a
+   * este día (como se hacía antes) dejaba el mesociclo con dos copias del
+   * mismo ejercicio en días distintos, con el mismo `order` — el desorden que
+   * reportó Pablo.
+   */
+  function handleJumpToPickedDay() {
+    const picked = otherPlannedDays.find((d) => d.id === pickedSourceDayId)
+    if (!picked) return
+    onJumpToDate(new Date(picked.date))
+    setPickedSourceDayId('')
   }
 
   /**
@@ -407,7 +379,7 @@ export function SessionView({ dayId }: SessionViewProps) {
         {otherPlannedDays.length > 0 && (
           <div className="load-plan-picker">
             <label>
-              O cargar un día ya planificado
+              O ir a otro día planificado
               <select
                 autoComplete="off"
                 value={pickedSourceDayId}
@@ -422,12 +394,8 @@ export function SessionView({ dayId }: SessionViewProps) {
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              disabled={!pickedSourceDayId || isStartingSession}
-              onClick={handleStartSessionFromPickedDay}
-            >
-              Iniciar sesión con ese plan
+            <button type="button" disabled={!pickedSourceDayId} onClick={handleJumpToPickedDay}>
+              Ir a ese día
             </button>
           </div>
         )}
@@ -563,34 +531,6 @@ export function SessionView({ dayId }: SessionViewProps) {
           Cargar {missingPlannedExercises.length} ejercicio
           {missingPlannedExercises.length === 1 ? '' : 's'} del plan
         </button>
-      )}
-
-      {!session.endedAt && otherPlannedDays.length > 0 && (
-        <div className="load-plan-picker">
-          <label>
-            Cargar ejercicios de otro día planificado
-            <select
-              autoComplete="off"
-              value={pickedSourceDayId}
-              onChange={(e) => setPickedSourceDayId(e.target.value)}
-            >
-              <option value="">Elegir día planificado</option>
-              {otherPlannedDays.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
-                  {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={!pickedSourceDayId || isLoadingPlan}
-            onClick={handleLoadPlanFromPickedDay}
-          >
-            Cargar ejercicios
-          </button>
-        </div>
       )}
 
       <ul className="planned-exercise-list">
