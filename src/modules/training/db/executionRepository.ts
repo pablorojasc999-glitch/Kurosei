@@ -391,3 +391,28 @@ export async function listExecutedSetsForExerciseByReps(
     (a, b) => new Date(b.performedAt).getTime() - new Date(a.performedAt).getTime(),
   )
 }
+
+/**
+ * Todas las series de este ejercicio en cualquier sesión, sin filtrar por
+ * reps — de acá se elige del lado del cliente la de la sesión más reciente
+ * (ver `latestSessionSets`), que es lo único que necesita "ver qué hice la
+ * vez pasada".
+ */
+export async function listExecutedSetsForExercise(exerciseId: string): Promise<ExecutedSet[]> {
+  const { data, error } = await client()
+    .from('training_session_exercises')
+    .select('id')
+    .eq('exerciseId', exerciseId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const sessionExerciseIds = (data as Array<{ id: string }>).map((se) => se.id)
+  if (sessionExerciseIds.length === 0) return []
+
+  const { data: setsData, error: setsError } = await client()
+    .from('training_executed_sets')
+    .select('*')
+    .in('sessionExerciseId', sessionExerciseIds)
+    .is('deletedAt', null)
+  if (setsError) throw new Error(setsError.message)
+  return setsData as ExecutedSet[]
+}
