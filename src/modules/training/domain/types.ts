@@ -58,6 +58,12 @@ export interface Day extends SyncedEntity {
   date: string
   label: string
   planClosedAt: string | null
+  /**
+   * En qué "Día N" de la planilla cae este día (0 = Día 1). `null` o ausente:
+   * lo decide la posición por fecha. Sirve cuando una semana tiene menos días
+   * que las demás y el tercero que entrena es, en realidad, el cuarto del bloque.
+   */
+  slotIndex?: number | null
 }
 
 export interface PlannedExercise extends SyncedEntity {

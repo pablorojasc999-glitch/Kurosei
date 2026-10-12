@@ -9,6 +9,7 @@ import type {
   Week,
 } from '../domain/types'
 import { countsAsEffective } from './effectiveSets'
+import { arrangeDaysBySlot } from './daySlots'
 
 /**
  * La planilla del bloque: una fila por ejercicio, una columna por semana, y
@@ -17,7 +18,8 @@ import { countsAsEffective } from './effectiveSets'
  * El "día 1" es posicional, no el lunes: dentro de cada semana los días se
  * ordenan por fecha y esa posición es la que empareja las columnas. Así el
  * primer día de todas las semanas queda en la misma fila aunque las fechas no
- * coincidan en día de la semana.
+ * coincidan en día de la semana. Un día puede fijar su posición (`slotIndex`)
+ * cuando la semana tiene menos días que las demás y la posición no alcanza.
  */
 
 /** Una serie ya normalizada: planificada y realizada se leen igual. */
@@ -249,17 +251,17 @@ export function buildBlockGrid({
 }: BlockGridInput): BlockGrid {
   const orderedWeeks = [...weeks].sort((a, b) => a.order - b.order)
 
-  // Los días de cada semana, ordenados por fecha: su posición es el "día N".
-  const daysByWeek = new Map<string, Day[]>()
+  // Los días de cada semana en su posición de "día N": la que fijan ellos mismos
+  // o, si no, la que les toca por fecha. Una posición sin día queda vacía.
+  const rawByWeek = new Map<string, Day[]>()
   for (const day of days) {
     if (day.weekId === null) continue
-    const list = daysByWeek.get(day.weekId)
+    const list = rawByWeek.get(day.weekId)
     if (list) list.push(day)
-    else daysByWeek.set(day.weekId, [day])
+    else rawByWeek.set(day.weekId, [day])
   }
-  for (const list of daysByWeek.values()) {
-    list.sort((a, b) => a.date.localeCompare(b.date))
-  }
+  const daysByWeek = new Map<string, (Day | undefined)[]>()
+  for (const [weekId, list] of rawByWeek) daysByWeek.set(weekId, arrangeDaysBySlot(list))
 
   const peByDay = new Map<string, PlannedExercise[]>()
   for (const pe of plannedExercises) {
@@ -297,6 +299,9 @@ export function buildBlockGrid({
   const slots: GridDaySlot[] = []
   for (let slotIndex = 0; slotIndex < slotCount; slotIndex++) {
     const slotDays = orderedWeeks.map((w) => (daysByWeek.get(w.id) ?? [])[slotIndex] ?? null)
+    // Una posición que ninguna semana ocupa no se dibuja: no hay nada que
+    // enseñar y sólo dejaría un "Día 3" vacío entre el 2 y el 4.
+    if (slotDays.every((d) => d === null)) continue
 
     // Las filas son la unión de los ejercicios de esa posición en todas las
     // semanas: si una semana suma un accesorio, aparece con las demás celdas

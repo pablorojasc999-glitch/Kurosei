@@ -23,12 +23,19 @@ import {
 const base = { createdAt: '2026-01-01', updatedAt: '2026-01-01', deletedAt: null }
 
 const week = (id: string, order: number): Week => ({ id, mesocycleId: 'm', order, ...base })
-const day = (id: string, weekId: string, date: string, label = ''): Day => ({
+const day = (
+  id: string,
+  weekId: string,
+  date: string,
+  label = '',
+  slotIndex?: number | null,
+): Day => ({
   id,
   weekId,
   date,
   label,
   planClosedAt: null,
+  ...(slotIndex !== undefined ? { slotIndex } : {}),
   ...base,
 })
 const pe = (id: string, dayId: string, exerciseId: string, order: number): PlannedExercise => ({
@@ -253,6 +260,30 @@ describe('buildBlockGrid', () => {
     expect(grid.slots).toHaveLength(2)
     expect(grid.slots[1].dayIds).toEqual(['d2', null])
     expect(grid.slots[1].dates).toEqual(['2026-03-04', null])
+  })
+
+  it('un día con posición fijada cae en su fila y deja vacía la que se salta', () => {
+    const weeks = [week('w1', 0), week('w2', 1)]
+    const days = [
+      day('a1', 'w1', '2026-03-02'),
+      day('a2', 'w1', '2026-03-03'),
+      day('a3', 'w1', '2026-03-05'),
+      day('a4', 'w1', '2026-03-06'),
+      day('b1', 'w2', '2026-03-09'),
+      day('b2', 'w2', '2026-03-10'),
+      day('b4', 'w2', '2026-03-13', '', 3),
+    ]
+    const grid = buildBlockGrid(input({ weeks, days }))
+    expect(grid.slots.map((s) => s.label)).toEqual(['Día 1', 'Día 2', 'Día 3', 'Día 4'])
+    expect(grid.slots[2].dayIds).toEqual(['a3', null])
+    expect(grid.slots[3].dayIds).toEqual(['a4', 'b4'])
+  })
+
+  it('no dibuja una posición que ninguna semana ocupa', () => {
+    const weeks = [week('w1', 0)]
+    const days = [day('d1', 'w1', '2026-03-02'), day('d4', 'w1', '2026-03-06', '', 3)]
+    const grid = buildBlockGrid(input({ weeks, days }))
+    expect(grid.slots.map((s) => s.slotIndex)).toEqual([0, 3])
   })
 
   it('respeta el orden de los ejercicios dentro del día', () => {

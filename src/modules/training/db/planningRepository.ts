@@ -5,6 +5,7 @@ import { nowIso } from '../../../shared/lib/timestamps'
 import { deleteCardioSession, listCardioSessions } from './cardioRepository'
 import { deleteSession, getSessionForDay } from './executionRepository'
 import { moveInOrder } from '../lib/blockGridOrder'
+import { arrangeDaysBySlot } from '../lib/daySlots'
 import { countsAsEffective } from '../lib/effectiveSets'
 import type {
   Day,
@@ -231,6 +232,7 @@ export interface CreateDayInput {
   weekId: string | null
   date: string
   label: string
+  slotIndex?: number | null
 }
 
 export async function createDay(input: CreateDayInput): Promise<Day> {
@@ -252,6 +254,8 @@ export async function createDay(input: CreateDayInput): Promise<Day> {
 export interface UpdateDayInput {
   date: string
   label: string
+  /** `null` devuelve el día a la posición que le toca por fecha. */
+  slotIndex?: number | null
 }
 
 export async function updateDay(id: string, input: UpdateDayInput): Promise<void> {
@@ -716,6 +720,7 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
       weekId: newWeek.id,
       date: new Date(new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS).toISOString(),
       label: sourceDay.label,
+      slotIndex: sourceDay.slotIndex ?? null,
     })
     newDays.push(newDay)
   }
@@ -1119,10 +1124,7 @@ export async function pinExerciseAcrossBlock(
   let skipped = 0
 
   for (const week of weeks) {
-    const weekDays = days
-      .filter((d) => d.weekId === week.id)
-      .sort((a, b) => a.date.localeCompare(b.date))
-    const target = weekDays[slotIndex]
+    const target = arrangeDaysBySlot(days.filter((d) => d.weekId === week.id))[slotIndex]
     if (!target) {
       skipped += 1
       continue
@@ -1168,7 +1170,7 @@ export async function addExerciseToSlot(
   exerciseId: string,
 ): Promise<PlannedExercise | null> {
   const weekDays = await listDays(weekId)
-  const target = [...weekDays].sort((a, b) => a.date.localeCompare(b.date))[slotIndex]
+  const target = arrangeDaysBySlot(weekDays)[slotIndex]
   if (!target) return null
   const existing = (await listPlannedExercises(target.id)).find(
     (pe) => pe.exerciseId === exerciseId,
@@ -1185,12 +1187,12 @@ export async function addExerciseToSlot(
  * el lunes—, y lo necesitan todas las operaciones que trabajan sobre una fila
  * entera en vez de sobre un día suelto.
  */
-async function slotDaysOfBlock(mesocycleId: string): Promise<Day[][]> {
+async function slotDaysOfBlock(mesocycleId: string): Promise<(Day | undefined)[][]> {
   const weeks = await listWeeks(mesocycleId)
-  const perWeek: Day[][] = []
+  const perWeek: (Day | undefined)[][] = []
   for (const week of weeks) {
     const days = await listDays(week.id)
-    perWeek.push([...days].sort((a, b) => a.date.localeCompare(b.date)))
+    perWeek.push(arrangeDaysBySlot(days))
   }
   return perWeek
 }

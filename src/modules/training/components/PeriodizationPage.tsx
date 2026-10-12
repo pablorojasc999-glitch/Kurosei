@@ -174,6 +174,8 @@ export function PeriodizationPage({
 
   const [dayDate, setDayDate] = useState('')
   const [dayLabel, setDayLabel] = useState('')
+  // '' = lo decide la posición por fecha; si no, el número de "Día N" (1 = Día 1).
+  const [daySlot, setDaySlot] = useState('')
   const [copyFromDayId, setCopyFromDayId] = useState('')
 
   const [newExerciseId, setNewExerciseId] = useState('')
@@ -252,6 +254,7 @@ export function PeriodizationPage({
     setEditingDayId(d.id)
     setDayDate(toDateKey(new Date(d.date)))
     setDayLabel(d.label)
+    setDaySlot(d.slotIndex != null ? String(d.slotIndex + 1) : '')
     setCopyFromDayId('')
     setShowDayForm(true)
   }
@@ -260,6 +263,7 @@ export function PeriodizationPage({
     setEditingDayId(null)
     setDayDate('')
     setDayLabel('')
+    setDaySlot('')
     setCopyFromDayId('')
     setShowDayForm(false)
   }
@@ -334,12 +338,14 @@ export function PeriodizationPage({
         await updateDay(editingDayId, {
           date: parseDateInput(dayDate).toISOString(),
           label: dayLabel,
+          slotIndex: daySlot === '' ? null : Number(daySlot) - 1,
         })
       } else {
         const d = await createDay({
           weekId,
           date: parseDateInput(dayDate).toISOString(),
           label: dayLabel,
+          slotIndex: daySlot === '' ? null : Number(daySlot) - 1,
         })
         if (copyFromDayId) {
           await copyPlannedExercisesToDay(copyFromDayId, d.id)
@@ -782,6 +788,17 @@ export function PeriodizationPage({
                 <input autoComplete="off" type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
               </label>
               <input autoComplete="off" value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
+              <label>
+                Día del bloque en la planilla
+                <select autoComplete="off" value={daySlot} onChange={(e) => setDaySlot(e.target.value)}>
+                  <option value="">Automático (según la fecha)</option>
+                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                    <option key={n} value={n}>
+                      Día {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
               {!editingDayId && plannedDayOptions && plannedDayOptions.length > 0 && (
                 <label>
                   Copiar plan de un día ya planificado (opcional)

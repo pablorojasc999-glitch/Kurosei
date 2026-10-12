@@ -298,6 +298,8 @@ update "finance_transactions"
   set "financialMonth" = substring("date" from 1 for 7)
   where "financialMonth" is null;
 alter table "nutrition_entries" add column if not exists "checked" boolean not null default true;
+-- En qué "Día N" de la planilla cae el día (0 = Día 1); null = por posición de fecha.
+alter table "training_days" add column if not exists "slotIndex" integer;
 
 create table if not exists "finance_category_budgets" (
   "id" uuid primary key,
