@@ -1,12 +1,27 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import type { GroceryItem, PurchaseCadence } from '../domain/types'
 import { todayKey } from '../lib/groceryCadence'
 
+/**
+ * Este módulo ya no pasa por Dexie: habla directo con Supabase, como
+ * cualquier pantalla de una app en línea — se pide, se escribe, se vuelve a
+ * pedir. Sin conexión no hay lista que mostrar ni cambio que guardar.
+ */
+function client() {
+  if (!supabase) throw new Error('El súper necesita conexión para funcionar.')
+  return supabase
+}
+
 export async function listItems(): Promise<GroceryItem[]> {
-  const items = await db.grocery_items.filter((i) => i.deletedAt === null).toArray()
-  return items.sort((a, b) => a.order - b.order)
+  const { data, error } = await client()
+    .from('grocery_items')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as GroceryItem[]).sort((a, b) => a.order - b.order)
 }
 
 async function nextOrder(cadence: PurchaseCadence): Promise<number> {
@@ -32,6 +47,7 @@ export async function createItem(input: CreateItemInput): Promise<GroceryItem> {
   )
   if (duplicate) throw new Error(`"${name}" ya está en esa lista.`)
 
+  const userId = await requireUserId()
   const timestamp = nowIso()
   const item: GroceryItem = {
     id: generateId(),
@@ -46,7 +62,10 @@ export async function createItem(input: CreateItemInput): Promise<GroceryItem> {
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.grocery_items.add(item)
+  const { error } = await client()
+    .from('grocery_items')
+    .insert({ ...item, userId })
+  if (error) throw new Error(error.message)
   return item
 }
 
@@ -58,7 +77,12 @@ export interface UpdateItemInput {
 }
 
 export async function updateItem(id: string, input: UpdateItemInput): Promise<void> {
-  const item = await db.grocery_items.get(id)
+  const { data: item, error: getError } = await client()
+    .from('grocery_items')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (getError) throw new Error(getError.message)
   if (!item) return
   const patch: Partial<GroceryItem> = { updatedAt: nowIso() }
 
@@ -75,34 +99,48 @@ export async function updateItem(id: string, input: UpdateItemInput): Promise<vo
   }
   if (input.note !== undefined) patch.note = input.note.trim()
   // Reclasificar es mover de lista: el artículo se va al final de la nueva.
-  if (input.cadence !== undefined && input.cadence !== item.cadence) {
+  if (input.cadence !== undefined && input.cadence !== (item as GroceryItem).cadence) {
     patch.cadence = input.cadence
     patch.order = await nextOrder(input.cadence)
   }
 
-  await db.grocery_items.update(id, patch)
+  const { error } = await client().from('grocery_items').update(patch).eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function toggleItemChecked(id: string): Promise<void> {
-  const item = await db.grocery_items.get(id)
+  const { data: item, error: getError } = await client()
+    .from('grocery_items')
+    .select('checked')
+    .eq('id', id)
+    .maybeSingle()
+  if (getError) throw new Error(getError.message)
   if (!item) return
-  await db.grocery_items.update(id, { checked: !item.checked, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('grocery_items')
+    .update({ checked: !(item as { checked: boolean }).checked, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Marca de golpe todo lo que ya toca reponer, para no ir uno por uno antes de salir. */
 export async function checkAllDue(ids: string[]): Promise<void> {
-  const timestamp = nowIso()
-  await Promise.all(
-    ids.map((id) => db.grocery_items.update(id, { checked: true, updatedAt: timestamp })),
-  )
+  if (ids.length === 0) return
+  const { error } = await client()
+    .from('grocery_items')
+    .update({ checked: true, updatedAt: nowIso() })
+    .in('id', ids)
+  if (error) throw new Error(error.message)
 }
 
 export async function clearChecked(): Promise<void> {
-  const timestamp = nowIso()
-  const checked = (await listItems()).filter((i) => i.checked)
-  await Promise.all(
-    checked.map((i) => db.grocery_items.update(i.id, { checked: false, updatedAt: timestamp })),
-  )
+  const checkedIds = (await listItems()).filter((i) => i.checked).map((i) => i.id)
+  if (checkedIds.length === 0) return
+  const { error } = await client()
+    .from('grocery_items')
+    .update({ checked: false, updatedAt: nowIso() })
+    .in('id', checkedIds)
+  if (error) throw new Error(error.message)
 }
 
 /**
@@ -114,22 +152,21 @@ export async function clearChecked(): Promise<void> {
  * el día después de haberlo traído, como si todavía hiciera falta.
  */
 export async function completeShoppingRun(today = todayKey()): Promise<number> {
-  const timestamp = nowIso()
-  const checked = (await listItems()).filter((i) => i.checked)
-  await Promise.all(
-    checked.map((i) =>
-      db.grocery_items.update(i.id, {
-        checked: false,
-        quantity: '',
-        lastBoughtAt: today,
-        updatedAt: timestamp,
-      }),
-    ),
-  )
-  return checked.length
+  const checkedIds = (await listItems()).filter((i) => i.checked).map((i) => i.id)
+  if (checkedIds.length === 0) return 0
+  const { error } = await client()
+    .from('grocery_items')
+    .update({ checked: false, quantity: '', lastBoughtAt: today, updatedAt: nowIso() })
+    .in('id', checkedIds)
+  if (error) throw new Error(error.message)
+  return checkedIds.length
 }
 
 export async function softDeleteItem(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.grocery_items.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('grocery_items')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }

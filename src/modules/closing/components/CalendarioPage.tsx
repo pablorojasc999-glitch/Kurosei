@@ -1,5 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   addMonths,
   buildMonthGrid,
@@ -8,6 +9,7 @@ import {
 } from '../../training/lib/calendarGrid'
 import { listDayCompletions } from '../db/closingQueries'
 import { firstClosureDate } from '../db/closingRepository'
+import type { DayCompletion } from '../lib/dayCompletion'
 import { CompletionRing } from './CompletionRing'
 import { DayDetailSheet } from './DayDetailSheet'
 
@@ -24,16 +26,47 @@ interface CalendarioPageProps {
  * había que contestar entrando día por día en cada módulo.
  */
 export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
+  const session = useSupabaseSession()
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()))
   const [selected, setSelected] = useState<string | null>(null)
 
-  const cells = buildMonthGrid(monthStart)
+  const cells = useMemo(() => buildMonthGrid(monthStart), [monthStart])
   const from = toDateKey(cells[0])
   const to = toDateKey(cells[cells.length - 1])
-  const completions = useLiveQuery(() => listDayCompletions(from, to), [from, to])
-  const startedAt = useLiveQuery(() => firstClosureDate(), [])
 
-  const byDate = new Map((completions ?? []).map((d) => [d.date, d]))
+  const { data, refresh } = useRemoteQuery(
+    useCallback(async (): Promise<{ completions: DayCompletion[]; startedAt: string | null }> => {
+      if (!session) return { completions: [], startedAt: null }
+      const [completions, startedAt] = await Promise.all([
+        listDayCompletions(from, to),
+        firstClosureDate(),
+      ])
+      return { completions, startedAt }
+    }, [session, from, to]),
+  )
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle los cierres.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Constancia</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Constancia</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver tu constancia.
+        </p>
+      </div>
+    )
+  }
+
+  const completions = data?.completions ?? []
+  const startedAt = data?.startedAt ?? null
+  const byDate = new Map(completions.map((d) => [d.date, d]))
   const todayKey = toDateKey(new Date())
   const monthLabel = monthStart.toLocaleDateString('es-CL', {
     month: 'long',
@@ -42,7 +75,7 @@ export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
   // Sólo los días del mes que se está mirando, sin el futuro —un día que
   // todavía no pasó no está pendiente— y sin lo anterior al primer cierre, que
   // son días de cuando esto no existía y sólo servirían para desanimar.
-  const delMes = (completions ?? []).filter(
+  const delMes = completions.filter(
     (d) =>
       d.date.slice(0, 7) === toDateKey(monthStart).slice(0, 7) &&
       d.date <= todayKey &&
@@ -150,6 +183,7 @@ export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
           date={selected}
           onClose={() => setSelected(null)}
           onOpenDay={onOpenDay}
+          onChange={refresh}
         />
       )}
     </div>

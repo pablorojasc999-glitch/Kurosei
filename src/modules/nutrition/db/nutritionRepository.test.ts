@@ -1,7 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import { getDailyLog } from '../../training/db/bitacoraRepository'
-import {
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const {
   addFoodEntry,
   addFoodEntryToTemplate,
   addManualEntry,
@@ -31,7 +42,9 @@ import {
   updateGoalPlan,
   updateTemplateFoodEntryQuantity,
   updateTemplateManualEntry,
-} from './nutritionRepository'
+} = await import('./nutritionRepository')
+
+const { getDailyLog } = await import('../../training/db/bitacoraRepository')
 
 const NO_MICROS = {
   saturatedFatG: null,
@@ -59,7 +72,14 @@ const NO_MICROS = {
 }
 
 beforeEach(async () => {
-  await db.transaction('rw', db.tables, async () => Promise.all(db.tables.map((t) => t.clear())))
+  fake.tables.nutrition_foods = []
+  fake.tables.nutrition_meal_sections = []
+  fake.tables.nutrition_entries = []
+  fake.tables.nutrition_water_entries = []
+  fake.tables.nutrition_meal_templates = []
+  fake.tables.nutrition_meal_template_entries = []
+  fake.tables.nutrition_goal_plans = []
+  fake.tables.training_daily_logs = []
 })
 
 describe('foods', () => {
@@ -138,6 +158,34 @@ describe('entries', () => {
     expect(entry.carbsG).toBe(11.5)
   })
 
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const food = await createFood({
+      name: 'Manzana',
+      brand: '',
+      emoji: '🍎',
+      servingAmount: 166,
+      servingUnit: 'g',
+      calories: 95,
+      proteinG: 0.5,
+      carbsG: 23,
+      fatG: 0.2,
+      ...NO_MICROS,
+    })
+    const section = await createMealSection('Desayuno')
+    const entry = await addFoodEntry({
+      id: 'optimistic-id',
+      date: '2026-08-30',
+      sectionId: section.id,
+      foodId: food.id,
+      quantity: 83,
+      notes: '',
+    })
+    expect(entry.id).toBe('optimistic-id')
+    expect(
+      (await listEntriesForDate('2026-08-30')).find((e) => e.id === 'optimistic-id'),
+    ).toBeDefined()
+  })
+
   it('re-scales macros when the quantity is updated', async () => {
     const food = await createFood({
       name: 'Avena',
@@ -179,6 +227,25 @@ describe('entries', () => {
     })
     expect(entry.foodId).toBeNull()
     expect(entry.calories).toBe(800)
+  })
+
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const section = await createMealSection('Almuerzo')
+    const entry = await addManualEntry({
+      id: 'optimistic-id',
+      date: '2026-08-30',
+      sectionId: section.id,
+      manualName: 'Almuerzo restaurante X',
+      calories: 800,
+      proteinG: 40,
+      carbsG: 90,
+      fatG: 25,
+      notes: '',
+    })
+    expect(entry.id).toBe('optimistic-id')
+    expect(
+      (await listEntriesForDate('2026-08-30')).find((e) => e.id === 'optimistic-id'),
+    ).toBeDefined()
   })
 
   it('adds a new entry unchecked, so it does not count toward the day total yet', async () => {

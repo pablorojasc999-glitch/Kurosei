@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../../../shared/supabase/client'
+import { useTheme, type Theme } from '../../../shared/hooks/useTheme'
 import { getSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from '../lib/auth'
-import { getSyncStatus, subscribeSyncStatus, syncNow, type SyncStatus } from '../lib/syncEngine'
+import { getPreferences, setHomeTab, type HomeTab } from '../db/preferencesRepository'
 
-const AUTO_SYNC_INTERVAL_MS = 5 * 60 * 1000
+const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
+  { value: 'system', label: 'Sistema' },
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Oscuro' },
+]
+
+const HOME_TAB_OPTIONS: Array<{ value: HomeTab; label: string }> = [
+  { value: 'constancia', label: 'Constancia' },
+  { value: 'entrenamiento', label: 'Entreno' },
+  { value: 'nutricion', label: 'Nutrición' },
+  { value: 'finanzas', label: 'Finanzas' },
+  { value: 'supermercado', label: 'Súper' },
+]
 
 function IconAccount() {
   return (
@@ -24,29 +37,16 @@ function IconAccount() {
   )
 }
 
-function formatRelativeTime(iso: string): string {
-  const deltaMs = Date.now() - new Date(iso).getTime()
-  const minutes = Math.floor(deltaMs / 60000)
-  if (minutes < 1) return 'recién'
-  if (minutes < 60) return `hace ${minutes} min`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `hace ${hours} h`
-  const days = Math.floor(hours / 24)
-  return `hace ${days} d`
-}
-
-function syncStatusText(status: SyncStatus): string {
-  if (status.kind === 'syncing') return 'Sincronizando…'
-  if (status.kind === 'error') return `Error al sincronizar: ${status.message}`
-  if (status.lastSyncedAt) return `Sincronizado ${formatRelativeTime(status.lastSyncedAt)}`
-  return 'Todavía no sincronizaste'
-}
-
 export function AccountPanel() {
   const [open, setOpen] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [sessionLoaded, setSessionLoaded] = useState(false)
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(() => getSyncStatus())
+  const { theme, setTheme } = useTheme()
+  // A diferencia del tema (una preferencia de pantalla, ver `useTheme`), la
+  // pantalla de inicio es de la cuenta: vive en Supabase, no en localStorage,
+  // así que no hay nada que leer sin sesión.
+  const [homeTab, setHomeTabState] = useState<HomeTab | null>(null)
+  const [homeTabError, setHomeTabError] = useState<string | null>(null)
 
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
   const [email, setEmail] = useState('')
@@ -55,6 +55,9 @@ export function AccountPanel() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
+    // Sin Supabase configurado no hay sesión que pedir — el tema de abajo
+    // sigue andando igual, sin cuenta.
+    if (!isSupabaseConfigured) return
     getSession().then((s) => {
       setSession(s)
       setSessionLoaded(true)
@@ -62,25 +65,32 @@ export function AccountPanel() {
     return onAuthStateChange((s) => setSession(s))
   }, [])
 
-  useEffect(() => subscribeSyncStatus(setSyncStatus), [])
-
   useEffect(() => {
-    if (!session) return
-    syncNow(session.user.id).catch(() => {})
-    const interval = window.setInterval(() => {
-      syncNow(session.user.id).catch(() => {})
-    }, AUTO_SYNC_INTERVAL_MS)
-    const handleOnline = () => {
-      syncNow(session.user.id).catch(() => {})
-    }
-    window.addEventListener('online', handleOnline)
-    return () => {
-      window.clearInterval(interval)
-      window.removeEventListener('online', handleOnline)
-    }
+    const request: Promise<HomeTab | null> = session
+      ? getPreferences().then((p) => p?.homeTab ?? 'constancia')
+      : Promise.resolve(null)
+    request
+      .then((tab) => {
+        setHomeTabState(tab)
+        setHomeTabError(null)
+      })
+      .catch((err) => {
+        // Sin esto, una lectura que falla (sin conexión, o si la tabla
+        // todavía no existe porque falta correr la migración) dejaba el
+        // selector mudo: se veía en "Constancia" sin decir que no es lo
+        // guardado.
+        setHomeTabState('constancia')
+        setHomeTabError(err instanceof Error ? err.message : 'No se pudo leer la preferencia guardada.')
+      })
   }, [session])
 
-  if (!isSupabaseConfigured) return null
+  function handleHomeTabChange(next: HomeTab) {
+    setHomeTabState(next)
+    setHomeTabError(null)
+    setHomeTab(next).catch((err) => {
+      setHomeTabError(err instanceof Error ? err.message : 'No se pudo guardar.')
+    })
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -106,24 +116,44 @@ export function AccountPanel() {
         type="button"
         className="account-button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Cuenta y sincronización"
+        aria-label="Cuenta"
       >
         <IconAccount />
       </button>
 
       {open && (
         <div className="account-panel">
-          {!sessionLoaded ? null : session ? (
+          <h3>Tema</h3>
+          <div className="account-mode-toggle">
+            {THEME_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={theme === option.value ? 'active' : ''}
+                onClick={() => setTheme(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {!isSupabaseConfigured ? null : !sessionLoaded ? null : session ? (
             <>
               <p className="account-email">{session.user.email}</p>
-              <p className="account-sync-status">{syncStatusText(syncStatus)}</p>
-              <button
-                type="button"
-                onClick={() => syncNow(session.user.id).catch(() => {})}
-                disabled={syncStatus.kind === 'syncing'}
+
+              <h3>Pantalla de inicio</h3>
+              <select
+                value={homeTab ?? 'constancia'}
+                onChange={(e) => handleHomeTabChange(e.target.value as HomeTab)}
               >
-                Sincronizar ahora
-              </button>
+                {HOME_TAB_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              {homeTabError && <p className="error">{homeTabError}</p>}
+
               <button
                 type="button"
                 className="account-signout"

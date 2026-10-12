@@ -1,18 +1,28 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import type { ClosableModule, ClosureKind, DayClosure } from '../domain/types'
 
+/**
+ * Ya no pasa por Dexie: habla directo con Supabase. Sin conexión no hay
+ * cierres que leer ni que guardar.
+ */
+function client() {
+  if (!supabase) throw new Error('Los cierres de día necesitan conexión para funcionar.')
+  return supabase
+}
+
 /** Los cierres de un rango de fechas, ambas incluidas. */
-export async function listClosuresInRange(
-  from: string,
-  to: string,
-): Promise<DayClosure[]> {
-  return db.day_closures
-    .where('date')
-    .between(from, to, true, true)
-    .filter((c) => c.deletedAt === null)
-    .toArray()
+export async function listClosuresInRange(from: string, to: string): Promise<DayClosure[]> {
+  const { data, error } = await client()
+    .from('day_closures')
+    .select('*')
+    .gte('date', from)
+    .lte('date', to)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as DayClosure[]).sort((a, b) => a.date.localeCompare(b.date))
 }
 
 /**
@@ -23,19 +33,21 @@ export async function listClosuresInRange(
  * lista arranca con un mes de días vacíos y deja de servir el primer día.
  */
 export async function firstClosureDate(): Promise<string | null> {
-  const first = await db.day_closures
-    .orderBy('date')
-    .filter((c) => c.deletedAt === null)
-    .first()
-  return first?.date ?? null
+  const { data, error } = await client().from('day_closures').select('date').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  const dates = (data as Array<{ date: string }>).map((d) => d.date)
+  if (dates.length === 0) return null
+  return dates.sort()[0]
 }
 
 export async function listClosuresForDate(date: string): Promise<DayClosure[]> {
-  return db.day_closures
-    .where('date')
-    .equals(date)
-    .filter((c) => c.deletedAt === null)
-    .toArray()
+  const { data, error } = await client()
+    .from('day_closures')
+    .select('*')
+    .eq('date', date)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as DayClosure[]
 }
 
 /**
@@ -43,7 +55,7 @@ export async function listClosuresForDate(date: string): Promise<DayClosure[]> {
  *
  * Reutiliza la fila que ya exista en vez de agregar otra: hay como mucho un
  * cierre por (fecha, módulo), y así corregir un "no entrené" por un "sí
- * entrené" se sincroniza como una edición y no como un alta más un borrado.
+ * entrené" se guarda como una edición y no como un alta más un borrado.
  */
 export async function closeDay(
   date: string,
@@ -51,46 +63,40 @@ export async function closeDay(
   kind: ClosureKind,
 ): Promise<DayClosure> {
   const timestamp = nowIso()
-  return db.transaction('rw', db.day_closures, async () => {
-    const existing = await db.day_closures
-      .where('[date+module]')
-      .equals([date, module])
-      .filter((c) => c.deletedAt === null)
-      .first()
+  const existing = (await listClosuresForDate(date)).find((c) => c.module === module)
 
-    if (existing) {
-      await db.day_closures.update(existing.id, { kind, updatedAt: timestamp })
-      return { ...existing, kind, updatedAt: timestamp }
-    }
+  if (existing) {
+    const { error } = await client()
+      .from('day_closures')
+      .update({ kind, updatedAt: timestamp })
+      .eq('id', existing.id)
+    if (error) throw new Error(error.message)
+    return { ...existing, kind, updatedAt: timestamp }
+  }
 
-    const closure: DayClosure = {
-      id: generateId(),
-      date,
-      module,
-      kind,
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      deletedAt: null,
-    }
-    await db.day_closures.add(closure)
-    return closure
-  })
+  const closure: DayClosure = {
+    id: generateId(),
+    date,
+    module,
+    kind,
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    deletedAt: null,
+  }
+  const userId = await requireUserId()
+  const { error } = await client().from('day_closures').insert({ ...closure, userId })
+  if (error) throw new Error(error.message)
+  return closure
 }
 
 /** Deshace el cierre: el día vuelve a contar como pendiente en ese módulo. */
-export async function reopenDay(
-  date: string,
-  module: ClosableModule,
-): Promise<void> {
+export async function reopenDay(date: string, module: ClosableModule): Promise<void> {
   const timestamp = nowIso()
-  const existing = await db.day_closures
-    .where('[date+module]')
-    .equals([date, module])
-    .filter((c) => c.deletedAt === null)
-    .first()
+  const existing = (await listClosuresForDate(date)).find((c) => c.module === module)
   if (!existing) return
-  await db.day_closures.update(existing.id, {
-    deletedAt: timestamp,
-    updatedAt: timestamp,
-  })
+  const { error } = await client()
+    .from('day_closures')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', existing.id)
+  if (error) throw new Error(error.message)
 }

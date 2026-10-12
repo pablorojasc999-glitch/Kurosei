@@ -1,7 +1,10 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { addDays, startOfDay, toDateKey } from '../../training/lib/calendarGrid'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
+import { generateId } from '../../../shared/lib/id'
+import { nowIso } from '../../../shared/lib/timestamps'
 import { DayHeaderLabel } from '../../training/components/DayHeaderLabel'
 import {
   addFoodEntry,
@@ -23,8 +26,10 @@ import {
 } from '../db/nutritionRepository'
 import type { NutritionEntry, NutritionGoalPlan } from '../domain/types'
 import { findActivePlan, getGoalStatus, progressPercent } from '../lib/goalPlans'
-import type { MacroTotals } from '../lib/macros'
+import { scaleMacros, type MacroTotals } from '../lib/macros'
 import { formatNutrient, formatSummaryAmount } from '../lib/nutrients'
+import { moveItem } from '../lib/reorder'
+import { suggestionWindow } from '../lib/suggestedFoods'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { weekDates } from '../lib/weekStrip'
 import { DayCloseCard } from '../../closing/components/DayCloseCard'
@@ -110,22 +115,89 @@ function formatDateSubtitle(date: Date): string {
 }
 
 export function RegistroPage() {
+  const session = useSupabaseSession()
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()))
   const dateKey = toDateKey(selectedDate)
-  const days = weekDates(selectedDate)
+  // Memoizado para que la consulta de abajo tenga una clave de verdad estable
+  // por semana, en vez de un array nuevo (y sus fechas derivadas) en cada
+  // render.
+  const days = useMemo(() => weekDates(selectedDate), [selectedDate])
   const weekStartKey = toDateKey(days[0])
   const weekEndKey = toDateKey(days[6])
 
-  const sections = useLiveQuery(() => listMealSections(), [])
-  const entries = useLiveQuery(() => listEntriesForDate(dateKey), [dateKey])
-  const weekEntries = useLiveQuery(
-    () => listEntriesForDateRange(weekStartKey, weekEndKey),
-    [weekStartKey, weekEndKey],
+  // Los registros del día (y de la semana, para los puntitos del selector)
+  // cambian con casi cada acción de esta pantalla, así que viven en su propia
+  // consulta — separados de secciones/metas/alimentos/plantillas, que acá
+  // nunca se editan y pedirlos de nuevo en cada alimento registrado sería
+  // tráfico de sobra.
+  const {
+    data: entryData,
+    error: loadError,
+    refresh,
+    setOptimistic: setEntryData,
+  } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      const [entries, weekEntries] = await Promise.all([
+        listEntriesForDate(dateKey),
+        listEntriesForDateRange(weekStartKey, weekEndKey),
+      ])
+      return { entries, weekEntries }
+    }, [session, dateKey, weekStartKey, weekEndKey]),
   )
-  const goalPlans = useLiveQuery(() => listGoalPlans(), [])
-  const foods = useLiveQuery(() => listFoods(), [])
-  const templates = useLiveQuery(() => listMealTemplates(), [])
+  const entries = entryData?.entries
+  const weekEntries = entryData?.weekEntries
+
+  // Fija al montar, no en cada render: si dependiera de `new Date()` suelto,
+  // la consulta de abajo se rehacía en cada tecla del buscador de Agregar.
+  const recentWindow = useMemo(() => suggestionWindow(), [])
+
+  const { data: referenceData, refresh: refreshReferenceData } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      const [sections, goalPlans, foods, templates, recentEntries] = await Promise.all([
+        listMealSections(),
+        listGoalPlans(),
+        listFoods(),
+        listMealTemplates(),
+        listEntriesForDateRange(recentWindow.from, recentWindow.to),
+      ])
+      return { sections, goalPlans, foods, templates, recentEntries }
+    }, [session, recentWindow]),
+  )
+  const sections = referenceData?.sections
+  const goalPlans = referenceData?.goalPlans
+  const foods = referenceData?.foods
+  const templates = referenceData?.templates
+  const recentEntries = referenceData?.recentEntries
   const foodById = new Map((foods ?? []).map((f) => [f.id, f]))
+
+  /**
+   * Las tres formas en que un alta/edición/baja de un registro se refleja al
+   * toque, antes de que el servidor confirme nada — `entries` y
+   * `weekEntries` se tocan juntos porque el día que se está mirando siempre
+   * cae dentro de la semana que muestra el selector. `current` existe
+   * siempre que se llega a llamarlas: sólo corren con el registro ya
+   * cargado en pantalla.
+   */
+  function addEntryOptimistically(entry: NutritionEntry) {
+    setEntryData((current) => ({
+      entries: [...current!.entries, entry],
+      weekEntries: [...current!.weekEntries, entry],
+    }))
+  }
+  function updateEntryOptimistically(entryId: string, updater: (e: NutritionEntry) => NutritionEntry) {
+    setEntryData((current) => ({
+      entries: current!.entries.map((e) => (e.id === entryId ? updater(e) : e)),
+      weekEntries: current!.weekEntries.map((e) => (e.id === entryId ? updater(e) : e)),
+    }))
+  }
+  function removeEntryOptimistically(entryId: string) {
+    setEntryData((current) => ({
+      entries: current!.entries.filter((e) => e.id !== entryId),
+      weekEntries: current!.weekEntries.filter((e) => e.id !== entryId),
+    }))
+  }
 
   const [addingToSectionId, setAddingToSectionId] = useState<string | null>(null)
   const [showNewSection, setShowNewSection] = useState(false)
@@ -144,7 +216,23 @@ export function RegistroPage() {
     handlePointerUp,
     consumeJustDragged,
   } = useEntryDragReorder(entries, sections, (entryId, targetSectionId, targetIndex) => {
-    void moveEntry(entryId, targetSectionId, targetIndex)
+    // Se suelta y ya queda en su lugar nuevo, calculado igual que lo haría el
+    // servidor — sin esto, el ítem soltado volvía a su posición vieja hasta
+    // que `refresh()` terminaba de confirmar el reordenamiento.
+    const changed = moveItem(entries ?? [], entryId, targetSectionId, targetIndex)
+    if (changed.length > 0) {
+      const changedById = new Map(changed.map((c) => [c.id, c]))
+      const apply = (list: NutritionEntry[]) =>
+        list.map((e) => {
+          const c = changedById.get(e.id)
+          return c ? { ...e, sectionId: c.sectionId, order: c.order } : e
+        })
+      setEntryData((current) => ({
+        entries: apply(current!.entries),
+        weekEntries: apply(current!.weekEntries),
+      }))
+    }
+    void moveEntry(entryId, targetSectionId, targetIndex).finally(refresh)
   })
 
   async function handleCreateSection(e: React.FormEvent) {
@@ -154,11 +242,32 @@ export function RegistroPage() {
     await createMealSection(name)
     setNewSectionName('')
     setShowNewSection(false)
+    await refreshReferenceData()
   }
 
   async function handleApplyTemplate(templateId: string) {
     await applyTemplateToDate(templateId, dateKey)
     setShowTemplatePicker(false)
+    await refresh()
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle el registro.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Registro</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Registro</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tu registro.
+        </p>
+      </div>
+    )
   }
 
   const dayTotals = getEntryMacroTotals(entries ?? [])
@@ -175,6 +284,7 @@ export function RegistroPage() {
   return (
     <div className="page">
       <h1>Registro</h1>
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <WeekStrip days={weekDayStatuses} selectedDate={selectedDate} onSelect={setSelectedDate} />
 
@@ -239,7 +349,14 @@ export function RegistroPage() {
                       dragOffset={draggingId === entry.id ? dragOffset : null}
                       showDetail={expandedEntryId === entry.id}
                       checked={entry.checked !== false}
-                      onToggleChecked={() => void toggleEntryChecked(entry.id)}
+                      onToggleChecked={() => {
+                        updateEntryOptimistically(entry.id, (e) => ({
+                          ...e,
+                          checked: e.checked === false,
+                          updatedAt: nowIso(),
+                        }))
+                        void toggleEntryChecked(entry.id).finally(refresh)
+                      }}
                       registerRef={(el) => {
                         if (el) rowRefs.current.set(entry.id, el)
                         else rowRefs.current.delete(entry.id)
@@ -251,7 +368,10 @@ export function RegistroPage() {
                         if (consumeJustDragged()) return
                         setExpandedEntryId((prev) => (prev === entry.id ? null : entry.id))
                       }}
-                      onDelete={() => void softDeleteEntry(entry.id)}
+                      onDelete={() => {
+                        removeEntryOptimistically(entry.id)
+                        void softDeleteEntry(entry.id).finally(refresh)
+                      }}
                     />
                     {expandedEntryId === entry.id &&
                       (entry.kind === 'manual' || entryFood) && (
@@ -259,12 +379,35 @@ export function RegistroPage() {
                           entry={entry}
                           food={entryFood}
                           onSaveQuantity={async (quantity) => {
-                            await updateFoodEntryQuantity(entry.id, quantity)
+                            if (entryFood) {
+                              const macros = scaleMacros(entryFood, quantity)
+                              updateEntryOptimistically(entry.id, (e) => ({
+                                ...e,
+                                quantity,
+                                ...macros,
+                                updatedAt: nowIso(),
+                              }))
+                            }
                             setExpandedEntryId(null)
+                            try {
+                              await updateFoodEntryQuantity(entry.id, quantity)
+                            } finally {
+                              await refresh()
+                            }
                           }}
                           onSaveManual={async (input) => {
-                            await updateManualEntry(entry.id, { ...input, notes: entry.notes })
+                            updateEntryOptimistically(entry.id, (e) => ({
+                              ...e,
+                              ...input,
+                              notes: entry.notes,
+                              updatedAt: nowIso(),
+                            }))
                             setExpandedEntryId(null)
+                            try {
+                              await updateManualEntry(entry.id, { ...input, notes: entry.notes })
+                            } finally {
+                              await refresh()
+                            }
                           }}
                         />
                       )}
@@ -287,13 +430,64 @@ export function RegistroPage() {
             {addingToSectionId === section.id && (
               <AddEntryForm
                 foods={foods ?? []}
+                recentEntries={recentEntries ?? []}
+                recentSince={recentWindow.recentSince}
                 title={`Agregar a ${section.name}`}
                 subtitle={formatDateSubtitle(selectedDate)}
                 onAddFood={async (foodId, quantity, notes) => {
-                  await addFoodEntry({ date: dateKey, sectionId: section.id, foodId, quantity, notes })
+                  const food = (foods ?? []).find((f) => f.id === foodId)
+                  if (!food) throw new Error('Alimento no encontrado.')
+                  const siblings = (entries ?? []).filter((e) => e.sectionId === section.id)
+                  const nextOrder = siblings.length ? Math.max(...siblings.map((e) => e.order)) + 1 : 0
+                  const timestamp = nowIso()
+                  const id = generateId()
+                  addEntryOptimistically({
+                    id,
+                    date: dateKey,
+                    sectionId: section.id,
+                    order: nextOrder,
+                    kind: 'food',
+                    foodId,
+                    quantity,
+                    manualName: '',
+                    notes,
+                    ...scaleMacros(food, quantity),
+                    checked: false,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                    deletedAt: null,
+                  })
+                  // Sin esperar: el panel ya cierra con la fila puesta en la
+                  // lista — si la escritura falla, el refresh() la saca sola.
+                  void addFoodEntry({ id, date: dateKey, sectionId: section.id, foodId, quantity, notes }).finally(
+                    refresh,
+                  )
                 }}
                 onAddManual={async (input) => {
-                  await addManualEntry({ date: dateKey, sectionId: section.id, ...input })
+                  const siblings = (entries ?? []).filter((e) => e.sectionId === section.id)
+                  const nextOrder = siblings.length ? Math.max(...siblings.map((e) => e.order)) + 1 : 0
+                  const timestamp = nowIso()
+                  const id = generateId()
+                  addEntryOptimistically({
+                    id,
+                    date: dateKey,
+                    sectionId: section.id,
+                    order: nextOrder,
+                    kind: 'manual',
+                    foodId: null,
+                    quantity: null,
+                    manualName: input.manualName,
+                    notes: input.notes,
+                    calories: input.calories,
+                    proteinG: input.proteinG,
+                    carbsG: input.carbsG,
+                    fatG: input.fatG,
+                    checked: false,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                    deletedAt: null,
+                  })
+                  void addManualEntry({ id, date: dateKey, sectionId: section.id, ...input }).finally(refresh)
                 }}
                 onDone={() => setAddingToSectionId(null)}
               />

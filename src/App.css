@@ -61,7 +61,7 @@
   width: 26px;
   height: 26px;
   object-fit: contain;
-  filter: drop-shadow(0 0 6px rgba(139, 92, 246, 0.45));
+  filter: drop-shadow(0 0 6px rgba(var(--accent-rgb), 0.45));
 }
 
 .app-logo-word {
@@ -211,11 +211,6 @@
   word-break: break-all;
 }
 
-.account-sync-status {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
 .account-signout {
   color: var(--danger);
 }
@@ -248,6 +243,10 @@
   background: var(--accent-dark);
   color: var(--text);
   border-color: var(--accent-border);
+}
+
+.account-panel select {
+  width: 100%;
 }
 
 .app-content {
@@ -363,7 +362,7 @@ section {
 .error {
   color: var(--danger);
   background: var(--danger-bg);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: var(--radius-sm);
   font-size: 13px;
   padding: 6px 10px;
@@ -501,7 +500,7 @@ section {
 .day-closed-badge {
   display: inline-block;
   margin-left: 8px;
-  color: #4ade80;
+  color: var(--success);
   font-weight: 700;
 }
 
@@ -581,8 +580,8 @@ section {
    yet), green once it's closed — a glance at the list should say which
    exercises are still pending without reading each header. */
 .planned-exercise-item--open {
-  background: rgba(248, 113, 113, 0.04);
-  border-color: rgba(248, 113, 113, 0.25);
+  background: rgba(var(--danger-rgb), 0.04);
+  border-color: rgba(var(--danger-rgb), 0.25);
 }
 
 .planned-exercise-item--open strong,
@@ -597,17 +596,17 @@ section {
 }
 
 .planned-exercise-item--open .plan-target-row {
-  border-color: rgba(248, 113, 113, 0.2);
+  border-color: rgba(var(--danger-rgb), 0.2);
 }
 
 .planned-exercise-item--open .set-row,
 .planned-exercise-item--open .set-compare-row {
-  background: rgba(248, 113, 113, 0.04);
+  background: rgba(var(--danger-rgb), 0.04);
 }
 
 .planned-exercise-item--closed {
-  background: rgba(74, 222, 128, 0.04);
-  border-color: rgba(74, 222, 128, 0.25);
+  background: rgba(var(--success-rgb), 0.04);
+  border-color: rgba(var(--success-rgb), 0.25);
 }
 
 .planned-exercise-item--closed strong,
@@ -622,12 +621,28 @@ section {
 }
 
 .planned-exercise-item--closed .plan-target-row {
-  border-color: rgba(74, 222, 128, 0.2);
+  border-color: rgba(var(--success-rgb), 0.2);
 }
 
 .planned-exercise-item--closed .set-row,
 .planned-exercise-item--closed .set-compare-row {
-  background: rgba(74, 222, 128, 0.04);
+  background: rgba(var(--success-rgb), 0.04);
+}
+
+/* Gris: el plan del día antes de iniciar la sesión. No es "pendiente" (rojo)
+   ni "hecho" (verde) — esos dos hablan de una sesión que existe, y acá
+   todavía no hay ninguna. */
+.planned-exercise-item--pending {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+.planned-exercise-item--pending strong,
+.planned-exercise-item--pending .plan-target-title,
+.planned-exercise-item--pending .plan-target-row,
+.planned-exercise-item--pending .set-number,
+.planned-exercise-item--pending .empty-hint {
+  color: var(--text-muted);
 }
 
 .planned-exercise-header {
@@ -684,7 +699,7 @@ section {
 .planned-exercise-actions .btn-danger {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: rgba(248, 113, 113, 0.3);
+  border-color: rgba(var(--danger-rgb), 0.3);
 }
 
 .btn-danger:hover {
@@ -703,11 +718,11 @@ section {
 .set-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
   padding: 8px 10px;
   background: var(--surface-2);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .set-number {
@@ -718,6 +733,14 @@ section {
 
 .set-summary {
   flex: 1;
+}
+
+/* Más chicos que el .icon-button de siempre: acá compiten por ancho con el
+   resumen de la serie, que es lo que tiene que quedar en una sola línea. */
+.set-row .icon-button {
+  width: 22px;
+  height: 22px;
+  font-size: 15px;
 }
 
 /* Finished-session view: planned vs. actual on one row per set number,
@@ -1056,7 +1079,7 @@ section {
   align-items: center;
   gap: 8px;
   background: var(--danger-bg);
-  border: 1px solid rgba(248, 113, 113, 0.3);
+  border: 1px solid rgba(var(--danger-rgb), 0.3);
   border-radius: 10px;
   padding: 8px 10px;
   margin-bottom: 16px;
@@ -1330,9 +1353,9 @@ section {
 
 .deload-alert {
   font-size: 13px;
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.1);
-  border: 1px solid rgba(251, 191, 36, 0.3);
+  color: var(--warning);
+  background: rgba(var(--warning-rgb), 0.1);
+  border: 1px solid rgba(var(--warning-rgb), 0.3);
   border-radius: 8px;
   padding: 6px 10px;
   margin-bottom: 10px;
@@ -1556,7 +1579,7 @@ section {
 }
 
 .calendar-dot--cardio {
-  background: #34d399;
+  background: var(--success);
 }
 
 .calendar-dot--planned {
@@ -1796,18 +1819,18 @@ section {
 }
 
 .stress-row--facil .stress-badge {
-  color: #34d399;
-  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+  background: rgba(var(--success-rgb), 0.15);
 }
 
 .stress-row--media .stress-badge {
-  color: #fbbf24;
-  background: rgba(251, 191, 36, 0.15);
+  color: var(--warning);
+  background: rgba(var(--warning-rgb), 0.15);
 }
 
 .stress-row--dificil .stress-badge {
-  color: #fb923c;
-  background: rgba(251, 146, 60, 0.15);
+  color: var(--warning-strong);
+  background: rgba(var(--warning-strong-rgb), 0.15);
 }
 
 .stress-row--muyDificil .stress-badge {
@@ -2268,13 +2291,13 @@ section {
 }
 
 .finance-category-card--expense {
-  background: rgba(248, 113, 113, 0.08);
-  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(var(--danger-rgb), 0.08);
+  border-color: rgba(var(--danger-rgb), 0.3);
 }
 
 .finance-category-card--income {
-  background: rgba(74, 222, 128, 0.08);
-  border-color: rgba(74, 222, 128, 0.3);
+  background: rgba(var(--success-rgb), 0.08);
+  border-color: rgba(var(--success-rgb), 0.3);
 }
 
 .finance-category-card-body {
@@ -2868,13 +2891,6 @@ section {
   opacity: 0.92;
 }
 
-.nutrition-entry-drag-handle {
-  color: var(--text-muted);
-  font-size: 14px;
-  flex: none;
-  cursor: grab;
-}
-
 .nutrition-entry-info {
   flex: 1;
   display: flex;
@@ -2889,9 +2905,13 @@ section {
   flex: none;
 }
 
-.nutrition-entry-quantity-inline {
-  font-weight: 400;
+/* Al final de la fila, no junto al nombre: así se lee en columna al bajar la
+   lista, en vez de mezclarse con nombres de largo distinto. */
+.nutrition-entry-quantity {
+  flex: none;
+  font-size: 12px;
   color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* Cuatro cifras en una columna angosta: a 10px fijos la línea más larga
@@ -3631,7 +3651,7 @@ section {
 .grocery-run-message {
   margin: 10px 0 0;
   padding: 8px 10px;
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  border: 1px solid rgba(var(--success-rgb), 0.3);
   border-radius: var(--radius-sm);
   background: var(--success-bg);
   color: var(--success);
@@ -3990,8 +4010,8 @@ section {
 }
 
 .block-grid-cell--differs {
-  background: rgba(251, 191, 36, 0.1);
-  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(var(--warning-rgb), 0.1);
+  border-color: rgba(var(--warning-rgb), 0.4);
 }
 
 .block-grid-cell--differs .block-grid-volume {
@@ -4416,7 +4436,7 @@ section {
 
 .cell-verdict--differs {
   background: var(--warning-bg);
-  border: 1px solid rgba(251, 191, 36, 0.34);
+  border: 1px solid rgba(var(--warning-rgb), 0.34);
   color: var(--warning);
 }
 
@@ -4429,6 +4449,33 @@ section {
   color: var(--text-muted);
   font-size: 12.5px;
   line-height: 1.35;
+}
+
+.cell-note-readonly {
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.cell-note-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.cell-note-field textarea {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: var(--text);
+  resize: vertical;
 }
 
 .cell-compare {
@@ -4513,7 +4560,7 @@ section {
   gap: 2px;
   margin-top: 14px;
   padding: 10px;
-  border: 1px solid rgba(74, 222, 128, 0.25);
+  border: 1px solid rgba(var(--success-rgb), 0.25);
   border-radius: var(--radius-sm);
   background: var(--success-bg);
 }
@@ -4892,8 +4939,8 @@ button.macro-cell {
 /* La marca en la serie ya anotada: corta, para no empujar el resumen. */
 .set-tag {
   display: inline-block;
-  margin-left: 6px;
-  padding: 1px 6px;
+  margin-left: 4px;
+  padding: 1px 5px;
   border-radius: 999px;
   background: var(--accent-bg);
   border: 1px solid var(--accent-border);
@@ -4925,6 +4972,24 @@ button.macro-cell {
   --mod-nutrition: #4ade80;
   --mod-finance: #fbbf24;
   --mod-bitacora: #38bdf8;
+}
+
+/* Mismos cuatro, en su versión para fondo claro — ver el bloque equivalente
+   de index.css sobre por qué va repetido dos veces. */
+:root[data-theme='light'] {
+  --mod-training: #7c3aed;
+  --mod-nutrition: #16a34a;
+  --mod-finance: #d97706;
+  --mod-bitacora: #0284c7;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']):not([data-theme='light']) {
+    --mod-training: #7c3aed;
+    --mod-nutrition: #16a34a;
+    --mod-finance: #d97706;
+    --mod-bitacora: #0284c7;
+  }
 }
 
 .completion-ring {
@@ -4975,14 +5040,14 @@ button.macro-cell {
 /* --- la tarjeta de cierre -------------------------------------------- */
 .day-close {
   margin-top: 20px;
-  padding: 14px;
+  padding: 10px 14px;
   border: 1px solid var(--accent-border);
   border-radius: 14px;
   background: var(--accent-bg);
 }
 
 .day-close-prompt {
-  margin: 0 0 10px;
+  margin: 0 0 6px;
   font-size: 14px;
   font-weight: 600;
 }
@@ -4995,16 +5060,19 @@ button.macro-cell {
 .day-close-primary,
 .day-close-secondary {
   flex: 1 1 0;
-  min-height: 44px;
+  min-height: 40px;
+  padding-left: 6px;
+  padding-right: 6px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .day-close-primary {
   background: var(--accent);
   border: 1px solid var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .day-close-secondary {
@@ -5034,7 +5102,7 @@ button.macro-cell {
   flex: 0 0 auto;
   border-radius: 50%;
   background: var(--success);
-  color: #0b1120;
+  color: var(--on-success);
   font-size: 12px;
   font-weight: 700;
 }
@@ -5149,11 +5217,15 @@ button.macro-cell {
 }
 
 /* --- el detalle de un día --------------------------------------------- */
+/* El anillo arriba y el texto abajo, no lado a lado: al lado, compartir el
+   ancho con el anillo hacía que "Falta 3: nutrición, finanzas, bitácora."
+   se cortara en dos líneas. Debajo tiene todo el ancho de la tarjeta. */
 .day-detail-head {
   display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 4px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 2px;
 }
 
 .day-detail-summary {
@@ -5164,7 +5236,7 @@ button.macro-cell {
 }
 
 .day-detail-module {
-  margin-top: 18px;
+  margin-top: 12px;
 }
 
 .day-detail-module h3 {
@@ -5177,7 +5249,7 @@ button.macro-cell {
 }
 
 .day-detail-module .day-close {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 /* --- la lista de pendientes ------------------------------------------- */

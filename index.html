@@ -11,6 +11,19 @@
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <meta name="theme-color" content="#0a0a0c" />
+    <script>
+      // Aplica el tema guardado antes de que la página pinte nada: si esto
+      // esperara al primer efecto de React, alguien con "Claro" elegido vería
+      // un parpadeo oscuro en cada carga, antes de que React alcance a
+      // corregirlo. La clave tiene que ser la misma que usa useTheme.ts — acá
+      // no se puede importar ese módulo, así que queda repetida a mano.
+      try {
+        var theme = localStorage.getItem('kurosei:theme')
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.dataset.theme = theme
+        }
+      } catch (e) {}
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

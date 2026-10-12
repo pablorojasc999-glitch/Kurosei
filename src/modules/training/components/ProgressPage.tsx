@@ -1,6 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { BodyMap } from './BodyMap'
 import { LineChart } from './LineChart'
 import type { ChartSeries } from './LineChart'
@@ -12,6 +12,7 @@ import {
   listMesocyclesWithContext,
   listWeeksWithContext,
 } from '../db/planningRepository'
+import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../db/trainingRepository'
 import { matchBodyRegion } from '../lib/bodyMap'
 import type { BodyRegionKey } from '../lib/bodyMap'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
@@ -59,26 +60,19 @@ function defaultCurrentOrPastId(
 }
 
 export function ProgressPage() {
-  const setsWithContext = useLiveQuery(() => listAllExecutedSetsWithContext(), [])
-  const exercises = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).toArray(),
-    [],
+  const session = useSupabaseSession()
+  const { data: setsWithContext } = useRemoteQuery(
+    useCallback(() => listAllExecutedSetsWithContext(), []),
   )
-  const muscleGroups = useLiveQuery(
-    () => db.training_muscle_groups.filter((g) => g.deletedAt === null).toArray(),
-    [],
+  const { data: exercises } = useRemoteQuery(useCallback(() => listExercises(), []))
+  const { data: muscleGroups } = useRemoteQuery(useCallback(() => listMuscleGroups(), []))
+  const { data: contributions } = useRemoteQuery(
+    useCallback(() => listAllMuscleContributions(), []),
   )
-  const contributions = useLiveQuery(
-    () =>
-      db.training_exercise_muscle_contributions
-        .filter((c) => c.deletedAt === null)
-        .toArray(),
-    [],
-  )
-  const macrocycles = useLiveQuery(() => listMacrocycles(), [])
-  const mesocycles = useLiveQuery(() => listMesocyclesWithContext(), [])
-  const weeks = useLiveQuery(() => listWeeksWithContext(), [])
-  const profile = useLiveQuery(() => getProfile(), [])
+  const { data: macrocycles } = useRemoteQuery(useCallback(() => listMacrocycles(), []))
+  const { data: mesocycles } = useRemoteQuery(useCallback(() => listMesocyclesWithContext(), []))
+  const { data: weeks } = useRemoteQuery(useCallback(() => listWeeksWithContext(), []))
+  const { data: profile } = useRemoteQuery(useCallback(() => getProfile(), []))
 
   const [selectedExerciseId, setSelectedExerciseId] = useState('')
   const [scopeKind, setScopeKind] = useState<ScopeKind>('day')
@@ -122,10 +116,32 @@ export function ProgressPage() {
     activeRange = dayRange(activeDay)
   }
 
-  const dailyMetrics = useLiveQuery(
-    () => (activeRange ? listDailyMetricsInRange(activeRange) : Promise.resolve([])),
-    [activeRange?.start, activeRange?.end],
+  const { data: dailyMetrics } = useRemoteQuery(
+    useCallback(
+      async () => (activeRange ? listDailyMetricsInRange(activeRange) : []),
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+      [activeRange?.start, activeRange?.end],
+    ),
   )
+
+  // Ya no hay copia local: sin sesión no hay progreso que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Progreso</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Progreso</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver tu progreso.
+        </p>
+      </div>
+    )
+  }
 
   if (
     !setsWithContext ||

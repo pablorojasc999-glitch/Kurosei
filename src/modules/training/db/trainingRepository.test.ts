@@ -1,19 +1,29 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import {
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const {
   createExercise,
   createMuscleGroup,
   ensureCanonicalMuscleGroups,
   listContributionsForExercise,
   updateExercise,
-} from './trainingRepository'
+} = await import('./trainingRepository')
 
-beforeEach(async () => {
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+beforeEach(() => {
+  fake.tables.training_muscle_groups = []
+  fake.tables.training_exercises = []
+  fake.tables.training_exercise_muscle_contributions = []
 })
 
 describe('createMuscleGroup', () => {
@@ -107,7 +117,7 @@ describe('updateExercise', () => {
       ],
     })
 
-    const updated = await db.training_exercises.get(exercise.id)
+    const updated = fake.tables.training_exercises.find((e) => e.id === exercise.id)
     expect(updated?.name).toBe('Press banca inclinado')
 
     const contributions = await listContributionsForExercise(exercise.id)

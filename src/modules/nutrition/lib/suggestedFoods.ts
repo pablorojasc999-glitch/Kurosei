@@ -1,4 +1,32 @@
+import { toDateKey } from '../../training/lib/calendarGrid'
 import type { FoodItem, NutritionEntry } from '../domain/types'
+
+/** Cuántos días atrás se miran los registros para proponer alimentos al abrir el panel de agregar. */
+const SUGGESTION_DAYS = 30
+
+export interface SuggestionWindow {
+  /** Desde esta fecha (inclusive) se pide `listEntriesForDateRange`. */
+  from: string
+  to: string
+  /** Fecha desde la que un registro cuenta como "reciente" — ver `suggestedFoods`. */
+  recentSince: string
+}
+
+/**
+ * La ventana de fechas para las sugerencias, calculada una sola vez por
+ * pantalla (quien la llama la memoiza con deps vacías) — no al abrir cada
+ * panel de agregar, que es lo que obligaba a pedir los registros de nuevo
+ * cada vez y corría el riesgo de que la lista cambiara de golpe debajo del
+ * dedo mientras se elegía algo.
+ */
+export function suggestionWindow(): SuggestionWindow {
+  const today = new Date()
+  const from = new Date(today)
+  from.setDate(from.getDate() - SUGGESTION_DAYS)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  return { from: toDateKey(from), to: toDateKey(today), recentSince: toDateKey(yesterday) }
+}
 
 /** Un alimento propuesto, con la cantidad que se usó la última vez en vez de la porción de la biblioteca: si siempre anotas 150 g de pollo, el atajo tiene que poner 150 y no los 100 con los que se creó. */
 export interface SuggestedFood {

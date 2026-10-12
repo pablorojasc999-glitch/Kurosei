@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FoodItem, NutritionEntry } from '../domain/types'
-import { suggestedFoods } from './suggestedFoods'
+import { suggestedFoods, suggestionWindow } from './suggestedFoods'
 
 const food = (id: string, name: string, servingAmount = 100): FoodItem =>
   ({
@@ -143,6 +143,25 @@ describe('suggestedFoods', () => {
     expect(suggestedFoods([food('a', 'Acelga')], [], { recentSince: AYER })).toEqual({
       recent: [],
       frequent: [],
+    })
+  })
+})
+
+describe('suggestionWindow', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-15T12:00:00.000Z'))
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('va de 30 días atrás a hoy, con "reciente" desde ayer', () => {
+    expect(suggestionWindow()).toEqual({
+      from: '2026-08-16',
+      to: '2026-09-15',
+      recentSince: '2026-09-14',
     })
   })
 })

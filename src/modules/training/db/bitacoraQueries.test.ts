@@ -1,19 +1,37 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import { listDailyMetricsInRange } from './bitacoraQueries'
-import { upsertDailyLog } from './bitacoraRepository'
-import { createCardioSession } from './cardioRepository'
-import { addSessionExercise, createExecutedSet, endSession, startSession } from './executionRepository'
-import { getOrCreateDayForDate } from './planningRepository'
-import { createExercise, createMuscleGroup } from './trainingRepository'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
 import { inclusiveRange } from '../lib/progressScope'
 
-beforeEach(async () => {
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const { listDailyMetricsInRange } = await import('./bitacoraQueries')
+const { upsertDailyLog } = await import('./bitacoraRepository')
+const { createCardioSession } = await import('./cardioRepository')
+const { addSessionExercise, createExecutedSet, endSession, startSession } = await import(
+  './executionRepository'
+)
+const { getOrCreateDayForDate } = await import('./planningRepository')
+const { createExercise, createMuscleGroup } = await import('./trainingRepository')
+
+beforeEach(() => {
+  fake.tables.training_daily_logs = []
+  fake.tables.training_days = []
+  fake.tables.training_sessions = []
+  fake.tables.training_session_exercises = []
+  fake.tables.training_executed_sets = []
+  fake.tables.training_cardio_sessions = []
+  fake.tables.training_exercises = []
+  fake.tables.training_muscle_groups = []
+  fake.tables.training_exercise_muscle_contributions = []
 })
 
 const EMPTY_LOG_INPUT = {

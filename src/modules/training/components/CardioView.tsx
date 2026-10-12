@@ -1,9 +1,9 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
-import { createCardioSession, deleteCardioSession } from '../db/cardioRepository'
+import { createCardioSession, deleteCardioSession, listCardioSessions } from '../db/cardioRepository'
+import { listExercises } from '../db/trainingRepository'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 
 function toDatetimeLocalValue(date: Date): string {
@@ -24,21 +24,11 @@ interface CardioViewProps {
 }
 
 export function CardioView({ dayId }: CardioViewProps) {
-  const cardioSessions = useLiveQuery(
-    () =>
-      db.training_cardio_sessions
-        .where('dayId')
-        .equals(dayId)
-        .filter((s) => s.deletedAt === null)
-        .sortBy('startedAt'),
-    [dayId],
+  const { data: cardioSessions, refresh: refreshSessions } = useRemoteQuery(
+    useCallback(() => listCardioSessions(dayId), [dayId]),
   )
-  const cardioExercises = useLiveQuery(
-    () =>
-      db.training_exercises
-        .filter((e) => e.deletedAt === null && e.type === 'cardio')
-        .sortBy('name'),
-    [],
+  const { data: cardioExercises } = useRemoteQuery(
+    useCallback(async () => (await listExercises()).filter((e) => e.type === 'cardio'), []),
   )
 
   const [showForm, setShowForm] = useState(false)
@@ -69,6 +59,7 @@ export function CardioView({ dayId }: CardioViewProps) {
         caloriesBurned: calories ? Number(calories) : null,
         notes,
       })
+      await refreshSessions()
       setExerciseId('')
       setStartedAt(toDatetimeLocalValue(new Date()))
       setDuration('')
@@ -102,7 +93,7 @@ export function CardioView({ dayId }: CardioViewProps) {
                 {s.notes && ` · ${s.notes}`}
               </div>
             </div>
-            <ConfirmDeleteButton onConfirm={() => deleteCardioSession(s.id)} />
+            <ConfirmDeleteButton onConfirm={() => deleteCardioSession(s.id).then(refreshSessions)} />
           </li>
         ))}
       </ul>

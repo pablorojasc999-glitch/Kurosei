@@ -1,5 +1,6 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { listCardioSessions } from '../db/cardioRepository'
 import { getSessionForDay } from '../db/executionRepository'
 import {
@@ -14,19 +15,17 @@ import { CardioView } from './CardioView'
 import { DayHeaderLabel } from './DayHeaderLabel'
 import { SessionView } from './SessionView'
 
-const SWIPE_THRESHOLD_PX = 50
-
 interface RegistroPageProps {
   jumpToDate?: Date | null
   onEditPlan: (dayId: string) => void
 }
 
 export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
+  const session = useSupabaseSession()
   const [selectedDate, setSelectedDate] = useState(() => startOfDay(new Date()))
   const [appliedJumpToDate, setAppliedJumpToDate] = useState(jumpToDate)
   const [forceShowContent, setForceShowContent] = useState(false)
   const [appliedForceShowDate, setAppliedForceShowDate] = useState(selectedDate)
-  const touchStartX = useRef<number | null>(null)
 
   if (jumpToDate !== appliedJumpToDate) {
     setAppliedJumpToDate(jumpToDate)
@@ -37,16 +36,24 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
     setForceShowContent(false)
   }
 
-  const day = useLiveQuery(() => findDayByDate(selectedDate), [selectedDate])
-  const dayHasContent = useLiveQuery(async () => {
-    if (!day) return false
-    const [plannedExercises, session, cardioSessions] = await Promise.all([
-      listPlannedExercises(day.id),
-      getSessionForDay(day.id),
-      listCardioSessions(day.id),
-    ])
-    return plannedExercises.length > 0 || session !== undefined || cardioSessions.length > 0
-  }, [day?.id])
+  const { data: day, refresh: refreshDay } = useRemoteQuery(
+    useCallback(async () => {
+      if (session === undefined) return undefined
+      return session ? findDayByDate(selectedDate) : null
+    }, [session, selectedDate]),
+  )
+  const { data: dayHasContent } = useRemoteQuery(
+    useCallback(async () => {
+      if (!day) return false
+      const [plannedExercises, trainingSession, cardioSessions] = await Promise.all([
+        listPlannedExercises(day.id),
+        getSessionForDay(day.id),
+        listCardioSessions(day.id),
+      ])
+      return plannedExercises.length > 0 || trainingSession !== undefined || cardioSessions.length > 0
+      // oxlint-disable-next-line react-hooks/exhaustive-deps
+    }, [day?.id]),
+  )
 
   const [appliedDayHasContent, setAppliedDayHasContent] = useState(dayHasContent)
   if (dayHasContent !== appliedDayHasContent) {
@@ -66,28 +73,33 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
     setSelectedDate((d) => addDays(d, 1))
   }
 
-  function handleTouchStart(e: React.TouchEvent) {
-    touchStartX.current = e.touches[0].clientX
-  }
-  function handleTouchEnd(e: React.TouchEvent) {
-    if (touchStartX.current === null) return
-    const delta = e.changedTouches[0].clientX - touchStartX.current
-    touchStartX.current = null
-    if (delta > SWIPE_THRESHOLD_PX) goToPreviousDay()
-    else if (delta < -SWIPE_THRESHOLD_PX) goToNextDay()
-  }
-
   async function handleCreateDay() {
     await getOrCreateDayForDate(selectedDate)
+    await refreshDay()
     setForceShowContent(true)
   }
 
+  // Ya no hay copia local: sin sesión no hay registro que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Registro</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Registro</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tu registro.
+        </p>
+      </div>
+    )
+  }
+
   return (
-    <div
-      className="page"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="page">
       <h1>Registro</h1>
 
       <div className="day-nav">
@@ -124,7 +136,7 @@ export function RegistroPage({ jumpToDate, onEditPlan }: RegistroPageProps) {
 
           <section>
             <h2>Fuerza</h2>
-            <SessionView dayId={day.id} />
+            <SessionView dayId={day.id} onJumpToDate={(date) => setSelectedDate(startOfDay(date))} />
           </section>
 
           <section>

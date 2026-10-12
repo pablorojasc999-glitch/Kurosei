@@ -1,6 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { toDateKey } from '../../training/lib/calendarGrid'
 import {
@@ -9,6 +10,7 @@ import {
   applyTemplateToDate,
   createMealSection,
   createMealTemplate,
+  listEntriesForDateRange,
   listFoods,
   listMealSections,
   listMealTemplates,
@@ -21,24 +23,47 @@ import {
 } from '../db/nutritionRepository'
 import { sumMacros } from '../lib/macros'
 import { formatNutrient } from '../lib/nutrients'
+import { suggestionWindow } from '../lib/suggestedFoods'
 import { useEntryDragReorder } from '../lib/useEntryDragReorder'
 import { AddEntryForm } from './AddEntryForm'
 import { EntryEditor } from './EntryEditor'
 import { EntryRow } from './EntryRow'
 
 export function PlantillasPage() {
-  const templates = useLiveQuery(() => listMealTemplates(), [])
-  const sections = useLiveQuery(() => listMealSections(), [])
-  const foods = useLiveQuery(() => listFoods(), [])
+  const session = useSupabaseSession()
+  // Fija al montar — ver el mismo criterio en RegistroPage.tsx.
+  const recentWindow = useMemo(() => suggestionWindow(), [])
+  const {
+    data,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      const [templates, sections, foods, recentEntries] = await Promise.all([
+        listMealTemplates(),
+        listMealSections(),
+        listFoods(),
+        listEntriesForDateRange(recentWindow.from, recentWindow.to),
+      ])
+      return { templates, sections, foods, recentEntries }
+    }, [session, recentWindow]),
+  )
+  const templates = data?.templates
+  const sections = data?.sections
+  const foods = data?.foods
+  const recentEntries = data?.recentEntries
 
   const [showNewTemplate, setShowNewTemplate] = useState(false)
   const [newTemplateName, setNewTemplateName] = useState('')
   const [newTemplateEmoji, setNewTemplateEmoji] = useState('')
 
   const [openTemplateId, setOpenTemplateId] = useState<string | null>(null)
-  const templateEntries = useLiveQuery(
-    () => (openTemplateId ? listTemplateEntries(openTemplateId) : Promise.resolve([])),
-    [openTemplateId],
+  const { data: templateEntries, refresh: refreshTemplateEntries } = useRemoteQuery(
+    useCallback(
+      () => (openTemplateId ? listTemplateEntries(openTemplateId) : Promise.resolve([])),
+      [openTemplateId],
+    ),
   )
   const [addingToSectionId, setAddingToSectionId] = useState<string | null>(null)
   const [showNewSection, setShowNewSection] = useState(false)
@@ -61,7 +86,7 @@ export function PlantillasPage() {
     handlePointerUp,
     consumeJustDragged,
   } = useEntryDragReorder(templateEntries, sections, (entryId, targetSectionId, targetIndex) => {
-    void moveTemplateEntry(entryId, targetSectionId, targetIndex)
+    void moveTemplateEntry(entryId, targetSectionId, targetIndex).then(refreshTemplateEntries)
   })
 
   async function handleCreateTemplate(e: React.FormEvent) {
@@ -73,6 +98,7 @@ export function PlantillasPage() {
     setNewTemplateEmoji('')
     setShowNewTemplate(false)
     setOpenTemplateId(template.id)
+    await refresh()
   }
 
   async function handleCreateSection(e: React.FormEvent) {
@@ -82,12 +108,32 @@ export function PlantillasPage() {
     await createMealSection(name)
     setNewSectionName('')
     setShowNewSection(false)
+    await refresh()
   }
 
   async function handleApply() {
     if (!openTemplateId) return
     await applyTemplateToDate(openTemplateId, applyDate)
     setApplied(true)
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle las plantillas.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Plantillas</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Plantillas</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tus plantillas.
+        </p>
+      </div>
+    )
   }
 
   if (openTemplateId && openTemplate) {
@@ -166,7 +212,7 @@ export function PlantillasPage() {
                           if (consumeJustDragged()) return
                           setExpandedEntryId((prev) => (prev === entry.id ? null : entry.id))
                         }}
-                        onDelete={() => void softDeleteTemplateEntry(entry.id)}
+                        onDelete={() => void softDeleteTemplateEntry(entry.id).then(refreshTemplateEntries)}
                       />
                       {expandedEntryId === entry.id &&
                         (entry.kind === 'manual' || entryFood) && (
@@ -176,6 +222,7 @@ export function PlantillasPage() {
                             onSaveQuantity={async (quantity) => {
                               await updateTemplateFoodEntryQuantity(entry.id, quantity)
                               setExpandedEntryId(null)
+                              await refreshTemplateEntries()
                             }}
                             onSaveManual={async (input) => {
                               await updateTemplateManualEntry(entry.id, {
@@ -183,6 +230,7 @@ export function PlantillasPage() {
                                 notes: entry.notes,
                               })
                               setExpandedEntryId(null)
+                              await refreshTemplateEntries()
                             }}
                           />
                         )}
@@ -205,6 +253,8 @@ export function PlantillasPage() {
               {addingToSectionId === section.id && (
                 <AddEntryForm
                   foods={foods ?? []}
+                  recentEntries={recentEntries ?? []}
+                  recentSince={recentWindow.recentSince}
                   title={`Agregar a ${section.name}`}
                   subtitle={openTemplate.name}
                   onAddFood={async (foodId, quantity, notes) => {
@@ -215,6 +265,7 @@ export function PlantillasPage() {
                       quantity,
                       notes,
                     })
+                    await refreshTemplateEntries()
                   }}
                   onAddManual={async (input) => {
                     await addManualEntryToTemplate({
@@ -222,6 +273,7 @@ export function PlantillasPage() {
                       sectionId: section.id,
                       ...input,
                     })
+                    await refreshTemplateEntries()
                   }}
                   onDone={() => setAddingToSectionId(null)}
                 />
@@ -293,6 +345,7 @@ export function PlantillasPage() {
   return (
     <div className="page">
       <h1>Plantillas</h1>
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <button
         type="button"
@@ -341,7 +394,7 @@ export function PlantillasPage() {
               className="icon-button nutrition-template-delete"
               label="Eliminar plantilla"
               confirmMessage={`¿Eliminar "${template.name}"?`}
-              onConfirm={() => softDeleteMealTemplate(template.id)}
+              onConfirm={() => softDeleteMealTemplate(template.id).then(refresh)}
             />
             <button
               type="button"

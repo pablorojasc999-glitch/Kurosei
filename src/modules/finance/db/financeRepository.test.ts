@@ -1,6 +1,18 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import {
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const {
   archiveDebtIfPaid,
   createAccount,
   createCategory,
@@ -26,14 +38,13 @@ import {
   softDeleteCategory,
   softDeleteTransaction,
   updateAccount,
-} from './financeRepository'
+} = await import('./financeRepository')
 
-beforeEach(async () => {
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+beforeEach(() => {
+  fake.tables.finance_accounts = []
+  fake.tables.finance_categories = []
+  fake.tables.finance_category_budgets = []
+  fake.tables.finance_transactions = []
 })
 
 describe('accounts', () => {
@@ -553,11 +564,12 @@ describe('debt accounts auto-link a payment-tracking category', () => {
       revolving: false,
     })
     // simulate data created before this field existed
-    await db.finance_accounts.update(debt.id, { categoryId: null })
+    const row = fake.tables.finance_accounts.find((r) => r.id === debt.id)
+    if (row) row.categoryId = null
 
     const categoryId = await ensureDebtCategoryId({ ...debt, categoryId: null })
     expect(categoryId).toBeTruthy()
-    const updated = await db.finance_accounts.get(debt.id)
+    const updated = (await listAccounts()).find((a) => a.id === debt.id)
     expect(updated?.categoryId).toBe(categoryId)
 
     // calling it again with the now-linked debt is a no-op

@@ -1,6 +1,9 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
+import { listAllCardioSessions } from '../db/cardioRepository'
+import { listAllExecutedSets, listAllSessionExercises, listAllSessions } from '../db/executionRepository'
+import { listAllDays } from '../db/planningRepository'
 import { addMonths, buildMonthGrid, startOfMonth, toDateKey } from '../lib/calendarGrid'
 import { countTrainingDays, type TrainingDayMark } from '../lib/trainingDayCounts'
 
@@ -11,33 +14,41 @@ interface CalendarPageProps {
 }
 
 export function CalendarPage({ onOpenDay }: CalendarPageProps) {
+  const session = useSupabaseSession()
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()))
 
-  const days = useLiveQuery(
-    () => db.training_days.filter((d) => d.deletedAt === null).toArray(),
-    [],
-  )
-  const sessions = useLiveQuery(
-    () => db.training_sessions.filter((s) => s.deletedAt === null).toArray(),
-    [],
-  )
-  const executedSets = useLiveQuery(
-    () => db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
-    [],
-  )
-  const sessionExercises = useLiveQuery(
-    () =>
-      db.training_session_exercises.filter((se) => se.deletedAt === null).toArray(),
-    [],
-  )
-  const cardioSessions = useLiveQuery(
-    () => db.training_cardio_sessions.filter((s) => s.deletedAt === null).toArray(),
-    [],
+  const { data } = useRemoteQuery(
+    useCallback(async () => {
+      const [days, sessions, executedSets, sessionExercises, cardioSessions] = await Promise.all([
+        listAllDays(),
+        listAllSessions(),
+        listAllExecutedSets(),
+        listAllSessionExercises(),
+        listAllCardioSessions(),
+      ])
+      return { days, sessions, executedSets, sessionExercises, cardioSessions }
+    }, []),
   )
 
-  if (!days || !sessions || !executedSets || !sessionExercises || !cardioSessions) {
-    return null
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Calendario</h1>
+      </div>
+    )
   }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Calendario</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver tu calendario.
+        </p>
+      </div>
+    )
+  }
+  if (!data) return null
+  const { days, sessions, executedSets, sessionExercises, cardioSessions } = data
 
   const daysByDateKey = new Map<string, (typeof days)[number]>()
   for (const day of days) {

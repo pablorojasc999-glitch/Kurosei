@@ -32,6 +32,13 @@ export async function getSession(): Promise<Session | null> {
   return data.session
 }
 
+/** El `userId` de la sesión activa, para estampar filas nuevas antes de guardarlas. */
+export async function requireUserId(): Promise<string> {
+  const session = await getSession()
+  if (!session) throw new Error('Iniciá sesión para guardar cambios.')
+  return session.user.id
+}
+
 /** Subscribes to auth state changes; returns an unsubscribe function. */
 export function onAuthStateChange(
   callback: (session: Session | null) => void,

@@ -44,7 +44,16 @@ function vibrate(): void {
 const TICK_MS = 250
 
 interface RestTimerProps {
+  sessionExerciseId: string
   targetSeconds: number
+  /**
+   * El descanso guardado en `localStorage` con el que retomar, si lo hay —
+   * ver `restStorageKey` en `lib/restTimer.ts`. Sólo se usa al montar: un
+   * remount con `key` distinta siempre es un descanso nuevo de verdad.
+   */
+  initialState?: RestTimerState
+  /** Dónde persistir este descanso, para sobrevivir a un refresco de la página. */
+  persistKey: string
   /** Quitar el cronómetro de en medio cuando ya no hace falta. */
   onDismiss: () => void
 }
@@ -55,12 +64,43 @@ interface RestTimerProps {
  * Monta una instancia nueva (`key`) para volver a empezar: el estado vive en el
  * componente y reiniciarlo desde fuera sería sincronizar prop y estado a mano.
  */
-export function RestTimer({ targetSeconds, onDismiss }: RestTimerProps) {
-  const [state, setState] = useState<RestTimerState>(() =>
-    startRest(targetSeconds, Date.now()),
+export function RestTimer({
+  sessionExerciseId,
+  targetSeconds,
+  initialState,
+  persistKey,
+  onDismiss,
+}: RestTimerProps) {
+  const [state, setState] = useState<RestTimerState>(
+    () => initialState ?? startRest(targetSeconds, Date.now()),
   )
-  const [remaining, setRemaining] = useState(targetSeconds)
+  // Si viene de `initialState` (se retoma tras un refresco) puede llevar
+  // menos tiempo que `targetSeconds` — calcularlo ya con `state` evita un
+  // parpadeo del reloj completo antes de que el primer efecto lo corrija.
+  const [remaining, setRemaining] = useState(() => remainingSeconds(state, Date.now()))
   const alertedRef = useRef(false)
+
+  // Al refrescar la página, en web, se pierde todo el estado de React —
+  // sin esto, el descanso volvía a empezar aunque el tiempo real hubiera
+  // seguido corriendo. Guardarlo acá (no en Supabase: es de esta pestaña,
+  // no de la cuenta) deja retomarlo tal cual al volver a abrir la pantalla.
+  useEffect(() => {
+    try {
+      localStorage.setItem(persistKey, JSON.stringify({ sessionExerciseId, state }))
+    } catch {
+      // localStorage lleno o bloqueado: el cronómetro sigue andando en pantalla,
+      // sólo no sobrevive a un refresco — no es motivo para romper nada.
+    }
+  }, [state, persistKey, sessionExerciseId])
+
+  function dismiss() {
+    try {
+      localStorage.removeItem(persistKey)
+    } catch {
+      // ver el try/catch de arriba
+    }
+    onDismiss()
+  }
 
   useEffect(() => {
     const sync = () => {
@@ -129,7 +169,7 @@ export function RestTimer({ targetSeconds, onDismiss }: RestTimerProps) {
         >
           +15s
         </button>
-        <button type="button" aria-label="Ocultar el descanso" onClick={onDismiss}>
+        <button type="button" aria-label="Ocultar el descanso" onClick={dismiss}>
           ✕
         </button>
       </div>

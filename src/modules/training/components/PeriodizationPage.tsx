@@ -1,7 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useEffect, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import {
   copyPlannedExercisesToDay,
   createDay,
@@ -17,7 +17,16 @@ import {
   deletePlannedSet,
   deleteWeek,
   duplicateWeek,
+  getDayById,
+  getMesocycleById,
+  getWeekById,
+  listDays,
+  listMacrocycles,
+  listMesocycles,
   listPlannedDaysWithExercises,
+  listPlannedExercises,
+  listPlannedSetsForExercises,
+  listWeeks,
   reorderPlannedExercise,
   reorderWeek,
   setDayPlanClosed,
@@ -27,6 +36,9 @@ import {
   updateMesocycle,
   updatePlannedSet,
 } from '../db/planningRepository'
+import { listExercises } from '../db/trainingRepository'
+import { generateId } from '../../../shared/lib/id'
+import { nowIso } from '../../../shared/lib/timestamps'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { parseReps } from '../lib/reps'
 import { formatDate, formatRestMinutes } from '../lib/format'
@@ -62,6 +74,7 @@ export function PeriodizationPage({
   jumpToDayId,
   onJumpHandled,
 }: PeriodizationPageProps) {
+  const session = useSupabaseSession()
   const [macrocycleId, setMacrocycleId] = useState<string | null>(null)
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
@@ -71,15 +84,13 @@ export function PeriodizationPage({
   const [mesoView, setMesoView] = useState<'planilla' | 'semanas'>('planilla')
 
   useEffect(() => {
-    if (!jumpToDayId) return
+    if (!jumpToDayId || !session) return
     let cancelled = false
     async function resolveAndJump() {
-      const day = await db.training_days.get(jumpToDayId as string)
+      const day = await getDayById(jumpToDayId as string)
       if (!day || cancelled) return
-      const week = day.weekId ? await db.training_weeks.get(day.weekId) : null
-      const mesocycle = week
-        ? await db.training_mesocycles.get(week.mesocycleId)
-        : null
+      const week = day.weekId ? await getWeekById(day.weekId) : null
+      const mesocycle = week ? await getMesocycleById(week.mesocycleId) : null
       if (cancelled) return
       setMacrocycleId(mesocycle?.macrocycleId ?? null)
       setMesocycleId(week?.mesocycleId ?? null)
@@ -91,81 +102,57 @@ export function PeriodizationPage({
     return () => {
       cancelled = true
     }
-  }, [jumpToDayId, onJumpHandled])
+  }, [jumpToDayId, onJumpHandled, session])
 
   // Desde el calendario se toca un día suelto: hay que reconstruir la ruta
   // (mesociclo y semana) para que el detalle y las migas de pan cuadren.
   async function openDayFromCalendar(id: string) {
-    const day = await db.training_days.get(id)
+    const day = await getDayById(id)
     if (!day) return
-    const week = day.weekId ? await db.training_weeks.get(day.weekId) : null
+    const week = day.weekId ? await getWeekById(day.weekId) : null
     setMesocycleId(week?.mesocycleId ?? null)
     setWeekId(day.weekId)
     setDayId(id)
   }
 
-  const macrocycles = useLiveQuery(
-    () => db.training_macrocycles.filter((m) => m.deletedAt === null).sortBy('startDate'),
-    [],
+  const { data: macrocycles, refresh: refreshMacrocycles } = useRemoteQuery(
+    useCallback(() => listMacrocycles(), []),
   )
-  const mesocycles = useLiveQuery(
-    () =>
-      macrocycleId
-        ? db.training_mesocycles
-            .where('macrocycleId')
-            .equals(macrocycleId)
-            .filter((m) => m.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<Mesocycle[]>([]),
-    [macrocycleId],
+  const { data: mesocycles, refresh: refreshMesocycles } = useRemoteQuery(
+    useCallback(
+      () => (macrocycleId ? listMesocycles(macrocycleId) : Promise.resolve<Mesocycle[]>([])),
+      [macrocycleId],
+    ),
   )
-  const weeks = useLiveQuery(
-    () =>
-      mesocycleId
-        ? db.training_weeks
-            .where('mesocycleId')
-            .equals(mesocycleId)
-            .filter((w) => w.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<Week[]>([]),
-    [mesocycleId],
+  const { data: weeks, refresh: refreshWeeks } = useRemoteQuery(
+    useCallback(
+      () => (mesocycleId ? listWeeks(mesocycleId) : Promise.resolve<Week[]>([])),
+      [mesocycleId],
+    ),
   )
-  const days = useLiveQuery(
-    () =>
-      weekId
-        ? db.training_days
-            .where('weekId')
-            .equals(weekId)
-            .filter((d) => d.deletedAt === null)
-            .sortBy('date')
-        : Promise.resolve<Day[]>([]),
-    [weekId],
+  const { data: days, refresh: refreshDays } = useRemoteQuery(
+    useCallback(() => (weekId ? listDays(weekId) : Promise.resolve<Day[]>([])), [weekId]),
   )
-  const plannedExercises = useLiveQuery(
-    () =>
-      dayId
-        ? db.training_planned_exercises
-            .where('dayId')
-            .equals(dayId)
-            .filter((pe) => pe.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<PlannedExercise[]>([]),
-    [dayId],
+  const { data: plannedExercises, refresh: refreshPlannedExercises } = useRemoteQuery(
+    useCallback(
+      () => (dayId ? listPlannedExercises(dayId) : Promise.resolve<PlannedExercise[]>([])),
+      [dayId],
+    ),
   )
-  const exercisesLibrary = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
-    [],
+  const { data: exercisesLibrary } = useRemoteQuery(useCallback(() => listExercises(), []))
+  // Depende de `plannedExercises` (no de `dayId`) para no traer la tabla
+  // entera de series planificadas: sólo las del día que se está mirando. Como
+  // efecto colateral, se refresca solo cada vez que `plannedExercises` lo
+  // hace — así que agregar/quitar/reordenar un ejercicio ya no necesita
+  // pedirla aparte.
+  const { data: plannedSets, refresh: refreshPlannedSets, setOptimistic: setPlannedSetsOptimistic } = useRemoteQuery(
+    useCallback(
+      () => listPlannedSetsForExercises((plannedExercises ?? []).map((pe) => pe.id)),
+      [plannedExercises],
+    ),
   )
-  const plannedSets = useLiveQuery(
-    () =>
-      db.training_planned_sets
-        .filter((ps) => ps.deletedAt === null)
-        .toArray(),
-    [],
-  )
-  const plannedDayOptions = useLiveQuery(
-    () => listPlannedDaysWithExercises(),
-    [],
+  const { data: plannedDayOptions, refresh: refreshPlannedDayOptions } = useRemoteQuery(
+    useCallback(() => listPlannedDaysWithExercises(), []),
   )
 
   const selectedMacrocycle = macrocycles?.find((m) => m.id === macrocycleId)
@@ -302,6 +289,7 @@ export function PeriodizationPage({
         const m = await createMacrocycle(input)
         setMacrocycleId(m.id)
       }
+      await refreshMacrocycles()
       resetMacroForm()
     })
   }
@@ -322,6 +310,7 @@ export function PeriodizationPage({
         const m = await createMesocycle({ macrocycleId, ...input })
         setMesocycleId(m.id)
       }
+      await refreshMesocycles()
       resetMesoForm()
     })
   }
@@ -330,12 +319,14 @@ export function PeriodizationPage({
     if (!mesocycleId) return
     await guardWeek(async () => {
       const w = await createWeek(mesocycleId)
+      await refreshWeeks()
       setWeekId(w.id)
     })
   }
 
   async function handleDuplicateWeek(sourceWeekId: string) {
     const w = await duplicateWeek(sourceWeekId)
+    await Promise.all([refreshWeeks(), refreshPlannedDayOptions()])
     setWeekId(w.id)
   }
 
@@ -360,6 +351,7 @@ export function PeriodizationPage({
           await copyPlannedExercisesToDay(copyFromDayId, d.id)
         }
       }
+      await Promise.all([refreshDays(), refreshPlannedDayOptions()])
       resetDayForm()
     })
   }
@@ -373,11 +365,20 @@ export function PeriodizationPage({
         exerciseId: newExerciseId,
         notes: newExerciseNotes,
       })
+      await Promise.all([refreshPlannedExercises(), refreshPlannedDayOptions()])
       setNewExerciseId('')
       setNewExerciseNotes('')
     })
   }
 
+  /**
+   * Muestra la serie (nueva o editada) al toque, calculándola igual que la
+   * calcularía el servidor, y recién después manda la escritura real — la
+   * pantalla no espera esa vuelta para reflejar el cambio. `refresh()` al
+   * final reconcilia con lo que quedó guardado de verdad, en el `finally`
+   * para que una escritura que falla deshaga lo optimista en vez de dejarlo
+   * pisado para siempre.
+   */
   async function handleSubmitPlannedSet(plannedExerciseId: string) {
     const form = setForms[plannedExerciseId]
     if (!form || !form.reps) return
@@ -390,22 +391,46 @@ export function PeriodizationPage({
         restPause: form.restPause,
       }
       const editingId = editingSetId[plannedExerciseId]
-      if (editingId) {
-        // Sin `restSecondsTarget`: el descanso ya no se planifica, pero el que
-        // tengan las series viejas se respeta.
-        await updatePlannedSet(editingId, input)
-      } else {
-        await createPlannedSet({
-          plannedExerciseId,
-          ...input,
-          restSecondsTarget: null,
-        })
-      }
       setSetForms((prev) => ({
         ...prev,
         [plannedExerciseId]: { weight: '', reps: '', rpe: '', dropSet: false, restPause: false },
       }))
       setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+      if (editingId) {
+        const timestamp = nowIso()
+        // Sin `restSecondsTarget`: el descanso ya no se planifica, pero el que
+        // tengan las series viejas se respeta.
+        setPlannedSetsOptimistic(
+          (current) =>
+            current?.map((s) => (s.id === editingId ? { ...s, ...input, updatedAt: timestamp } : s)) ?? [],
+        )
+        try {
+          await updatePlannedSet(editingId, input)
+        } finally {
+          await refreshPlannedSets()
+        }
+      } else {
+        const siblings = (plannedSets ?? []).filter((ps) => ps.plannedExerciseId === plannedExerciseId)
+        const nextSetNumber = siblings.length ? Math.max(...siblings.map((ps) => ps.setNumber)) + 1 : 1
+        const timestamp = nowIso()
+        const id = generateId()
+        const optimisticSet: PlannedSet = {
+          id,
+          plannedExerciseId,
+          ...input,
+          restSecondsTarget: null,
+          setNumber: nextSetNumber,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        }
+        setPlannedSetsOptimistic((current) => [...(current ?? []), optimisticSet])
+        try {
+          await createPlannedSet({ id, plannedExerciseId, ...input, restSecondsTarget: null })
+        } finally {
+          await refreshPlannedSets()
+        }
+      }
     })
   }
 
@@ -416,15 +441,33 @@ export function PeriodizationPage({
    */
   async function handleRepeatPlannedSet(plannedExerciseId: string, previa: PlannedSet) {
     await guardSet(async () => {
-      await createPlannedSet({
-        plannedExerciseId,
+      const siblings = (plannedSets ?? []).filter((ps) => ps.plannedExerciseId === plannedExerciseId)
+      const nextSetNumber = siblings.length ? Math.max(...siblings.map((ps) => ps.setNumber)) + 1 : 1
+      const timestamp = nowIso()
+      const id = generateId()
+      const repeatedInput = {
         targetWeightKg: previa.targetWeightKg,
         targetReps: previa.targetReps,
         targetRpe: previa.targetRpe,
         restSecondsTarget: previa.restSecondsTarget,
         dropSet: previa.dropSet === true,
         restPause: previa.restPause === true,
-      })
+      }
+      const optimisticSet: PlannedSet = {
+        id,
+        plannedExerciseId,
+        ...repeatedInput,
+        setNumber: nextSetNumber,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        deletedAt: null,
+      }
+      setPlannedSetsOptimistic((current) => [...(current ?? []), optimisticSet])
+      try {
+        await createPlannedSet({ id, plannedExerciseId, ...repeatedInput })
+      } finally {
+        await refreshPlannedSets()
+      }
     })
   }
 
@@ -452,6 +495,25 @@ export function PeriodizationPage({
 
   function exerciseName(id: string): string {
     return exercisesLibrary?.find((e) => e.id === id)?.name ?? '?'
+  }
+
+  // Ya no hay copia local: sin sesión no hay periodización que mostrar.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Periodización</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Periodización</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar la periodización.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -503,7 +565,11 @@ export function PeriodizationPage({
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() => deleteMacrocycle(m.id)}
+                    onConfirm={() =>
+                      deleteMacrocycle(m.id).then(async () => {
+                        await Promise.all([refreshMacrocycles(), refreshPlannedDayOptions()])
+                      })
+                    }
                   />
                 </div>
               </li>
@@ -559,7 +625,11 @@ export function PeriodizationPage({
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() => deleteMesocycle(m.id)}
+                    onConfirm={() =>
+                      deleteMesocycle(m.id).then(async () => {
+                        await Promise.all([refreshMesocycles(), refreshPlannedDayOptions()])
+                      })
+                    }
                   />
                 </div>
               </li>
@@ -640,7 +710,7 @@ export function PeriodizationPage({
                     className="icon-button"
                     aria-label="Mover semana hacia arriba"
                     disabled={index === 0}
-                    onClick={() => reorderWeek(w.id, 'up')}
+                    onClick={() => void reorderWeek(w.id, 'up').then(refreshWeeks)}
                   >
                     ↑
                   </button>
@@ -649,20 +719,24 @@ export function PeriodizationPage({
                     className="icon-button"
                     aria-label="Mover semana hacia abajo"
                     disabled={index === (weeks?.length ?? 0) - 1}
-                    onClick={() => reorderWeek(w.id, 'down')}
+                    onClick={() => void reorderWeek(w.id, 'down').then(refreshWeeks)}
                   >
                     ↓
                   </button>
                   <button
                     type="button"
                     className="list-row-secondary"
-                    onClick={() => handleDuplicateWeek(w.id)}
+                    onClick={() => void handleDuplicateWeek(w.id)}
                   >
                     Duplicar como punto de partida
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage={`¿Eliminar la Semana ${w.order + 1}? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() => deleteWeek(w.id)}
+                    onConfirm={() =>
+                      deleteWeek(w.id).then(async () => {
+                        await Promise.all([refreshWeeks(), refreshPlannedDayOptions()])
+                      })
+                    }
                   />
                 </div>
               </li>
@@ -695,7 +769,11 @@ export function PeriodizationPage({
                   </button>
                   <ConfirmDeleteButton
                     confirmMessage="¿Eliminar este día? Si tenía una sesión o cardio registrado, también se elimina."
-                    onConfirm={() => deleteDay(d.id)}
+                    onConfirm={() =>
+                      deleteDay(d.id).then(async () => {
+                        await Promise.all([refreshDays(), refreshPlannedDayOptions()])
+                      })
+                    }
                   />
                 </div>
               </li>
@@ -755,7 +833,7 @@ export function PeriodizationPage({
             <h2>Plan del día</h2>
             <button
               type="button"
-              onClick={() => setDayPlanClosed(dayId, !dayLocked)}
+              onClick={() => void setDayPlanClosed(dayId, !dayLocked).then(refreshDays)}
             >
               {dayLocked ? 'Reabrir día' : 'Cerrar día'}
             </button>
@@ -787,7 +865,7 @@ export function PeriodizationPage({
                             className="icon-button"
                             aria-label="Mover ejercicio hacia arriba"
                             disabled={index === 0}
-                            onClick={() => reorderPlannedExercise(pe.id, 'up')}
+                            onClick={() => void reorderPlannedExercise(pe.id, 'up').then(refreshPlannedExercises)}
                           >
                             ↑
                           </button>
@@ -796,7 +874,7 @@ export function PeriodizationPage({
                             className="icon-button"
                             aria-label="Mover ejercicio hacia abajo"
                             disabled={index === (plannedExercises?.length ?? 0) - 1}
-                            onClick={() => reorderPlannedExercise(pe.id, 'down')}
+                            onClick={() => void reorderPlannedExercise(pe.id, 'down').then(refreshPlannedExercises)}
                           >
                             ↓
                           </button>
@@ -805,7 +883,9 @@ export function PeriodizationPage({
                       {!dayLocked && (
                         <button
                           type="button"
-                          onClick={() => setPlannedExerciseClosed(pe.id, !exerciseClosed)}
+                          onClick={() =>
+                            void setPlannedExerciseClosed(pe.id, !exerciseClosed).then(refreshPlannedExercises)
+                          }
                         >
                           {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
                         </button>
@@ -813,7 +893,11 @@ export function PeriodizationPage({
                       <ConfirmDeleteButton
                         label="Quitar"
                         confirmMessage="¿Quitar este ejercicio del plan?"
-                        onConfirm={() => deletePlannedExercise(pe.id)}
+                        onConfirm={() =>
+                          deletePlannedExercise(pe.id).then(async () => {
+                            await Promise.all([refreshPlannedExercises(), refreshPlannedDayOptions()])
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -848,7 +932,7 @@ export function PeriodizationPage({
                               variant="icon"
                               label="Eliminar serie planificada"
                               confirmMessage="¿Eliminar esta serie planificada?"
-                              onConfirm={() => deletePlannedSet(s.id)}
+                              onConfirm={() => deletePlannedSet(s.id).then(refreshPlannedSets)}
                             />
                           </>
                         )}

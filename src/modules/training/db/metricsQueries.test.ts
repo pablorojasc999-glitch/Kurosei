@@ -1,27 +1,42 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import {
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const {
   createDay,
   createMacrocycle,
   createMesocycle,
   createPlannedExercise,
   createPlannedSet,
   createWeek,
-} from './planningRepository'
-import { createExercise, createMuscleGroup } from './trainingRepository'
-import {
-  addSessionExercise,
-  createExecutedSet,
-  startSession,
-} from './executionRepository'
-import { getRecentRpeDeviations, listAllExecutedSetsWithContext } from './metricsQueries'
+} = await import('./planningRepository')
+const { createExercise, createMuscleGroup } = await import('./trainingRepository')
+const { addSessionExercise, createExecutedSet, startSession } = await import('./executionRepository')
+const { getRecentRpeDeviations, listAllExecutedSetsWithContext } = await import('./metricsQueries')
 
-beforeEach(async () => {
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+beforeEach(() => {
+  fake.tables.training_muscle_groups = []
+  fake.tables.training_exercises = []
+  fake.tables.training_exercise_muscle_contributions = []
+  fake.tables.training_macrocycles = []
+  fake.tables.training_mesocycles = []
+  fake.tables.training_weeks = []
+  fake.tables.training_days = []
+  fake.tables.training_planned_exercises = []
+  fake.tables.training_planned_sets = []
+  fake.tables.training_sessions = []
+  fake.tables.training_session_exercises = []
+  fake.tables.training_executed_sets = []
 })
 
 async function seedMesocycle() {

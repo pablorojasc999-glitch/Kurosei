@@ -1,8 +1,12 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { listExecutedSetsForExerciseByReps } from '../db/executionRepository'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import {
+  listExecutedSetsForExercise,
+  listExecutedSetsForExerciseByReps,
+} from '../db/executionRepository'
 import {
   e1rmOfSet as e1rmOf,
+  latestSessionSets,
   rankRepHistory,
   REP_HISTORY_LIMIT,
   REP_HISTORY_MODE_LABELS,
@@ -20,30 +24,95 @@ function formatDate(iso: string): string {
 interface RepHistoryProps {
   exerciseId: string
   reps: number
+  /** La sesión de hoy — se excluye al mostrar "la vez pasada" para no competir contra sí misma. */
+  currentSessionExerciseId: string
+}
+
+type HistoryView = 'porReps' | 'ultimaVez'
+
+const VIEWS: Record<HistoryView, string> = {
+  porReps: 'A estas reps',
+  ultimaVez: 'La vez pasada',
 }
 
 const MODES: RepHistoryMode[] = ['recientes', 'e1rm']
 
-export function RepHistory({ exerciseId, reps }: RepHistoryProps) {
-  const history = useLiveQuery(
-    () => listExecutedSetsForExerciseByReps(exerciseId, reps),
-    [exerciseId, reps],
-  )
+export function RepHistory({ exerciseId, reps, currentSessionExerciseId }: RepHistoryProps) {
+  const [view, setView] = useState<HistoryView>('porReps')
   const [mode, setMode] = useState<RepHistoryMode>('recientes')
 
+  const { data: byReps } = useRemoteQuery(
+    useCallback(() => listExecutedSetsForExerciseByReps(exerciseId, reps), [exerciseId, reps]),
+  )
+  const { data: allSets } = useRemoteQuery(
+    useCallback(() => listExecutedSetsForExercise(exerciseId), [exerciseId]),
+  )
+
   if (!reps || Number.isNaN(reps)) return null
-  if (!history?.length) {
+
+  const viewSwitch = (
+    <div className="rep-history-modes" role="group" aria-label="Qué historial ver">
+      {(Object.keys(VIEWS) as HistoryView[]).map((v) => (
+        <button
+          key={v}
+          type="button"
+          className={`rep-history-mode${view === v ? ' rep-history-mode--on' : ''}`}
+          aria-pressed={view === v}
+          onClick={() => setView(v)}
+        >
+          {VIEWS[v]}
+        </button>
+      ))}
+    </div>
+  )
+
+  if (view === 'ultimaVez') {
+    const lastSession = allSets ? latestSessionSets(allSets, currentSessionExerciseId) : undefined
     return (
-      <p className="rep-history-empty">Sin historial previo a {reps} reps.</p>
+      <div className="rep-history">
+        <div className="rep-history-header">
+          <span className="rep-history-title">La vez pasada</span>
+          {viewSwitch}
+        </div>
+        {!lastSession?.length ? (
+          <p className="rep-history-empty">Todavía no hay una sesión anterior de este ejercicio.</p>
+        ) : (
+          <ul className="rep-history-list">
+            {lastSession.map((s) => (
+              <li key={s.id}>
+                <span>{formatDate(s.performedAt)}</span>
+                <span>
+                  {s.weightKg ?? '-'} kg × {s.reps}
+                  {s.rpe !== null && ` · RPE ${s.rpe}`}
+                </span>
+                <span>{e1rmOf(s) === null ? '—' : `e1RM ${Math.round(e1rmOf(s) as number)}`}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     )
   }
 
-  const shown = rankRepHistory(history, mode)
+  if (!byReps?.length) {
+    return (
+      <div className="rep-history">
+        <div className="rep-history-header">
+          <span className="rep-history-title">Historial a {reps} reps</span>
+          {viewSwitch}
+        </div>
+        <p className="rep-history-empty">Sin historial previo a {reps} reps.</p>
+      </div>
+    )
+  }
+
+  const shown = rankRepHistory(byReps, mode)
 
   return (
     <div className="rep-history">
       <div className="rep-history-header">
         <span className="rep-history-title">Historial a {reps} reps</span>
+        {viewSwitch}
         <div className="rep-history-modes" role="group" aria-label="Ordenar historial">
           {MODES.map((m) => (
             <button
@@ -70,9 +139,9 @@ export function RepHistory({ exerciseId, reps }: RepHistoryProps) {
           </li>
         ))}
       </ul>
-      {history.length > REP_HISTORY_LIMIT && (
+      {byReps.length > REP_HISTORY_LIMIT && (
         <span className="rep-history-more">
-          {shown.length} de {history.length} series a {reps} reps
+          {shown.length} de {byReps.length} series a {reps} reps
         </span>
       )}
     </div>

@@ -1,6 +1,7 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useEffect, useRef } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useEffect, useRef } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
+import { listAllSessions } from '../db/executionRepository'
+import { listAllDays, listMesocycles, listWeeks } from '../db/planningRepository'
 import type { Macrocycle } from '../domain/types'
 import { buildMacroCalendar, WEEKDAY_LABELS, type CellState } from '../lib/macroCalendar'
 
@@ -33,26 +34,19 @@ function StateDot({ state }: { state: CellState }) {
 export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroCalendarProps) {
   // Una sola consulta encadenada: mesociclos → semanas → días → sesiones. Por
   // separado haría cuatro renders en cascada y un parpadeo por cada uno.
-  const data = useLiveQuery(async () => {
-    const mesocycles = await db.training_mesocycles
-      .where('macrocycleId')
-      .equals(macrocycle.id)
-      .filter((m) => m.deletedAt === null)
-      .toArray()
-    const mesoIds = new Set(mesocycles.map((m) => m.id))
-    const weeks = await db.training_weeks
-      .filter((w) => w.deletedAt === null && mesoIds.has(w.mesocycleId))
-      .toArray()
-    const weekIds = new Set(weeks.map((w) => w.id))
-    const days = await db.training_days
-      .filter((d) => d.deletedAt === null && d.weekId !== null && weekIds.has(d.weekId))
-      .toArray()
-    const dayIds = new Set(days.map((d) => d.id))
-    const sessions = await db.training_sessions
-      .filter((s) => s.deletedAt === null && dayIds.has(s.dayId))
-      .toArray()
-    return { mesocycles, days, sessions }
-  }, [macrocycle.id])
+  const { data } = useRemoteQuery(
+    useCallback(async () => {
+      const mesocycles = await listMesocycles(macrocycle.id)
+      const weeksPerMeso = await Promise.all(mesocycles.map((m) => listWeeks(m.id)))
+      const weekIds = new Set(weeksPerMeso.flat().map((w) => w.id))
+      const days = (await listAllDays()).filter(
+        (d) => d.weekId !== null && weekIds.has(d.weekId),
+      )
+      const dayIds = new Set(days.map((d) => d.id))
+      const sessions = (await listAllSessions()).filter((s) => dayIds.has(s.dayId))
+      return { mesocycles, days, sessions }
+    }, [macrocycle.id]),
+  )
 
   // En un macrociclo largo la semana de hoy queda fuera de pantalla al entrar:
   // se centra sola para no obligar a deslizar hasta encontrarla.

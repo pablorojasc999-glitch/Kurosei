@@ -1,5 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
   addWaterEntry,
@@ -18,9 +18,13 @@ interface WaterSectionProps {
  *
  * Vive aparte de la página para que el registro diario y la pestaña Agua sean
  * la misma cosa y no dos implementaciones que se van separando con el tiempo.
+ * No pide su propia sesión: quien la monta (Registro, Agua) ya se aseguró de
+ * que hay una antes de renderizarla.
  */
 export function WaterSection({ dateKey }: WaterSectionProps) {
-  const entries = useLiveQuery(() => listWaterEntriesForDate(dateKey), [dateKey])
+  const { data: entries, refresh } = useRemoteQuery(
+    useCallback(() => listWaterEntriesForDate(dateKey), [dateKey]),
+  )
   const [amount, setAmount] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -34,6 +38,7 @@ export function WaterSection({ dateKey }: WaterSectionProps) {
     }
     await addWaterEntry(dateKey, parsed)
     setAmount('')
+    await refresh()
   }
 
   const totalMl = getWaterTotalMl(entries ?? [])
@@ -76,7 +81,7 @@ export function WaterSection({ dateKey }: WaterSectionProps) {
                 variant="icon"
                 label="Eliminar registro de agua"
                 confirmMessage="¿Eliminar este registro?"
-                onConfirm={() => softDeleteWaterEntry(entry.id)}
+                onConfirm={() => softDeleteWaterEntry(entry.id).then(refresh)}
               />
             </li>
           ))}

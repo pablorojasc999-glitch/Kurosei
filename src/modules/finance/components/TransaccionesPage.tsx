@@ -1,12 +1,14 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import { toDateKey } from '../../training/lib/calendarGrid'
 import {
   createTransaction,
   getCategoryTotalsForMonth,
+  getMonthTotals,
   listAccounts,
   listCategories,
   listCategoryBudgets,
@@ -24,7 +26,6 @@ import {
   monthKeyOfDate,
   toMonthKey,
 } from '../lib/month'
-import { useAccountsTotalBalance } from '../lib/useAccountsTotalBalance'
 import { BalanceHeader } from './BalanceHeader'
 import { MonthNav } from './MonthNav'
 
@@ -37,16 +38,45 @@ function formatDateHeader(date: string): string {
 }
 
 export function TransaccionesPage() {
+  const session = useSupabaseSession()
   const [monthKey, setMonthKey] = useState(() => toMonthKey(new Date()))
-  // La lista sigue al mes financiero, no al de la fecha: así lo que se ve acá
-  // es exactamente lo que suma Categorías para ese mes.
-  const transactions = useLiveQuery(() => listTransactionsForMonth(monthKey), [monthKey])
-  const accounts = useLiveQuery(() => listAccounts('account'), [])
-  const categories = useLiveQuery(() => listCategories(), [])
-  const finalBalance = useAccountsTotalBalance()
+  // Sube cada vez que una transacción cambia, para que el saldo de
+  // BalanceHeader (que no viene de esta misma consulta) se vuelva a pedir también.
+  const [balanceTick, setBalanceTick] = useState(0)
 
-  const monthSpend = useLiveQuery(() => getCategoryTotalsForMonth(monthKey), [monthKey])
-  const allBudgets = useLiveQuery(() => listCategoryBudgets(), [])
+  const {
+    data,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(
+    useCallback(async () => {
+      if (!session) return undefined
+      // La lista sigue al mes financiero, no al de la fecha: así lo que se ve
+      // acá es exactamente lo que suma Categorías para ese mes.
+      const [transactions, accounts, categories, monthSpend, allBudgets, monthTotals] =
+        await Promise.all([
+          listTransactionsForMonth(monthKey),
+          listAccounts('account'),
+          listCategories(),
+          getCategoryTotalsForMonth(monthKey),
+          listCategoryBudgets(),
+          getMonthTotals(monthKey),
+        ])
+      return { transactions, accounts, categories, monthSpend, allBudgets, monthTotals }
+    }, [session, monthKey]),
+  )
+  const transactions = data?.transactions
+  const accounts = data?.accounts
+  const categories = data?.categories
+  const monthSpend = data?.monthSpend
+  const allBudgets = data?.allBudgets
+  const monthTotals = data?.monthTotals
+
+  async function refreshAfterTransactionChange() {
+    await refresh()
+    setBalanceTick((t) => t + 1)
+  }
+
   const monthBudgets = useMemo(
     () => budgetsForMonth(allBudgets ?? [], monthKey),
     [allBudgets, monthKey],
@@ -134,10 +164,30 @@ export function TransaccionesPage() {
           await createTransaction(input)
         }
         resetForm()
+        await refreshAfterTransactionChange()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
     })
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle transacciones.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Transacciones</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Transacciones</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tus transacciones.
+        </p>
+      </div>
+    )
   }
 
   const categoryById = new Map((categories ?? []).map((c) => [c.id, c]))
@@ -162,17 +212,18 @@ export function TransaccionesPage() {
   return (
     <div className="page">
       <h1>Transacciones</h1>
-      <BalanceHeader />
+      <BalanceHeader refreshKey={balanceTick} />
       <MonthNav monthKey={monthKey} onChange={setMonthKey} />
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <div className="finance-summary-row">
-        <div className="finance-summary-card">
-          <span>Saldo inicial</span>
-          <strong>{formatMoney(0)}</strong>
+        <div className="finance-summary-card finance-summary-card--expense">
+          <span>Gastos</span>
+          <strong>{formatMoney(monthTotals?.expense ?? 0)}</strong>
         </div>
-        <div className="finance-summary-card">
-          <span>Saldo final</span>
-          <strong>{formatMoney(finalBalance ?? 0)}</strong>
+        <div className="finance-summary-card finance-summary-card--income">
+          <span>Ingresos</span>
+          <strong>{formatMoney(monthTotals?.income ?? 0)}</strong>
         </div>
       </div>
 
@@ -387,7 +438,7 @@ export function TransaccionesPage() {
                         variant="icon"
                         label="Eliminar transacción"
                         confirmMessage="¿Eliminar esta transacción?"
-                        onConfirm={() => softDeleteTransaction(t.id)}
+                        onConfirm={() => softDeleteTransaction(t.id).then(refreshAfterTransactionChange)}
                       />
                     </li>
                   )

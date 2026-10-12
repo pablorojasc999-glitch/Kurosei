@@ -1,4 +1,5 @@
-import { db } from '../../../shared/db/database'
+import { requireUserId } from '../../sync/lib/auth'
+import { supabase } from '../../../shared/supabase/client'
 import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import type {
@@ -12,15 +13,26 @@ import type {
 } from '../domain/types'
 import { budgetForMonth } from '../lib/budgets'
 
+/**
+ * Este módulo ya no pasa por Dexie: habla directo con Supabase, como
+ * cualquier pantalla de una app en línea — se pide, se escribe, se vuelve a
+ * pedir. Sin conexión no hay cuentas ni movimientos que mostrar.
+ */
+function client() {
+  if (!supabase) throw new Error('Finanzas necesita conexión para funcionar.')
+  return supabase
+}
+
 // ---------------------------------------------------------------------
 // Accounts (incl. debts)
 // ---------------------------------------------------------------------
 
 export async function listAccounts(kind?: FinanceAccountKind): Promise<FinanceAccount[]> {
-  const accounts = await db.finance_accounts
-    .filter((a) => a.deletedAt === null && (kind === undefined || a.kind === kind))
-    .sortBy('order')
-  return accounts
+  let query = client().from('finance_accounts').select('*').is('deletedAt', null)
+  if (kind !== undefined) query = query.eq('kind', kind)
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+  return (data as FinanceAccount[]).sort((a, b) => a.order - b.order)
 }
 
 export interface CreateAccountInput {
@@ -60,18 +72,31 @@ export async function createAccount(input: CreateAccountInput): Promise<FinanceA
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.finance_accounts.add(account)
+  const userId = await requireUserId()
+  const { error } = await client().from('finance_accounts').insert({ ...account, userId })
+  if (error) throw new Error(error.message)
   return account
 }
 
 export type UpdateAccountInput = Partial<CreateAccountInput>
 
 export async function updateAccount(id: string, input: UpdateAccountInput): Promise<void> {
-  await db.finance_accounts.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('finance_accounts')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+
   if (input.name !== undefined || input.emoji !== undefined) {
-    const account = await db.finance_accounts.get(id)
-    if (account?.categoryId) {
-      await updateCategory(account.categoryId, {
+    const { data: account, error: getError } = await client()
+      .from('finance_accounts')
+      .select('categoryId')
+      .eq('id', id)
+      .maybeSingle()
+    if (getError) throw new Error(getError.message)
+    const categoryId = (account as { categoryId: string | null } | null)?.categoryId
+    if (categoryId) {
+      await updateCategory(categoryId, {
         ...(input.name !== undefined ? { name: input.name } : {}),
         ...(input.emoji !== undefined ? { emoji: input.emoji } : {}),
       })
@@ -81,7 +106,11 @@ export async function updateAccount(id: string, input: UpdateAccountInput): Prom
 
 export async function softDeleteAccount(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.finance_accounts.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('finance_accounts')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 /** Links a legacy debt (created before payments were tracked via a category) to a freshly-created one. */
@@ -92,18 +121,23 @@ export async function ensureDebtCategoryId(debt: FinanceAccount): Promise<string
     emoji: debt.emoji,
     type: debtCategoryType(debt.debtDirection ?? 'i_owe'),
   })
-  await db.finance_accounts.update(debt.id, { categoryId: category.id, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('finance_accounts')
+    .update({ categoryId: category.id, updatedAt: nowIso() })
+    .eq('id', debt.id)
+  if (error) throw new Error(error.message)
   return category.id
 }
 
 /** Sum of every (non-deleted) transaction posted to a category, across all time. */
 export async function getCategoryTotal(categoryId: string): Promise<number> {
-  const transactions = await db.finance_transactions
-    .where('categoryId')
-    .equals(categoryId)
-    .filter((t) => t.deletedAt === null)
-    .toArray()
-  return transactions.reduce((sum, t) => sum + t.amount, 0)
+  const { data, error } = await client()
+    .from('finance_transactions')
+    .select('amount')
+    .eq('categoryId', categoryId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Array<{ amount: number }>).reduce((sum, t) => sum + t.amount, 0)
 }
 
 /** How much of a debt's stated amount has been paid off, and what's left — via its linked category's transactions. */
@@ -123,7 +157,13 @@ export async function getDebtProgress(
  * never auto-archives: hitting $0 owed just means it's paid off for now, not closed.
  */
 export async function archiveDebtIfPaid(accountId: string): Promise<void> {
-  const account = await db.finance_accounts.get(accountId)
+  const { data, error } = await client()
+    .from('finance_accounts')
+    .select('*')
+    .eq('id', accountId)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  const account = data as FinanceAccount | null
   if (!account || account.kind !== 'debt' || !account.categoryId || account.deletedAt) return
   if (account.revolving) return
   const { percent } = await getDebtProgress(account)
@@ -132,12 +172,13 @@ export async function archiveDebtIfPaid(accountId: string): Promise<void> {
 
 /** An account's balance, derived from its transactions (income minus expense) — never stored. */
 export async function getAccountBalance(accountId: string): Promise<number> {
-  const transactions = await db.finance_transactions
-    .where('accountId')
-    .equals(accountId)
-    .filter((t) => t.deletedAt === null)
-    .toArray()
-  return transactions.reduce(
+  const { data, error } = await client()
+    .from('finance_transactions')
+    .select('type, amount')
+    .eq('accountId', accountId)
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Array<{ type: FinanceCategoryType; amount: number }>).reduce(
     (sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount),
     0,
   )
@@ -155,9 +196,11 @@ export async function getAccountsTotalBalance(): Promise<number> {
 // ---------------------------------------------------------------------
 
 export async function listCategories(type?: FinanceCategoryType): Promise<FinanceCategory[]> {
-  return db.finance_categories
-    .filter((c) => c.deletedAt === null && (type === undefined || c.type === type))
-    .sortBy('order')
+  let query = client().from('finance_categories').select('*').is('deletedAt', null)
+  if (type !== undefined) query = query.eq('type', type)
+  const { data, error } = await query
+  if (error) throw new Error(error.message)
+  return (data as FinanceCategory[]).sort((a, b) => a.order - b.order)
 }
 
 export interface CreateCategoryInput {
@@ -178,26 +221,39 @@ export async function createCategory(input: CreateCategoryInput): Promise<Financ
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.finance_categories.add(category)
+  const userId = await requireUserId()
+  const { error } = await client().from('finance_categories').insert({ ...category, userId })
+  if (error) throw new Error(error.message)
   return category
 }
 
 export type UpdateCategoryInput = Partial<Pick<CreateCategoryInput, 'name' | 'emoji'>>
 
 export async function updateCategory(id: string, input: UpdateCategoryInput): Promise<void> {
-  await db.finance_categories.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('finance_categories')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function softDeleteCategory(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.transaction('rw', db.finance_categories, db.finance_category_budgets, async () => {
-    await db.finance_categories.update(id, { deletedAt: timestamp, updatedAt: timestamp })
-    // Sus vigencias se van con ella: si no, volver a crear una categoría con el
-    // mismo id heredaría presupuestos de otra vida.
-    await db.finance_category_budgets
-      .filter((b) => b.categoryId === id && b.deletedAt === null)
-      .modify({ deletedAt: timestamp, updatedAt: timestamp })
-  })
+  // Sus vigencias se van con ella: si no, volver a crear una categoría con el
+  // mismo id heredaría presupuestos de otra vida. Dos escrituras seguidas, no
+  // una transacción: Supabase no da transacciones entre tablas por API REST.
+  const { error: categoryError } = await client()
+    .from('finance_categories')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (categoryError) throw new Error(categoryError.message)
+
+  const { error: budgetsError } = await client()
+    .from('finance_category_budgets')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('categoryId', id)
+    .is('deletedAt', null)
+  if (budgetsError) throw new Error(budgetsError.message)
 }
 
 // ---------------------------------------------------------------------
@@ -205,7 +261,12 @@ export async function softDeleteCategory(id: string): Promise<void> {
 // ---------------------------------------------------------------------
 
 export async function listCategoryBudgets(): Promise<FinanceCategoryBudget[]> {
-  return db.finance_category_budgets.filter((b) => b.deletedAt === null).toArray()
+  const { data, error } = await client()
+    .from('finance_category_budgets')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as FinanceCategoryBudget[]
 }
 
 /**
@@ -228,28 +289,38 @@ export async function setCategoryBudget(
 
   if (amount === null) {
     if (existing) {
-      await db.finance_category_budgets.update(existing.id, {
-        deletedAt: timestamp,
-        updatedAt: timestamp,
-      })
+      const { error } = await client()
+        .from('finance_category_budgets')
+        .update({ deletedAt: timestamp, updatedAt: timestamp })
+        .eq('id', existing.id)
+      if (error) throw new Error(error.message)
     }
     return
   }
 
   if (existing) {
-    await db.finance_category_budgets.update(existing.id, { amount, updatedAt: timestamp })
+    const { error } = await client()
+      .from('finance_category_budgets')
+      .update({ amount, updatedAt: timestamp })
+      .eq('id', existing.id)
+    if (error) throw new Error(error.message)
     return
   }
 
-  await db.finance_category_budgets.add({
-    id: generateId(),
-    categoryId,
-    effectiveFrom,
-    amount,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    deletedAt: null,
-  })
+  const userId = await requireUserId()
+  const { error } = await client()
+    .from('finance_category_budgets')
+    .insert({
+      id: generateId(),
+      categoryId,
+      effectiveFrom,
+      amount,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      userId,
+    })
+  if (error) throw new Error(error.message)
 }
 
 /** El presupuesto que rige para una categoría en un mes. */
@@ -286,7 +357,9 @@ export async function createTransaction(
     updatedAt: timestamp,
     deletedAt: null,
   }
-  await db.finance_transactions.add(transaction)
+  const userId = await requireUserId()
+  const { error } = await client().from('finance_transactions').insert({ ...transaction, userId })
+  if (error) throw new Error(error.message)
   return transaction
 }
 
@@ -296,12 +369,30 @@ export async function updateTransaction(
   id: string,
   input: UpdateTransactionInput,
 ): Promise<void> {
-  await db.finance_transactions.update(id, { ...input, updatedAt: nowIso() })
+  const { error } = await client()
+    .from('finance_transactions')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function softDeleteTransaction(id: string): Promise<void> {
   const timestamp = nowIso()
-  await db.finance_transactions.update(id, { deletedAt: timestamp, updatedAt: timestamp })
+  const { error } = await client()
+    .from('finance_transactions')
+    .update({ deletedAt: timestamp, updatedAt: timestamp })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** Todas las transacciones no borradas — base para filtrar por mes o por año. */
+async function listAllTransactions(): Promise<FinanceTransaction[]> {
+  const { data, error } = await client()
+    .from('finance_transactions')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as FinanceTransaction[]
 }
 
 /**
@@ -312,9 +403,7 @@ export async function softDeleteTransaction(id: string): Promise<void> {
 export async function listTransactionsForMonth(
   monthKey: string,
 ): Promise<FinanceTransaction[]> {
-  const transactions = await db.finance_transactions
-    .filter((t) => t.deletedAt === null && t.financialMonth === monthKey)
-    .toArray()
+  const transactions = (await listAllTransactions()).filter((t) => t.financialMonth === monthKey)
   return transactions.sort((a, b) => b.date.localeCompare(a.date))
 }
 
@@ -322,9 +411,9 @@ export async function listTransactionsForMonth(
 export async function listTransactionsForFinancialYear(
   year: number,
 ): Promise<FinanceTransaction[]> {
-  const transactions = await db.finance_transactions
-    .filter((t) => t.deletedAt === null && t.financialMonth.startsWith(`${year}-`))
-    .toArray()
+  const transactions = (await listAllTransactions()).filter((t) =>
+    t.financialMonth.startsWith(`${year}-`),
+  )
   return transactions.sort((a, b) => b.date.localeCompare(a.date))
 }
 
@@ -373,9 +462,9 @@ export async function getCategoryTotals(year: number): Promise<Map<string, numbe
 
 /** Distinct non-empty notes used within a category — the free-text sub-labels (e.g. "Luz", "Gas") a user has typed for it. */
 export async function listNotesForCategory(categoryId: string): Promise<string[]> {
-  const transactions = await db.finance_transactions
-    .filter((t) => t.deletedAt === null && t.categoryId === categoryId && t.notes.trim() !== '')
-    .toArray()
+  const transactions = (await listAllTransactions()).filter(
+    (t) => t.categoryId === categoryId && t.notes.trim() !== '',
+  )
   return Array.from(new Set(transactions.map((t) => t.notes.trim()))).sort((a, b) =>
     a.localeCompare(b),
   )

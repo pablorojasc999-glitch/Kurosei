@@ -1,7 +1,8 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
+import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import {
   createGoalPlan,
@@ -61,7 +62,12 @@ function formatDateRange(plan: NutritionGoalPlan): string {
 }
 
 export function MetasPage() {
-  const plans = useLiveQuery(() => listGoalPlans(), [])
+  const session = useSupabaseSession()
+  const {
+    data: plans,
+    error: loadError,
+    refresh,
+  } = useRemoteQuery(useCallback(() => (session ? listGoalPlans() : Promise.resolve(undefined)), [session]))
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm())
@@ -121,10 +127,30 @@ export function MetasPage() {
           await createGoalPlan(input)
         }
         setShowForm(false)
+        await refresh()
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Error desconocido')
       }
     })
+  }
+
+  // Ya no hay copia local: sin sesión no hay a quién pedirle las metas.
+  if (session === undefined) {
+    return (
+      <div className="page">
+        <h1>Metas</h1>
+      </div>
+    )
+  }
+  if (session === null) {
+    return (
+      <div className="page">
+        <h1>Metas</h1>
+        <p className="empty-hint">
+          Iniciá sesión (el ícono de arriba a la derecha) para ver y editar tus metas.
+        </p>
+      </div>
+    )
   }
 
   return (
@@ -134,6 +160,7 @@ export function MetasPage() {
         Definí metas de calorías, macros y agua para un período — como un mesociclo, pero para
         nutrición. Registro compara el día contra la meta vigente en esa fecha.
       </p>
+      {loadError && <p className="error">No se pudo cargar: {loadError.message}</p>}
 
       <button type="button" className="finance-add-button" onClick={openCreateForm}>
         + Nueva meta
@@ -284,7 +311,7 @@ export function MetasPage() {
                   className="icon-button"
                   label="Eliminar meta"
                   confirmMessage={`¿Eliminar "${plan.name}"?`}
-                  onConfirm={() => softDeleteGoalPlan(plan.id)}
+                  onConfirm={() => softDeleteGoalPlan(plan.id).then(refresh)}
                 />
               </div>
             </div>

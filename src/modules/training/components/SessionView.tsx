@@ -1,6 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
-import { db } from '../../../shared/db/database'
+import { useCallback, useState } from 'react'
+import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import {
   addSessionExercise,
@@ -11,6 +10,8 @@ import {
   endSession,
   updateSessionTimes,
   getSessionForDay,
+  listExecutedSetsForSessionExercises,
+  listSessionExercises,
   reopenSession,
   reorderSessionExercise,
   setSessionExerciseClosed,
@@ -18,9 +19,13 @@ import {
   updateExecutedSet,
 } from '../db/executionRepository'
 import {
+  listPlannedSetsForExercises,
   listPlannedDaysWithExercises,
   listPlannedExercises,
 } from '../db/planningRepository'
+import { listExercises } from '../db/trainingRepository'
+import { generateId } from '../../../shared/lib/id'
+import { nowIso } from '../../../shared/lib/timestamps'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import { DeloadAlert } from './DeloadAlert'
 import { RepHistory } from './RepHistory'
@@ -29,6 +34,7 @@ import { SessionSummary } from './SessionSummary'
 import { parseReps } from '../lib/reps'
 import { calculateE1rm } from '../lib/e1rm'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import { parsePersistedRest, restStorageKey, type RestTimerState } from '../lib/restTimer'
 import {
   endIsoFromTime,
   formatSessionDuration,
@@ -36,9 +42,29 @@ import {
   toTimeInput,
   withTimeOfDay,
 } from '../lib/sessionTimes'
-import type { ExecutedSet, SessionExercise } from '../domain/types'
+import type { ExecutedSet, PlannedSet } from '../domain/types'
 
 const DEFAULT_REST_SECONDS = 120
+
+interface ActiveRest {
+  sessionExerciseId: string
+  nonce: number
+  /** Sólo se usa en el primer render del cronómetro — ver `RestTimer`. */
+  initialState?: RestTimerState
+}
+
+/** Lo que haya quedado corriendo de antes de refrescar la página, si hay algo. */
+function loadPersistedRest(dayId: string): ActiveRest | null {
+  try {
+    const raw = localStorage.getItem(restStorageKey(dayId))
+    if (!raw) return null
+    const persisted = parsePersistedRest(raw)
+    if (!persisted) return null
+    return { sessionExerciseId: persisted.sessionExerciseId, nonce: 0, initialState: persisted.state }
+  } catch {
+    return null
+  }
+}
 
 /** e1RM suffix for a logged set's summary line — omitted when there's no weight to estimate from. */
 function e1rmSuffix(set: Pick<ExecutedSet, 'weightKg' | 'reps' | 'rpe'>): string {
@@ -49,6 +75,26 @@ function e1rmSuffix(set: Pick<ExecutedSet, 'weightKg' | 'reps' | 'rpe'>): string
     rpe: set.rpe ?? undefined,
   })
   return ` · e1RM ${Math.round(e1rm)}`
+}
+
+/** Las series planificadas de un ejercicio, en orden — se reutiliza antes de iniciar la sesión y durante ella. */
+function PlanTargetList({ sets }: { sets: PlannedSet[] }) {
+  if (sets.length === 0) return null
+  return (
+    <ul className="plan-target-list">
+      <li className="plan-target-title">Objetivo</li>
+      {sets.map((ps) => (
+        <li key={ps.id} className="plan-target-row">
+          <span className="set-number">{ps.setNumber}</span>
+          <span>
+            {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
+            {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
+            {ps.restSecondsTarget !== null && ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 interface SetFormState {
@@ -73,43 +119,43 @@ const EMPTY_SET_FORM: SetFormState = {
 
 interface SessionViewProps {
   dayId: string
+  /** Mueve Registro a otra fecha — ver el botón "Ir a ese día" más abajo. */
+  onJumpToDate: (date: Date) => void
 }
 
-export function SessionView({ dayId }: SessionViewProps) {
-  const session = useLiveQuery(() => getSessionForDay(dayId), [dayId])
+export function SessionView({ dayId, onJumpToDate }: SessionViewProps) {
+  // La sesión y sus series ejecutadas cambian con casi cada acción de esta
+  // pantalla, así que se refrescan juntas (`refresh`) sin arrastrar al plan ni
+  // a la biblioteca de ejercicios, que acá nunca se editan — pedirlos de
+  // nuevo en cada serie registrada sería tráfico de sobra.
+  const { data: sessionData, refresh, setOptimistic: setSessionData } = useRemoteQuery(
+    useCallback(async () => {
+      const session = await getSessionForDay(dayId)
+      const sessionExercises = session ? await listSessionExercises(session.id) : []
+      const executedSets = await listExecutedSetsForSessionExercises(
+        sessionExercises.map((se) => se.id),
+      )
+      return { session, sessionExercises, executedSets }
+    }, [dayId]),
+  )
+  const session = sessionData?.session
+  const sessionExercises = sessionData?.sessionExercises
+  const executedSets = sessionData?.executedSets
 
-  const sessionExercises = useLiveQuery(
-    () =>
-      session
-        ? db.training_session_exercises
-            .where('sessionId')
-            .equals(session.id)
-            .filter((se) => se.deletedAt === null)
-            .sortBy('order')
-        : Promise.resolve<SessionExercise[]>([]),
-    [session?.id],
+  const { data: plannedExercises } = useRemoteQuery(
+    useCallback(() => listPlannedExercises(dayId), [dayId]),
   )
-
-  const executedSets = useLiveQuery(
-    () => db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
-    [],
+  // Depende de `plannedExercises` (no de `dayId`) para no traer la tabla
+  // entera de series planificadas: sólo las de los ejercicios de este día.
+  const { data: plannedSets } = useRemoteQuery(
+    useCallback(
+      () => listPlannedSetsForExercises((plannedExercises ?? []).map((pe) => pe.id)),
+      [plannedExercises],
+    ),
   )
-
-  const plannedExercises = useLiveQuery(
-    () => listPlannedExercises(dayId),
-    [dayId],
-  )
-  const plannedSets = useLiveQuery(
-    () => db.training_planned_sets.filter((s) => s.deletedAt === null).toArray(),
-    [],
-  )
-  const exercisesLibrary = useLiveQuery(
-    () => db.training_exercises.filter((e) => e.deletedAt === null).sortBy('name'),
-    [],
-  )
-  const plannedDayOptions = useLiveQuery(
-    () => listPlannedDaysWithExercises(),
-    [],
+  const { data: exercisesLibrary } = useRemoteQuery(useCallback(() => listExercises(), []))
+  const { data: plannedDayOptions } = useRemoteQuery(
+    useCallback(() => listPlannedDaysWithExercises(), []),
   )
 
   const [showAddExerciseForm, setShowAddExerciseForm] = useState(false)
@@ -117,10 +163,9 @@ export function SessionView({ dayId }: SessionViewProps) {
   const [setForms, setSetForms] = useState<Record<string, SetFormState>>({})
   // Un solo descanso a la vez, el del ejercicio en el que acabas de anotar.
   // Antes había un cronómetro por ejercicio con series: tres ejercicios, tres
-  // relojes corriendo y pitando cada uno por su cuenta.
-  const [rest, setRest] = useState<{ sessionExerciseId: string; nonce: number } | null>(
-    null,
-  )
+  // relojes corriendo y pitando cada uno por su cuenta. Si quedó uno corriendo
+  // de antes de refrescar la página, se retoma (ver `loadPersistedRest`).
+  const [rest, setRest] = useState<ActiveRest | null>(() => loadPersistedRest(dayId))
   const [pickedSourceDayId, setPickedSourceDayId] = useState('')
   const [historyReps, setHistoryReps] = useState<Record<string, string>>({})
   const [confirmingReopen, setConfirmingReopen] = useState(false)
@@ -148,6 +193,7 @@ export function SessionView({ dayId }: SessionViewProps) {
         exerciseId: newExerciseId,
         notes: '',
       })
+      await refresh()
       setNewExerciseId('')
       setShowAddExerciseForm(false)
     })
@@ -167,6 +213,7 @@ export function SessionView({ dayId }: SessionViewProps) {
           notes: pe.notes,
         })
       }
+      await refresh()
     })
   }
 
@@ -180,43 +227,33 @@ export function SessionView({ dayId }: SessionViewProps) {
           notes: pe.notes,
         })
       }
+      await refresh()
     })
   }
 
-  async function handleStartSessionFromPickedDay() {
-    if (!pickedSourceDayId) return
-    await guardStartSession(async () => {
-      const newSession = await startSession(dayId)
-      const sourceExercises = await listPlannedExercises(pickedSourceDayId)
-      for (const pe of sourceExercises) {
-        await addSessionExercise({
-          sessionId: newSession.id,
-          exerciseId: pe.exerciseId,
-          notes: pe.notes,
-        })
-      }
-      setPickedSourceDayId('')
-    })
+  /**
+   * Entrenar el plan de otro día no copia nada: lleva a Registro a la fecha
+   * real de ese día, para que lo que se registre quede marcado ahí y la
+   * planilla del mesociclo no se entere de nada distinto. Copiar el plan a
+   * este día (como se hacía antes) dejaba el mesociclo con dos copias del
+   * mismo ejercicio en días distintos, con el mismo `order` — el desorden que
+   * reportó Pablo.
+   */
+  function handleJumpToPickedDay() {
+    const picked = otherPlannedDays.find((d) => d.id === pickedSourceDayId)
+    if (!picked) return
+    onJumpToDate(new Date(picked.date))
+    setPickedSourceDayId('')
   }
 
-  async function handleLoadPlanFromPickedDay() {
-    if (!session || !pickedSourceDayId) return
-    await guardLoadPlan(async () => {
-      const sourceExercises = await listPlannedExercises(pickedSourceDayId)
-      const missing = sourceExercises.filter(
-        (pe) => !sessionExercises?.some((se) => se.exerciseId === pe.exerciseId),
-      )
-      for (const pe of missing) {
-        await addSessionExercise({
-          sessionId: session.id,
-          exerciseId: pe.exerciseId,
-          notes: pe.notes,
-        })
-      }
-      setPickedSourceDayId('')
-    })
-  }
-
+  /**
+   * Muestra la serie (nueva o editada) al toque, calculándola igual que la
+   * calcularía el servidor, y recién después manda la escritura real — la
+   * pantalla no espera esa vuelta para reflejar el cambio. `refresh()` al
+   * final reconcilia con lo que quedó guardado de verdad, en el `finally`
+   * para que una escritura que falla deshaga lo optimista en vez de dejarlo
+   * pisado para siempre.
+   */
   async function handleSubmitSet(sessionExerciseId: string) {
     const form = setForms[sessionExerciseId] ?? EMPTY_SET_FORM
     if (!form.reps) return
@@ -231,15 +268,63 @@ export function SessionView({ dayId }: SessionViewProps) {
         restPause: form.restPause,
       }
       const editingId = editingSetId[sessionExerciseId]
-      if (editingId) {
-        await updateExecutedSet(editingId, input)
-      } else {
-        await createExecutedSet({ sessionExerciseId, ...input })
-        // El nonce hace que el cronómetro se monte de nuevo y empiece limpio.
-        setRest((prev) => ({ sessionExerciseId, nonce: (prev?.nonce ?? 0) + 1 }))
-      }
       setSetForms((prev) => ({ ...prev, [sessionExerciseId]: EMPTY_SET_FORM }))
       setEditingSetId((prev) => ({ ...prev, [sessionExerciseId]: null }))
+      if (editingId) {
+        const timestamp = nowIso()
+        // `current` existe siempre que se llega acá: este handler sólo corre
+        // con una sesión ya cargada en pantalla.
+        setSessionData((current) => ({
+          ...current!,
+          executedSets: current!.executedSets.map((s) =>
+            s.id === editingId ? { ...s, ...input, updatedAt: timestamp } : s,
+          ),
+        }))
+        try {
+          await updateExecutedSet(editingId, input)
+        } finally {
+          await refresh()
+        }
+      } else {
+        const siblings = (executedSets ?? []).filter(
+          (s) => s.sessionExerciseId === sessionExerciseId,
+        )
+        const nextSetNumber = siblings.length
+          ? Math.max(...siblings.map((s) => s.setNumber)) + 1
+          : 1
+        const previousSet = [...siblings].sort((a, b) => a.setNumber - b.setNumber).at(-1)
+        const timestamp = nowIso()
+        const restTakenSeconds = previousSet
+          ? Math.round(
+              (new Date(timestamp).getTime() - new Date(previousSet.performedAt).getTime()) / 1000,
+            )
+          : null
+        const id = generateId()
+        const optimisticSet: ExecutedSet = {
+          id,
+          sessionExerciseId,
+          ...input,
+          setNumber: nextSetNumber,
+          performedAt: timestamp,
+          restTakenSeconds,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+          deletedAt: null,
+        }
+        setSessionData((current) => ({
+          ...current!,
+          executedSets: [...current!.executedSets, optimisticSet],
+        }))
+        // El nonce hace que el cronómetro se monte de nuevo y empiece limpio,
+        // ya mismo: esperar a que el servidor confirme la serie sería el
+        // mismo segundo de más que esto evita en todo lo demás.
+        setRest((prev) => ({ sessionExerciseId, nonce: (prev?.nonce ?? 0) + 1 }))
+        try {
+          await createExecutedSet({ id, sessionExerciseId, ...input })
+        } finally {
+          await refresh()
+        }
+      }
     })
   }
 
@@ -294,7 +379,7 @@ export function SessionView({ dayId }: SessionViewProps) {
         {otherPlannedDays.length > 0 && (
           <div className="load-plan-picker">
             <label>
-              O cargar un día ya planificado
+              O ir a otro día planificado
               <select
                 autoComplete="off"
                 value={pickedSourceDayId}
@@ -309,14 +394,34 @@ export function SessionView({ dayId }: SessionViewProps) {
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              disabled={!pickedSourceDayId || isStartingSession}
-              onClick={handleStartSessionFromPickedDay}
-            >
-              Iniciar sesión con ese plan
+            <button type="button" disabled={!pickedSourceDayId} onClick={handleJumpToPickedDay}>
+              Ir a ese día
             </button>
           </div>
+        )}
+
+        {/* El plan del día se enseña aunque la sesión no haya arrancado: antes
+            había que iniciarla para ver siquiera qué tocaba entrenar. Gris
+            porque todavía no es ni "pendiente" (rojo) ni "hecho" (verde) —
+            esos dos sólo existen una vez que hay sesión. */}
+        {(plannedExercises?.length ?? 0) > 0 && (
+          <ul className="planned-exercise-list">
+            {[...(plannedExercises ?? [])]
+              .sort((a, b) => a.order - b.order)
+              .map((pe) => (
+                <li key={pe.id} className="planned-exercise-item planned-exercise-item--pending">
+                  <div className="planned-exercise-header">
+                    <strong>{exerciseName(pe.exerciseId)}</strong>
+                  </div>
+                  {pe.notes && <p className="cell-note-readonly">{pe.notes}</p>}
+                  <PlanTargetList
+                    sets={(plannedSets ?? [])
+                      .filter((ps) => ps.plannedExerciseId === pe.id)
+                      .sort((a, b) => a.setNumber - b.setNumber)}
+                  />
+                </li>
+              ))}
+          </ul>
         )}
       </div>
     )
@@ -336,6 +441,7 @@ export function SessionView({ dayId }: SessionViewProps) {
       ? endIsoFromTime(startedAt, toTimeInput(session.endedAt))
       : undefined
     await updateSessionTimes(session.id, { startedAt, ...(endedAt ? { endedAt } : {}) })
+    await refresh()
   }
 
   async function handleEndTimeChange(time: string) {
@@ -343,11 +449,13 @@ export function SessionView({ dayId }: SessionViewProps) {
     // Borrar la hora de término deja la sesión abierta otra vez.
     if (time === '') {
       await updateSessionTimes(session.id, { endedAt: null })
+      await refresh()
       return
     }
     const endedAt = endIsoFromTime(session.startedAt, time)
     if (!endedAt) return
     await updateSessionTimes(session.id, { endedAt })
+    await refresh()
   }
 
   return (
@@ -380,14 +488,14 @@ export function SessionView({ dayId }: SessionViewProps) {
               Reabrir sesión
             </button>
           ) : (
-            <button type="button" onClick={() => endSession(session.id)}>
+            <button type="button" onClick={() => void endSession(session.id).then(refresh)}>
               Finalizar sesión
             </button>
           )}
           <ConfirmDeleteButton
             label="Eliminar sesión"
             confirmMessage="¿Eliminar toda la sesión de hoy?"
-            onConfirm={() => deleteSession(session.id)}
+            onConfirm={() => deleteSession(session.id).then(refresh)}
           />
         </div>
       </div>
@@ -399,7 +507,7 @@ export function SessionView({ dayId }: SessionViewProps) {
             type="button"
             className="btn-danger"
             onClick={() => {
-              reopenSession(session.id)
+              void reopenSession(session.id).then(refresh)
               setConfirmingReopen(false)
             }}
           >
@@ -423,34 +531,6 @@ export function SessionView({ dayId }: SessionViewProps) {
           Cargar {missingPlannedExercises.length} ejercicio
           {missingPlannedExercises.length === 1 ? '' : 's'} del plan
         </button>
-      )}
-
-      {!session.endedAt && otherPlannedDays.length > 0 && (
-        <div className="load-plan-picker">
-          <label>
-            Cargar ejercicios de otro día planificado
-            <select
-              autoComplete="off"
-              value={pickedSourceDayId}
-              onChange={(e) => setPickedSourceDayId(e.target.value)}
-            >
-              <option value="">Elegir día planificado</option>
-              {otherPlannedDays.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label || 'Sin etiqueta'} — {formatDate(d.date)} (
-                  {d.exerciseCount} ejercicio{d.exerciseCount === 1 ? '' : 's'})
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={!pickedSourceDayId || isLoadingPlan}
-            onClick={handleLoadPlanFromPickedDay}
-          >
-            Cargar ejercicios
-          </button>
-        </div>
       )}
 
       <ul className="planned-exercise-list">
@@ -501,7 +581,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                       className="icon-button"
                       aria-label="Subir ejercicio"
                       disabled={exerciseIndex <= 0}
-                      onClick={() => reorderSessionExercise(se.id, 'up')}
+                      onClick={() => void reorderSessionExercise(se.id, 'up').then(refresh)}
                     >
                       ↑
                     </button>
@@ -513,24 +593,26 @@ export function SessionView({ dayId }: SessionViewProps) {
                         exerciseIndex === -1 ||
                         exerciseIndex === (sessionExercises?.length ?? 0) - 1
                       }
-                      onClick={() => reorderSessionExercise(se.id, 'down')}
+                      onClick={() => void reorderSessionExercise(se.id, 'down').then(refresh)}
                     >
                       ↓
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSessionExerciseClosed(se.id, !exerciseClosed)}
+                      onClick={() => void setSessionExerciseClosed(se.id, !exerciseClosed).then(refresh)}
                     >
                       {exerciseClosed ? 'Reabrir ejercicio' : 'Cerrar ejercicio'}
                     </button>
                     <ConfirmDeleteButton
                       label="Quitar"
                       confirmMessage="¿Quitar este ejercicio de la sesión?"
-                      onConfirm={() => deleteSessionExercise(se.id)}
+                      onConfirm={() => deleteSessionExercise(se.id).then(refresh)}
                     />
                   </>
                 )}
               </div>
+
+              {se.notes && <p className="cell-note-readonly">{se.notes}</p>}
 
               {showComparison ? (
                 (targetSets && targetSets.length > 0) || sets.length > 0 ? (
@@ -549,8 +631,10 @@ export function SessionView({ dayId }: SessionViewProps) {
                               {actual ? (
                                 <>
                                   {actual.weightKg ?? '-'} kg × {actual.reps}
-                                  {actual.rpe !== null && ` · RPE ${actual.rpe}`}
+                                  {actual.rpe !== null && ` · @${actual.rpe}`}
                                   {actual.eva !== null && ` · EVA ${actual.eva}`}
+                                  {actual.dropSet === true && <span className="set-tag">DS</span>}
+                                  {actual.restPause === true && <span className="set-tag">RP</span>}
                                   {actual.notes && ` · ${actual.notes}`}
                                   {e1rmSuffix(actual)}
                                 </>
@@ -573,23 +657,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                   <p className="empty-hint">Sin series registradas.</p>
                 )
               ) : (
-                targetSets &&
-                targetSets.length > 0 && (
-                  <ul className="plan-target-list">
-                    <li className="plan-target-title">Objetivo</li>
-                    {targetSets.map((ps) => (
-                      <li key={ps.id} className="plan-target-row">
-                        <span className="set-number">{ps.setNumber}</span>
-                        <span>
-                          {ps.targetWeightKg ?? '-'} kg × {ps.targetReps}
-                          {ps.targetRpe !== null && ` · RPE ${ps.targetRpe}`}
-                          {ps.restSecondsTarget !== null &&
-                            ` · ${formatRestMinutes(ps.restSecondsTarget)}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )
+                <PlanTargetList sets={targetSets ?? []} />
               )}
 
               <DeloadAlert exerciseId={se.exerciseId} />
@@ -619,6 +687,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                     <RepHistory
                       exerciseId={se.exerciseId}
                       reps={Number(historyRepsValue)}
+                      currentSessionExerciseId={se.id}
                     />
                   )}
                 </>
@@ -634,10 +703,10 @@ export function SessionView({ dayId }: SessionViewProps) {
                       <span className="set-number">{s.setNumber}</span>
                       <span className="set-summary">
                         {s.weightKg ?? '-'} kg × {s.reps}
-                        {s.rpe !== null && ` · RPE ${s.rpe}`}
+                        {s.rpe !== null && ` · @${s.rpe}`}
                         {s.eva !== null && ` · EVA ${s.eva}`}
-                        {s.dropSet === true && <span className="set-tag">drop</span>}
-                        {s.restPause === true && <span className="set-tag">rest-pause</span>}
+                        {s.dropSet === true && <span className="set-tag">DS</span>}
+                        {s.restPause === true && <span className="set-tag">RP</span>}
                         {s.notes && ` · ${s.notes}`}
                         {e1rmSuffix(s)}
                       </span>
@@ -655,7 +724,7 @@ export function SessionView({ dayId }: SessionViewProps) {
                             variant="icon"
                             label="Eliminar serie"
                             confirmMessage="¿Eliminar esta serie?"
-                            onConfirm={() => deleteExecutedSet(s.id)}
+                            onConfirm={() => deleteExecutedSet(s.id).then(refresh)}
                           />
                         </>
                       )}
@@ -668,7 +737,10 @@ export function SessionView({ dayId }: SessionViewProps) {
               {rest?.sessionExerciseId === se.id && !locked && (
                 <RestTimer
                   key={rest.nonce}
+                  sessionExerciseId={se.id}
                   targetSeconds={target}
+                  initialState={rest.initialState}
+                  persistKey={restStorageKey(dayId)}
                   onDismiss={() => setRest(null)}
                 />
               )}

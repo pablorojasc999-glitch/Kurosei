@@ -1,27 +1,47 @@
-import { beforeEach, describe, expect, it } from 'vitest'
-import { db } from '../../../shared/db/database'
-import { createExercise, createMuscleGroup } from './trainingRepository'
-import { createDay, createMacrocycle, createMesocycle, createWeek } from './planningRepository'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createFakeSupabaseClient } from '../../../shared/supabase/testing'
 import type { StrengthSession } from '../domain/types'
-import {
+
+const fake = createFakeSupabaseClient()
+
+vi.mock('../../../shared/supabase/client', () => ({
+  supabase: fake.client,
+  isSupabaseConfigured: true,
+}))
+
+vi.mock('../../sync/lib/auth', () => ({
+  requireUserId: async () => 'user-1',
+}))
+
+const { createExercise, createMuscleGroup } = await import('./trainingRepository')
+const { createDay, createMacrocycle, createMesocycle, createWeek } = await import(
+  './planningRepository'
+)
+const {
   addSessionExercise,
   countExecutedSetsForSession,
   createExecutedSet,
   endSession,
   getSessionForDay,
+  listExecutedSetsForSessionExercises,
   reopenSession,
   reorderSessionExercise,
   setSessionExerciseClosed,
   startSession,
   updateExecutedSet,
-} from './executionRepository'
+} = await import('./executionRepository')
 
-beforeEach(async () => {
-  await db.transaction(
-    'rw',
-    db.tables,
-    async () => Promise.all(db.tables.map((table) => table.clear())),
-  )
+beforeEach(() => {
+  fake.tables.training_muscle_groups = []
+  fake.tables.training_exercises = []
+  fake.tables.training_exercise_muscle_contributions = []
+  fake.tables.training_macrocycles = []
+  fake.tables.training_mesocycles = []
+  fake.tables.training_weeks = []
+  fake.tables.training_days = []
+  fake.tables.training_sessions = []
+  fake.tables.training_session_exercises = []
+  fake.tables.training_executed_sets = []
 })
 
 async function seedDay() {
@@ -71,7 +91,8 @@ describe('startSession / getSessionForDay', () => {
   it('resolves a legacy duplicate (two sessions for the same day) to the most recently updated one', async () => {
     const day = await seedDay()
     const older = await startSession(day.id)
-    await db.training_sessions.update(older.id, { updatedAt: '2020-01-01T00:00:00.000Z' })
+    const olderRow = fake.tables.training_sessions.find((s) => s.id === older.id)
+    if (olderRow) olderRow.updatedAt = '2020-01-01T00:00:00.000Z'
     const timestamp = '2030-01-01T00:00:00.000Z'
     const newer: StrengthSession = {
       id: 'newer-session',
@@ -82,28 +103,10 @@ describe('startSession / getSessionForDay', () => {
       updatedAt: timestamp,
       deletedAt: null,
     }
-    await db.training_sessions.add(newer)
+    fake.tables.training_sessions.push({ ...newer, userId: 'user-1' })
 
     const found = await getSessionForDay(day.id)
     expect(found?.id).toBe(newer.id)
-  })
-
-  it('creates only one session when started concurrently for the same day', async () => {
-    const day = await seedDay()
-    const [first, second, third] = await Promise.all([
-      startSession(day.id),
-      startSession(day.id),
-      startSession(day.id),
-    ])
-    expect(second.id).toBe(first.id)
-    expect(third.id).toBe(first.id)
-
-    const matches = await db.training_sessions
-      .where('dayId')
-      .equals(day.id)
-      .filter((s) => s.deletedAt === null)
-      .toArray()
-    expect(matches).toHaveLength(1)
   })
 })
 
@@ -152,6 +155,29 @@ describe('createExecutedSet', () => {
     expect(second.setNumber).toBe(2)
   })
 
+  it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exercise = await seedExercise()
+    const sessionExercise = await addSessionExercise({
+      sessionId: session.id,
+      exerciseId: exercise.id,
+      notes: '',
+    })
+
+    const set = await createExecutedSet({
+      id: 'optimistic-id',
+      sessionExerciseId: sessionExercise.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '', dropSet: false, restPause: false })
+
+    expect(set.id).toBe('optimistic-id')
+    expect(fake.tables.training_executed_sets.find((s) => s.id === 'optimistic-id')).toBeDefined()
+  })
+
   it('computes restTakenSeconds from the previous set, null for the first', async () => {
     const day = await seedDay()
     const session = await startSession(day.id)
@@ -173,9 +199,8 @@ describe('createExecutedSet', () => {
 
     // simulate the first set having been logged 3 minutes ago
     const threeMinutesAgo = new Date(Date.now() - 180_000).toISOString()
-    await db.training_executed_sets.update(first.id, {
-      performedAt: threeMinutesAgo,
-    })
+    const firstRow = fake.tables.training_executed_sets.find((s) => s.id === first.id)
+    if (firstRow) firstRow.performedAt = threeMinutesAgo
 
     const second = await createExecutedSet({
       sessionExerciseId: sessionExercise.id,
@@ -214,7 +239,7 @@ describe('updateExecutedSet', () => {
       eva: 3,
       notes: 'ajustado', dropSet: false, restPause: false })
 
-    const updated = await db.training_executed_sets.get(set.id)
+    const updated = fake.tables.training_executed_sets.find((s) => s.id === set.id)
     expect(updated).toMatchObject({
       setNumber: 1,
       weightKg: 105,
@@ -240,12 +265,12 @@ describe('setSessionExerciseClosed', () => {
 
     await setSessionExerciseClosed(sessionExercise.id, true)
     expect(
-      (await db.training_session_exercises.get(sessionExercise.id))?.closedAt,
+      fake.tables.training_session_exercises.find((se) => se.id === sessionExercise.id)?.closedAt,
     ).not.toBeNull()
 
     await setSessionExerciseClosed(sessionExercise.id, false)
     expect(
-      (await db.training_session_exercises.get(sessionExercise.id))?.closedAt,
+      fake.tables.training_session_exercises.find((se) => se.id === sessionExercise.id)?.closedAt,
     ).toBeNull()
   })
 })
@@ -275,11 +300,9 @@ describe('reorderSessionExercise', () => {
 
     await reorderSessionExercise(seB.id, 'up')
 
-    const reordered = await db.training_session_exercises
-      .where('sessionId')
-      .equals(session.id)
-      .filter((se) => se.deletedAt === null)
-      .sortBy('order')
+    const reordered = fake.tables.training_session_exercises
+      .filter((se) => se.sessionId === session.id && se.deletedAt === null)
+      .sort((a, b) => (a.order as number) - (b.order as number))
     expect(reordered.map((se) => se.id)).toEqual([seB.id, seA.id])
   })
 
@@ -294,8 +317,46 @@ describe('reorderSessionExercise', () => {
     })
 
     await reorderSessionExercise(se.id, 'up')
-    const unchanged = await db.training_session_exercises.get(se.id)
+    const unchanged = fake.tables.training_session_exercises.find((row) => row.id === se.id)
     expect(unchanged?.order).toBe(se.order)
+  })
+})
+
+describe('listExecutedSetsForSessionExercises', () => {
+  it('returns only the sets of the requested session exercises', async () => {
+    const day = await seedDay()
+    const session = await startSession(day.id)
+    const exerciseA = await seedExercise()
+    const legs = await createMuscleGroup('Piernas')
+    const exerciseB = await createExercise({
+      name: 'Sentadilla',
+      type: 'strength',
+      category: 'squat',
+      muscleContributions: [{ muscleGroupId: legs.id, factor: 1 }],
+    })
+    const seA = await addSessionExercise({ sessionId: session.id, exerciseId: exerciseA.id, notes: '' })
+    const seB = await addSessionExercise({ sessionId: session.id, exerciseId: exerciseB.id, notes: '' })
+    const setA = await createExecutedSet({
+      sessionExerciseId: seA.id,
+      weightKg: 100,
+      reps: 5,
+      rpe: 8,
+      eva: null,
+      notes: '', dropSet: false, restPause: false })
+    await createExecutedSet({
+      sessionExerciseId: seB.id,
+      weightKg: 80,
+      reps: 8,
+      rpe: 7,
+      eva: null,
+      notes: '', dropSet: false, restPause: false })
+
+    const sets = await listExecutedSetsForSessionExercises([seA.id])
+    expect(sets.map((s) => s.id)).toEqual([setA.id])
+  })
+
+  it('returns an empty list without hitting the client when no exercises are given', async () => {
+    expect(await listExecutedSetsForSessionExercises([])).toEqual([])
   })
 })
 

@@ -1,5 +1,17 @@
-import { db } from '../../../shared/db/database'
-import { getSessionForDay } from './executionRepository'
+import {
+  getDayById,
+  listAllDays,
+  listPlannedExercisesForExercise,
+  listPlannedSets,
+} from './planningRepository'
+import {
+  getSessionForDay,
+  listAllExecutedSets,
+  listAllSessionExercises,
+  listAllSessions,
+  listExecutedSets,
+  listSessionExercises,
+} from './executionRepository'
 import { averageRpeDeviation, type RpePair } from '../lib/metrics'
 import type { ExecutedSet } from '../domain/types'
 
@@ -18,10 +30,10 @@ export async function listAllExecutedSetsWithContext(): Promise<
   ExecutedSetWithContext[]
 > {
   const [sets, sessionExercises, sessions, days] = await Promise.all([
-    db.training_executed_sets.filter((s) => s.deletedAt === null).toArray(),
-    db.training_session_exercises.filter((se) => se.deletedAt === null).toArray(),
-    db.training_sessions.filter((s) => s.deletedAt === null).toArray(),
-    db.training_days.filter((d) => d.deletedAt === null).toArray(),
+    listAllExecutedSets(),
+    listAllSessionExercises(),
+    listAllSessions(),
+    listAllDays(),
   ])
   const sessionExerciseById = new Map(sessionExercises.map((se) => [se.id, se]))
   const sessionById = new Map(sessions.map((s) => [s.id, s]))
@@ -46,15 +58,9 @@ export async function getRecentRpeDeviations(
   exerciseId: string,
   limit: number,
 ): Promise<number[]> {
-  const plannedExercises = await db.training_planned_exercises
-    .where('exerciseId')
-    .equals(exerciseId)
-    .filter((pe) => pe.deletedAt === null)
-    .toArray()
+  const plannedExercises = await listPlannedExercisesForExercise(exerciseId)
 
-  const days = await Promise.all(
-    plannedExercises.map((pe) => db.training_days.get(pe.dayId)),
-  )
+  const days = await Promise.all(plannedExercises.map((pe) => getDayById(pe.dayId)))
   const dayById = new Map(
     days.filter((d) => d && d.deletedAt === null).map((d) => [d!.id, d!]),
   )
@@ -72,28 +78,22 @@ export async function getRecentRpeDeviations(
   for (const plannedExercise of plannedExercisesByRecentDay) {
     if (deviations.length >= limit) break
 
-    const plannedSets = await db.training_planned_sets
-      .where('plannedExerciseId')
-      .equals(plannedExercise.id)
-      .filter((ps) => ps.deletedAt === null && ps.targetRpe !== null)
-      .toArray()
+    const plannedSets = (await listPlannedSets(plannedExercise.id)).filter(
+      (ps) => ps.targetRpe !== null,
+    )
     if (plannedSets.length === 0) continue
 
     const session = await getSessionForDay(plannedExercise.dayId)
     if (!session) continue
 
-    const sessionExercise = await db.training_session_exercises
-      .where('sessionId')
-      .equals(session.id)
-      .filter((se) => se.deletedAt === null && se.exerciseId === exerciseId)
-      .first()
+    const sessionExercise = (await listSessionExercises(session.id)).find(
+      (se) => se.exerciseId === exerciseId,
+    )
     if (!sessionExercise) continue
 
-    const executedSets = await db.training_executed_sets
-      .where('sessionExerciseId')
-      .equals(sessionExercise.id)
-      .filter((s) => s.deletedAt === null && s.rpe !== null)
-      .toArray()
+    const executedSets = (await listExecutedSets(sessionExercise.id)).filter(
+      (s) => s.rpe !== null,
+    )
     if (executedSets.length === 0) continue
 
     const executedBySetNumber = new Map(
