@@ -92,6 +92,30 @@ export async function listMesocycles(
   return (data as Mesocycle[]).sort((a, b) => a.order - b.order)
 }
 
+/** Todos los mesociclos, de cualquier macrociclo — para cruces como la exportación. */
+export async function listAllMesocycles(): Promise<Mesocycle[]> {
+  const { data, error } = await client().from('training_mesocycles').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as Mesocycle[]
+}
+
+/** Todos los ejercicios planificados no borrados — para cruces como la exportación. */
+export async function listAllPlannedExercises(): Promise<PlannedExercise[]> {
+  const { data, error } = await client()
+    .from('training_planned_exercises')
+    .select('*')
+    .is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as PlannedExercise[]
+}
+
+/** Todas las series planificadas no borradas — para cruces como la exportación. */
+export async function listAllPlannedSets(): Promise<PlannedSet[]> {
+  const { data, error } = await client().from('training_planned_sets').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return data as PlannedSet[]
+}
+
 export interface CreateMesocycleInput {
   macrocycleId: string
   name: string

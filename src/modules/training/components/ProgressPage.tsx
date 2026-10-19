@@ -1,10 +1,13 @@
 import { useCallback, useState } from 'react'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
+import { ExportCsvButton } from '../../../shared/components/ExportCsvButton'
 import { BodyMap } from './BodyMap'
 import { LineChart } from './LineChart'
 import type { ChartSeries } from './LineChart'
 import { listDailyMetricsInRange } from '../db/bitacoraQueries'
+import { loadTrainingLogData } from '../db/trainingLogQueries'
+import { buildTrainingLogCsv } from '../lib/trainingLogCsv'
 import { getProfile } from '../db/bitacoraRepository'
 import { listAllExecutedSetsWithContext } from '../db/metricsQueries'
 import {
@@ -354,6 +357,13 @@ export function ProgressPage() {
   return (
     <div className="page">
       <h1>Progreso</h1>
+
+      <ExportCsvButton
+        label="Exportar registros de entrenamiento (CSV)"
+        filename={`kurosei-entrenamiento-${toDateKey(new Date())}.csv`}
+        // Siempre todo el historial: el periodo de abajo sólo filtra lo que se mira.
+        build={async () => buildTrainingLogCsv(await loadTrainingLogData())}
+      />
 
       <section className="elevated-section">
         <h2>Periodo</h2>
