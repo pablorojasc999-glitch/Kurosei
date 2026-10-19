@@ -2,7 +2,7 @@ import type { ReactElement } from 'react'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { DESKTOP_MEDIA_QUERY } from '../lib/breakpoints'
 
-export type AppModule = 'registro' | 'entrenamiento' | 'finanzas' | 'nutricion'
+export type AppModule = 'registro' | 'entrenamiento' | 'finanzas'
 
 interface AppSidebarProps {
   open: boolean
@@ -49,19 +49,10 @@ function IconFinance() {
   )
 }
 
-function IconNutrition() {
-  return (
-    <svg {...ICON_PROPS}>
-      <path d="M12 3c3.5 4 6 7.5 6 10.5a6 6 0 1 1-12 0C6 10.5 8.5 7 12 3Z" />
-    </svg>
-  )
-}
-
 const MODULES: Array<{ id: AppModule; label: string; icon: () => ReactElement }> = [
   { id: 'registro', label: 'Registro', icon: IconRegistroModule },
   { id: 'entrenamiento', label: 'Entrenamiento', icon: IconDumbbell },
   { id: 'finanzas', label: 'Finanzas', icon: IconFinance },
-  { id: 'nutricion', label: 'Nutrición', icon: IconNutrition },
 ]
 
 export function AppSidebar({ open, activeModule, onSelect, onClose }: AppSidebarProps) {

@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { isSupabaseConfigured } from '../../../shared/supabase/client'
 import { useTheme, type Theme } from '../../../shared/hooks/useTheme'
 import { getSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from '../lib/auth'
-import { getPreferences, setHomeTab, type HomeTab } from '../db/preferencesRepository'
+import { getPreferences, isHomeTab, setHomeTab, type HomeTab } from '../db/preferencesRepository'
 
 const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
   { value: 'system', label: 'Sistema' },
@@ -14,7 +14,6 @@ const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
 const HOME_TAB_OPTIONS: Array<{ value: HomeTab; label: string }> = [
   { value: 'constancia', label: 'Constancia' },
   { value: 'entrenamiento', label: 'Entreno' },
-  { value: 'nutricion', label: 'Nutrición' },
   { value: 'finanzas', label: 'Finanzas' },
   { value: 'supermercado', label: 'Súper' },
 ]
@@ -67,7 +66,7 @@ export function AccountPanel() {
 
   useEffect(() => {
     const request: Promise<HomeTab | null> = session
-      ? getPreferences().then((p) => p?.homeTab ?? 'constancia')
+      ? getPreferences().then((p) => (p && isHomeTab(p.homeTab) ? p.homeTab : 'constancia'))
       : Promise.resolve(null)
     request
       .then((tab) => {

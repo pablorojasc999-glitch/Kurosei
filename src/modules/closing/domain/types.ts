@@ -2,7 +2,7 @@ import type { SyncedEntity } from '../../training/domain/types'
 
 /** Los módulos cuyo día se cierra a mano. La bitácora no está: se da por
  *  cerrada cuando está completa, que es un dato que ya se tiene. */
-export type ClosableModule = 'training' | 'nutrition' | 'finance'
+export type ClosableModule = 'training' | 'finance'
 
 /**
  * Cómo se cerró el día.

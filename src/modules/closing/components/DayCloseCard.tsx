@@ -23,7 +23,6 @@ interface DayCloseCardProps {
 
 const DONE_LABELS: Record<ClosableModule, string> = {
   training: 'Entrené',
-  nutrition: 'Registré todo',
   finance: 'Registré todo',
 }
 

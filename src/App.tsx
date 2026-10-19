@@ -11,18 +11,6 @@ import {
 import { TransaccionesPage } from './modules/finance/components/TransaccionesPage'
 import { IconGrocery } from './modules/grocery/components/icons'
 import { SupermercadoPage } from './modules/grocery/components/SupermercadoPage'
-import { AguaPage } from './modules/nutrition/components/AguaPage'
-import { BibliotecaPage as NutritionBibliotecaPage } from './modules/nutrition/components/BibliotecaPage'
-import {
-  IconFoodLibrary,
-  IconGoals,
-  IconNutritionRegistro,
-  IconTemplates,
-  IconWater,
-} from './modules/nutrition/components/icons'
-import { MetasPage } from './modules/nutrition/components/MetasPage'
-import { PlantillasPage } from './modules/nutrition/components/PlantillasPage'
-import { RegistroPage as NutritionRegistroPage } from './modules/nutrition/components/RegistroPage'
 import { CalendarioPage } from './modules/closing/components/CalendarioPage'
 import { CalendarPage } from './modules/training/components/CalendarPage'
 import { E1rmCalculatorPage } from './modules/training/components/E1rmCalculatorPage'
@@ -41,7 +29,7 @@ import { ProgressPage } from './modules/training/components/ProgressPage'
 import { RegistroPage } from './modules/training/components/RegistroPage'
 import { ReloadPrompt } from './modules/training/components/ReloadPrompt'
 import { AccountPanel } from './modules/sync/components/AccountPanel'
-import { getPreferences, type HomeTab } from './modules/sync/db/preferencesRepository'
+import { getPreferences, isHomeTab, type HomeTab } from './modules/sync/db/preferencesRepository'
 import { AppSidebar, type AppModule } from './shared/components/AppSidebar'
 import { useRemoteQuery } from './shared/hooks/useRemoteQuery'
 import './App.css'
@@ -50,9 +38,7 @@ type Tab = 'periodizacion' | 'calendario' | 'progreso' | 'biblioteca' | 'calcula
 
 type FinanceTab = 'cuentas' | 'categorias' | 'estadisticas'
 
-type NutritionTab = 'plantillas' | 'agua' | 'biblioteca' | 'metas'
-
-/** Las mismas cinco pestañas que puede ser "pantalla de inicio" — ver `preferencesRepository`. */
+/** Las mismas pestañas que puede ser "pantalla de inicio" — ver `preferencesRepository`. */
 type RegistroTab = HomeTab
 
 function App() {
@@ -66,7 +52,6 @@ function App() {
   const [registroTab, setRegistroTab] = useState<RegistroTab>('constancia')
   const [tab, setTab] = useState<Tab>('periodizacion')
   const [financeTab, setFinanceTab] = useState<FinanceTab>('cuentas')
-  const [nutritionTab, setNutritionTab] = useState<NutritionTab>('plantillas')
   const [jumpToDate, setJumpToDate] = useState<Date | null>(null)
   const [jumpToDayId, setJumpToDayId] = useState<string | null>(null)
 
@@ -78,7 +63,7 @@ function App() {
   const [homeTabApplied, setHomeTabApplied] = useState(false)
   if (!homeTabApplied && !navigated && preferences !== undefined) {
     setHomeTabApplied(true)
-    if (preferences) setRegistroTab(preferences.homeTab)
+    if (preferences && isHomeTab(preferences.homeTab)) setRegistroTab(preferences.homeTab)
   }
 
   function selectRegistroTab(nextTab: RegistroTab) {
@@ -123,9 +108,6 @@ function App() {
             <div hidden={registroTab !== 'entrenamiento'}>
               <RegistroPage jumpToDate={jumpToDate} onEditPlan={handleEditPlan} />
             </div>
-            <div hidden={registroTab !== 'nutricion'}>
-              <NutritionRegistroPage />
-            </div>
             <div hidden={registroTab !== 'finanzas'}>
               <TransaccionesPage />
             </div>
@@ -143,21 +125,6 @@ function App() {
             </div>
             <div hidden={financeTab !== 'estadisticas'}>
               <EstadisticasPage />
-            </div>
-          </>
-        ) : appModule === 'nutricion' ? (
-          <>
-            <div hidden={nutritionTab !== 'plantillas'}>
-              <PlantillasPage />
-            </div>
-            <div hidden={nutritionTab !== 'agua'}>
-              <AguaPage />
-            </div>
-            <div hidden={nutritionTab !== 'biblioteca'}>
-              <NutritionBibliotecaPage />
-            </div>
-            <div hidden={nutritionTab !== 'metas'}>
-              <MetasPage />
             </div>
           </>
         ) : (
@@ -203,14 +170,6 @@ function App() {
           </button>
           <button
             type="button"
-            className={registroTab === 'nutricion' ? 'active' : ''}
-            onClick={() => selectRegistroTab('nutricion')}
-          >
-            <IconNutritionRegistro />
-            Nutrición
-          </button>
-          <button
-            type="button"
             className={registroTab === 'finanzas' ? 'active' : ''}
             onClick={() => selectRegistroTab('finanzas')}
           >
@@ -251,41 +210,6 @@ function App() {
           >
             <IconStatistics />
             Estadísticas
-          </button>
-        </nav>
-      ) : appModule === 'nutricion' ? (
-        <nav className="tabs">
-          <button
-            type="button"
-            className={nutritionTab === 'plantillas' ? 'active' : ''}
-            onClick={() => setNutritionTab('plantillas')}
-          >
-            <IconTemplates />
-            Plantillas
-          </button>
-          <button
-            type="button"
-            className={nutritionTab === 'agua' ? 'active' : ''}
-            onClick={() => setNutritionTab('agua')}
-          >
-            <IconWater />
-            Agua
-          </button>
-          <button
-            type="button"
-            className={nutritionTab === 'biblioteca' ? 'active' : ''}
-            onClick={() => setNutritionTab('biblioteca')}
-          >
-            <IconFoodLibrary />
-            Biblioteca
-          </button>
-          <button
-            type="button"
-            className={nutritionTab === 'metas' ? 'active' : ''}
-            onClick={() => setNutritionTab('metas')}
-          >
-            <IconGoals />
-            Metas
           </button>
         </nav>
       ) : (

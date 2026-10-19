@@ -3,7 +3,7 @@ import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
-import { useEntryDragReorder } from '../../nutrition/lib/useEntryDragReorder'
+import { useEntryDragReorder } from '../../../shared/lib/useEntryDragReorder'
 import { ConfirmDeleteButton } from '../../training/components/ConfirmDeleteButton'
 import type { GroceryItem, PurchaseCadence } from '../domain/types'
 import { PURCHASE_CADENCES } from '../domain/types'
@@ -50,7 +50,7 @@ export function SupermercadoPage() {
   const [runMessage, setRunMessage] = useState<string | null>(null)
   const { isSubmitting, guard } = useSubmitGuard()
 
-  // La cadencia hace de sección, así que sirve el mismo arrastre que Nutrición.
+  // La cadencia hace de sección, así que sirve el mismo arrastre largo que en cualquier lista con secciones.
   // El índice se ignora a propósito: dentro de cada lista el orden lo fijan la
   // cantidad y el nombre, así que arrastrar sólo cambia de lista.
   const drag = useEntryDragReorder(

@@ -80,8 +80,8 @@ describe('missingBitacoraFields', () => {
     expect(missingBitacoraFields(sinSuplementos)).toEqual([])
   })
 
-  it('el agua y los macros no cuentan: se leen de Nutrición', () => {
-    expect(missingBitacoraFields(bitacoraLlena({ waterLiters: null, calories: null }))).toEqual([])
+  it('el agua no cuenta: no se escribe en la bitácora', () => {
+    expect(missingBitacoraFields(bitacoraLlena({ waterLiters: null }))).toEqual([])
   })
 })
 
@@ -90,7 +90,6 @@ describe('buildDayCompletion', () => {
     const dia = build()
     expect(dia).toMatchObject({
       training: 'pending',
-      nutrition: 'pending',
       finance: 'pending',
       bitacora: 'pending',
       doneCount: 0,
@@ -123,16 +122,16 @@ describe('buildDayCompletion', () => {
 
   it('con todo cerrado y la bitácora llena, el día está completo', () => {
     const dia = build({
-      closures: [cierre('training'), cierre('nutrition'), cierre('finance', 'none')],
+      closures: [cierre('training'), cierre('finance', 'none')],
       log: bitacoraLlena(),
     })
     expect(dia.complete).toBe(true)
-    expect(dia.doneCount).toBe(4)
+    expect(dia.doneCount).toBe(3)
     expect(pendingModules(dia)).toEqual([])
   })
 
   it('dice qué módulos faltan, en el orden en que se leen', () => {
-    const dia = build({ closures: [cierre('nutrition')] })
+    const dia = build({ closures: [] })
     expect(pendingModules(dia)).toEqual(['training', 'finance', 'bitacora'])
   })
 

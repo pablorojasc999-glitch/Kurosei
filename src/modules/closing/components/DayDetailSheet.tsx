@@ -14,7 +14,7 @@ import {
 import { CompletionRing } from './CompletionRing'
 import { DayCloseCard } from './DayCloseCard'
 
-const CLOSABLE: ClosableModule[] = ['training', 'nutrition', 'finance']
+const CLOSABLE: ClosableModule[] = ['training', 'finance']
 
 interface DayDetailSheetProps {
   date: string

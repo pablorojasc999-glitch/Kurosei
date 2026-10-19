@@ -1,6 +1,6 @@
 # Kurosei
 
-App personal de entrenamiento, nutrición, finanzas y supermercado. React + TypeScript
+App personal de entrenamiento, finanzas y supermercado. React + TypeScript
 + Vite, hablando directo con Supabase — como Instagram o Mercado Libre: se pide, se
 escribe, se vuelve a pedir. Sin sesión iniciada no hay nada que mostrar; no existe un
 modo sin cuenta ni funciona sin conexión.
@@ -53,7 +53,7 @@ escritos los que ya existen, y conviene seguirlos:
 ## Estructura
 
 ```
-src/modules/<módulo>/     training · nutrition · finance · grocery · closing · sync
+src/modules/<módulo>/     training · finance · grocery · closing · sync
   components/             pantallas y piezas de interfaz
   db/                     acceso a Supabase (repositorios)
   domain/types.ts         tipos del dominio
@@ -74,7 +74,7 @@ src/App.css               casi todos los estilos
   repositorios que lo hacen).
 - **Las lecturas no filtran por dueño.** La política RLS de cada tabla en Supabase
   ya decide qué fila ve cada cuenta (incluida la biblioteca compartida de
-  ejercicios y alimentos entre las dos cuentas que la usan). Filtrar además en el
+  ejercicios entre las dos cuentas que la usan). Filtrar además en el
   cliente sería redundante o, en las compartidas, directamente incorrecto.
 - **La lógica va en `lib/`, no en el componente.** Es lo único que está cubierto por
   tests de lógica pura, y así se puede probar sin montar React. Cuando una pantalla
