@@ -6,10 +6,10 @@ describe('ringArcs', () => {
   const circumference = 2 * Math.PI * radius
 
   it('devuelve un arco por módulo', () => {
-    expect(ringArcs(radius, 2)).toHaveLength(4)
+    expect(ringArcs(radius, 2)).toHaveLength(3)
   })
 
-  it('los cuatro arcos miden lo mismo', () => {
+  it('los tres arcos miden lo mismo', () => {
     const largos = ringArcs(radius, 2).map((a) => Number(a.dashArray.split(' ')[0]))
     expect(new Set(largos.map((l) => l.toFixed(6))).size).toBe(1)
   })
@@ -18,13 +18,13 @@ describe('ringArcs', () => {
     const gap = 2
     const [primero] = ringArcs(radius, gap)
     const arco = Number(primero.dashArray.split(' ')[0])
-    expect(arco * 4 + gap * 4).toBeCloseTo(circumference, 6)
+    expect(arco * 3 + gap * 3).toBeCloseTo(circumference, 6)
   })
 
-  it('cada arco arranca un cuarto de vuelta después del anterior', () => {
+  it('cada arco arranca un tercio de vuelta después del anterior', () => {
     const arcos = ringArcs(radius, 2)
     const pasos = arcos.slice(1).map((a, i) => arcos[i].dashOffset - a.dashOffset)
-    for (const paso of pasos) expect(paso).toBeCloseTo(circumference / 4, 6)
+    for (const paso of pasos) expect(paso).toBeCloseTo(circumference / 3, 6)
   })
 
   it('el primer arco empieza medio hueco después del inicio, para quedar centrado', () => {

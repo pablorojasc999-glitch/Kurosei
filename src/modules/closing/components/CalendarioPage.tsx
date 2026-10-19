@@ -163,9 +163,6 @@ export function CalendarioPage({ onOpenDay }: CalendarioPageProps) {
             <span className="legend-dot legend-dot--training" /> Entrenamiento
           </li>
           <li>
-            <span className="legend-dot legend-dot--nutrition" /> Nutrición
-          </li>
-          <li>
             <span className="legend-dot legend-dot--finance" /> Finanzas
           </li>
           <li>

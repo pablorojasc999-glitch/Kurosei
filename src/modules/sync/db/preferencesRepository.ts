@@ -9,8 +9,17 @@ function client() {
   return supabase
 }
 
-/** Las cinco pestañas de Registro — la única pantalla que puede ser "inicio". */
-export type HomeTab = 'constancia' | 'entrenamiento' | 'nutricion' | 'finanzas' | 'supermercado'
+/** Las pestañas de Registro — la única pantalla que puede ser "inicio". */
+export const HOME_TABS = ['constancia', 'entrenamiento', 'finanzas', 'supermercado'] as const
+export type HomeTab = (typeof HOME_TABS)[number]
+
+/**
+ * Una cuenta puede tener guardada una pestaña que ya no existe (Nutrición se
+ * quitó de la app): en ese caso se cae a Constancia en vez de abrir en blanco.
+ */
+export function isHomeTab(value: string): value is HomeTab {
+  return (HOME_TABS as readonly string[]).includes(value)
+}
 
 export interface AppPreferences {
   id: string

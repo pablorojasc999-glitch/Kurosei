@@ -14,7 +14,6 @@ import { findDayByDate } from '../db/planningRepository'
 import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { sessionDurationMinutes } from '../lib/sessionTimes'
 import { toDateKey } from '../lib/calendarGrid'
-import { formatNutrient } from '../../nutrition/lib/nutrients'
 import type { Sex } from '../domain/types'
 
 interface ProfileFormState {
@@ -182,8 +181,9 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
     await guardLog(async () => {
       await upsertDailyLog(dateKey, {
         bodyWeightKg: parseNum(logForm.bodyWeightKg),
-        // Calorías/macros/agua vienen de Nutrición, no de este formulario —
-        // se preservan tal cual estén en el registro actual del día.
+        // Calorías/macros/agua ya no se editan en ninguna pantalla (se quitó
+        // Nutrición), pero las columnas siguen en la base: se preservan tal
+        // cual estén en el registro del día para no borrar lo ya guardado.
         calories: dailyLog?.calories ?? null,
         carbsG: dailyLog?.carbsG ?? null,
         proteinG: dailyLog?.proteinG ?? null,
@@ -355,32 +355,6 @@ export function BitacoraSection({ date }: BitacoraSectionProps) {
       </div>
 
       <form onSubmit={handleSubmitLog} className="entity-form bitacora-log-form" autoComplete="off">
-        {/* Lo que viene de Nutrición es de sólo lectura: va en una tira compacta
-            y no en tarjetas grandes, que se comían un tercio de la sección. */}
-        <div className="bitacora-intake">
-          <div className="bitacora-intake-stats">
-            <span>
-              <small>kcal</small>
-              {formatNutrient(dailyLog?.calories ?? 0)}
-            </span>
-            <span>
-              <small>Prot</small>
-              {formatNutrient(dailyLog?.proteinG ?? 0)}
-            </span>
-            <span>
-              <small>Carb</small>
-              {formatNutrient(dailyLog?.carbsG ?? 0)}
-            </span>
-            <span>
-              <small>Grasa</small>
-              {formatNutrient(dailyLog?.fatG ?? 0)}
-            </span>
-            <span>
-              <small>Agua</small>
-              {formatNutrient(dailyLog?.waterLiters ?? 0)} L
-            </span>
-          </div>
-        </div>
         <div className="bitacora-log-row">
           <label>
             Peso

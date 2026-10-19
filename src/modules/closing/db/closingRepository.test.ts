@@ -37,13 +37,13 @@ describe('closeDay / reopenDay', () => {
 
   it('reopening removes the closure for that (date, module), leaving the others untouched', async () => {
     await closeDay('2026-08-22', 'training', 'done')
-    await closeDay('2026-08-22', 'nutrition', 'done')
+    await closeDay('2026-08-22', 'finance', 'done')
 
     await reopenDay('2026-08-22', 'training')
 
     const remaining = await listClosuresForDate('2026-08-22')
     expect(remaining).toHaveLength(1)
-    expect(remaining[0].module).toBe('nutrition')
+    expect(remaining[0].module).toBe('finance')
   })
 
   it('reopening a day with no closure is a no-op', async () => {
@@ -65,7 +65,7 @@ describe('listClosuresInRange / firstClosureDate', () => {
     expect(await firstClosureDate()).toBeNull()
 
     await closeDay('2026-08-22', 'training', 'done')
-    await closeDay('2026-08-20', 'nutrition', 'done')
+    await closeDay('2026-08-20', 'finance', 'done')
 
     expect(await firstClosureDate()).toBe('2026-08-20')
   })

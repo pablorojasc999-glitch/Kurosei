@@ -263,13 +263,8 @@ export function ProgressPage() {
     profile?.heightCm != null && profile?.birthDate != null && profile?.sex != null
   const expenditureSeries: ChartSeries[] = [
     {
-      label: 'Calorías consumidas',
-      color: 'var(--accent)',
-      points: dailyMetrics.map((m) => ({ date: m.date, value: m.calories })),
-    },
-    {
       label: 'Gasto estimado',
-      color: 'var(--chart-secondary)',
+      color: 'var(--accent)',
       points: dailyMetrics.map((m) => ({
         date: m.date,
         value:
@@ -286,24 +281,6 @@ export function ProgressPage() {
               })
             : null,
       })),
-    },
-  ]
-
-  const macroSeries: ChartSeries[] = [
-    {
-      label: 'Carbohidratos',
-      color: 'var(--accent)',
-      points: dailyMetrics.map((m) => ({ date: m.date, value: m.carbsG })),
-    },
-    {
-      label: 'Proteína',
-      color: 'var(--chart-secondary)',
-      points: dailyMetrics.map((m) => ({ date: m.date, value: m.proteinG })),
-    },
-    {
-      label: 'Grasa',
-      color: 'var(--chart-tertiary)',
-      points: dailyMetrics.map((m) => ({ date: m.date, value: m.fatG })),
     },
   ]
 
@@ -338,14 +315,6 @@ export function ProgressPage() {
       label: 'Pasos',
       color: 'var(--accent)',
       points: dailyMetrics.map((m) => ({ date: m.date, value: m.steps })),
-    },
-  ]
-
-  const waterSeries: ChartSeries[] = [
-    {
-      label: 'Agua',
-      color: 'var(--accent)',
-      points: dailyMetrics.map((m) => ({ date: m.date, value: m.waterLiters })),
     },
   ]
 
@@ -586,7 +555,7 @@ export function ProgressPage() {
         </section>
 
         <section className="elevated-section">
-          <h2>Balance calórico</h2>
+          <h2>Gasto calórico estimado</h2>
           {!profileComplete ? (
             <p className="empty-hint">
               Completa tu perfil en Registro (estatura, fecha de nacimiento y
@@ -623,16 +592,6 @@ export function ProgressPage() {
         </section>
 
         <section className="elevated-section">
-          <h2>Macronutrientes</h2>
-          <LineChart
-            domainDates={domainDates}
-            series={macroSeries}
-            unit=" g"
-            markedDates={trainingDayDates}
-          />
-        </section>
-
-        <section className="elevated-section">
           <h2>Sueño</h2>
           <LineChart
             domainDates={domainDates}
@@ -657,16 +616,6 @@ export function ProgressPage() {
             domainDates={domainDates}
             series={stepsSeries}
             unit=" pasos"
-            markedDates={trainingDayDates}
-          />
-        </section>
-
-        <section className="elevated-section">
-          <h2>Agua</h2>
-          <LineChart
-            domainDates={domainDates}
-            series={waterSeries}
-            unit=" L"
             markedDates={trainingDayDates}
           />
         </section>
