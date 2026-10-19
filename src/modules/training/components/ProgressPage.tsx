@@ -16,6 +16,7 @@ import { listAllMuscleContributions, listExercises, listMuscleGroups } from '../
 import { matchBodyRegion } from '../lib/bodyMap'
 import type { BodyRegionKey } from '../lib/bodyMap'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
+import { formatWeekRange } from '../lib/weeks'
 import { estimateCalorieExpenditure } from '../lib/calorieExpenditure'
 import { e1rmForSet } from '../lib/e1rm'
 import { formatDate } from '../lib/format'
@@ -37,17 +38,21 @@ const SCOPE_KIND_LABELS: Record<ScopeKind, string> = {
   day: 'Día',
 }
 
+/** El inicio de un día de la semana como medianoche local, igual que las fechas de macro y mesociclo. */
+function localMidnightIso(dateOrIso: string): string {
+  return parseDateInput(dateOrIso.slice(0, 10)).toISOString()
+}
+
 function weekLabel(week: {
-  macrocycleName: string
-  mesocycleName: string
-  order: number
-  dayDates: string[]
+  macrocycleName: string | null
+  mesocycleName: string | null
+  startDate: string
+  endDate: string
 }): string {
-  const range =
-    week.dayDates.length > 0
-      ? ` (${formatDate(week.dayDates[0])} - ${formatDate(week.dayDates[week.dayDates.length - 1])})`
-      : ''
-  return `${week.macrocycleName} / ${week.mesocycleName} / Semana ${week.order + 1}${range}`
+  const range = formatWeekRange(week)
+  // Una semana sin mesociclo se nombra sólo por sus fechas: no hay nada más que decir.
+  if (!week.mesocycleName) return `${range} · Sin mesociclo`
+  return `${week.macrocycleName} / ${week.mesocycleName} / ${range}`
 }
 
 /** Picks the most recent item whose startDate is today-or-earlier, falling back to the first item. */
@@ -92,7 +97,7 @@ export function ProgressPage() {
     ? scopeMesoId
     : defaultCurrentOrPastId(mesocycles ?? [], nowIso)
   const currentOrPastWeeks = (weeks ?? []).filter(
-    (w) => w.dayDates.length > 0 && w.dayDates[0] <= nowIso,
+    (w) => localMidnightIso(w.startDate) <= nowIso,
   )
   const defaultWeekId =
     currentOrPastWeeks[currentOrPastWeeks.length - 1]?.id ?? weeks?.[0]?.id ?? ''
@@ -108,10 +113,9 @@ export function ProgressPage() {
     activeRange = meso ? inclusiveRange(meso.startDate, meso.endDate) : null
   } else if (scopeKind === 'week') {
     const week = weeks?.find((w) => w.id === activeWeekId)
-    activeRange =
-      week && week.dayDates.length > 0
-        ? inclusiveRange(week.dayDates[0], week.dayDates[week.dayDates.length - 1])
-        : null
+    activeRange = week
+      ? inclusiveRange(localMidnightIso(week.startDate), localMidnightIso(week.endDate))
+      : null
   } else {
     activeRange = dayRange(activeDay)
   }

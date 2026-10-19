@@ -31,6 +31,9 @@ const {
   deleteMacrocycle,
   deleteMesocycle,
   deleteWeek,
+  listAllWeeks,
+  setWeekMesocycle,
+  updateWeek,
   duplicateWeek,
   findDayByDate,
   getOrCreateDayForDate,
@@ -44,7 +47,6 @@ const {
   listWeeks,
   listWeeksWithContext,
   reorderPlannedExercise,
-  reorderWeek,
   setDayPlanClosed,
   setPlannedExerciseClosed,
   updateDay,
@@ -100,10 +102,15 @@ async function seedMesocycle() {
   return mesocycle
 }
 
+/** El rango que usan casi todas las pruebas: una semana cualquiera enlazada al mesociclo. */
+function weekRange(mesocycleId: string | null, startDate = '2026-01-05', endDate = '2026-01-11') {
+  return { mesocycleId, startDate, endDate }
+}
+
 describe('createPlannedSet', () => {
   it('uses a caller-supplied id instead of generating one, for optimistic UI', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -134,7 +141,7 @@ describe('createPlannedSet', () => {
 describe('listPlannedSetsForExercises', () => {
   it('returns only the sets of the requested exercises, across any day', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -177,11 +184,11 @@ describe('listPlannedSetsForExercises', () => {
   })
 })
 
-describe('createWeek / createMesocycle order auto-increment', () => {
+describe('createWeek order auto-increment', () => {
   it('assigns incrementing order starting at 0', async () => {
     const mesocycle = await seedMesocycle()
-    const week1 = await createWeek(mesocycle.id)
-    const week2 = await createWeek(mesocycle.id)
+    const week1 = await createWeek(weekRange(mesocycle.id))
+    const week2 = await createWeek(weekRange(mesocycle.id))
     expect(week1.order).toBe(0)
     expect(week2.order).toBe(1)
   })
@@ -190,7 +197,7 @@ describe('createWeek / createMesocycle order auto-increment', () => {
 describe('duplicateWeek', () => {
   it('creates a new week with days shifted +7 days and copies planned exercises/sets', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -220,6 +227,8 @@ describe('duplicateWeek', () => {
     const weeks = await listWeeks(mesocycle.id)
     expect(weeks).toHaveLength(2)
     expect(newWeek.order).toBe(1)
+    // La copia queda siete días después, con el mismo rango corrido.
+    expect(newWeek).toMatchObject({ mesocycleId: mesocycle.id, startDate: '2026-01-12', endDate: '2026-01-18' })
 
     const newDays = await listDays(newWeek.id)
     expect(newDays).toHaveLength(1)
@@ -261,7 +270,7 @@ describe('findDayByDate', () => {
 
   it('finds a day matching the calendar date regardless of time of day', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const today = daysFromNow(0)
     const created = await createDay({
       weekId: week.id,
@@ -277,7 +286,7 @@ describe('findDayByDate', () => {
 
   it('does not match a different calendar day', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     await createDay({
       weekId: week.id,
       date: daysFromNow(-1).toISOString(),
@@ -304,7 +313,7 @@ describe('findDayByDate', () => {
 describe('getOrCreateDayForDate', () => {
   it('returns the existing day for that date instead of creating a duplicate', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const today = daysFromNow(0)
     const created = await createDay({
       weekId: week.id,
@@ -330,7 +339,7 @@ describe('getOrCreateDayForDate', () => {
 describe('listPlannedDaysWithExercises', () => {
   it('only returns planned (weekId set) days that have at least one exercise', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
       name: 'Press banca',
@@ -377,7 +386,7 @@ describe('listPlannedDaysWithExercises', () => {
 describe('listWeeksWithContext', () => {
   it('annotates each week with its macro/mesocycle names and sorted day dates', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     await createDay({ weekId: week.id, date: '2026-01-06T00:00:00.000Z', label: '' })
     await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
 
@@ -387,16 +396,17 @@ describe('listWeeksWithContext', () => {
       id: week.id,
       macrocycleName: 'Prep',
       mesocycleName: 'Bloque 1',
-      order: 0,
+      startDate: '2026-01-05',
+      endDate: '2026-01-11',
       dayDates: ['2026-01-05T00:00:00.000Z', '2026-01-06T00:00:00.000Z'],
     })
   })
 
-  it('sorts weeks chronologically by their first day', async () => {
+  it('sorts weeks chronologically by their start date', async () => {
     const mesocycle = await seedMesocycle()
-    const laterWeek = await createWeek(mesocycle.id)
+    const laterWeek = await createWeek(weekRange(mesocycle.id, '2026-02-01', '2026-02-07'))
     await createDay({ weekId: laterWeek.id, date: '2026-02-01T00:00:00.000Z', label: '' })
-    const earlierWeek = await createWeek(mesocycle.id)
+    const earlierWeek = await createWeek(weekRange(mesocycle.id, '2026-01-01', '2026-01-07'))
     await createDay({ weekId: earlierWeek.id, date: '2026-01-01T00:00:00.000Z', label: '' })
 
     const result = await listWeeksWithContext()
@@ -443,7 +453,7 @@ describe('listMesocyclesWithContext', () => {
 describe('setDayPlanClosed', () => {
   it('sets and clears planClosedAt', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
     expect(day.planClosedAt).toBeNull()
 
@@ -458,7 +468,7 @@ describe('setDayPlanClosed', () => {
 describe('setPlannedExerciseClosed', () => {
   it('sets and clears closedAt', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
@@ -489,7 +499,7 @@ describe('setPlannedExerciseClosed', () => {
 describe('updatePlannedExerciseNotes', () => {
   it('overwrites the note without touching its sets', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
@@ -525,7 +535,7 @@ describe('updatePlannedExerciseNotes', () => {
 describe('updatePlannedSet', () => {
   it('overwrites a planned set\'s targets in place, keeping its setNumber', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: '' })
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
@@ -566,7 +576,7 @@ describe('updatePlannedSet', () => {
 describe('deleteDay', () => {
   it('soft-deletes the day and cascades to its planned exercises/sets', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
       name: 'Press banca',
@@ -605,7 +615,7 @@ describe('deleteDay', () => {
 
   it('cascades to a logged session (and its executed sets) and cardio sessions', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -669,7 +679,7 @@ describe('deleteDay', () => {
 })
 
 describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
-  it('cascades all the way down to planned exercises/sets of every day', async () => {
+  it('deleteMacrocycle borra los mesociclos pero deja las semanas sueltas, con todo lo planificado', async () => {
     const macrocycle = await createMacrocycle({
       name: 'Prep',
       goal: 'Competencia',
@@ -683,7 +693,7 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
       startDate: '2026-01-01T00:00:00.000Z',
       endDate: '2026-02-01T00:00:00.000Z',
     })
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
       name: 'Press banca',
@@ -715,15 +725,17 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
     })
     expect(await listMesocycles(macrocycle.id)).toEqual([])
     expect(await listWeeks(mesocycle.id)).toEqual([])
-    expect(await listDays(week.id)).toEqual([])
-    expect(await listPlannedExercises(day.id)).toEqual([])
-    expect(await listPlannedSets(plannedExercise.id)).toEqual([])
+    // Las semanas son independientes: perder la agrupación no es perder el plan.
+    expect(getRow('training_weeks', week.id)).toMatchObject({ mesocycleId: null, deletedAt: null })
+    expect((await listDays(week.id)).map((d) => d.id)).toEqual([day.id])
+    expect(await listPlannedExercises(day.id)).toHaveLength(1)
+    expect(await listPlannedSets(plannedExercise.id)).toHaveLength(1)
   })
 
   it('deleteWeek only removes its own days, not sibling weeks', async () => {
     const mesocycle = await seedMesocycle()
-    const weekToDelete = await createWeek(mesocycle.id)
-    const weekToKeep = await createWeek(mesocycle.id)
+    const weekToDelete = await createWeek(weekRange(mesocycle.id))
+    const weekToKeep = await createWeek(weekRange(mesocycle.id))
     const dayToDelete = await createDay({
       weekId: weekToDelete.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -746,7 +758,7 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
     expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([weekToKeep.id])
   })
 
-  it('deleteMesocycle only removes its own weeks, not sibling mesocycles', async () => {
+  it('deleteMesocycle suelta sus semanas y no toca a los mesociclos hermanos', async () => {
     const macrocycle = await createMacrocycle({
       name: 'Prep',
       goal: 'Competencia',
@@ -768,8 +780,13 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
       endDate: '2026-03-01T00:00:00.000Z',
     })
 
+    const linked = await createWeek(weekRange(mesoToDelete.id))
+    const untouched = await createWeek(weekRange(mesoToKeep.id, '2026-01-12', '2026-01-18'))
+
     await deleteMesocycle(mesoToDelete.id)
 
+    expect(getRow('training_weeks', linked.id)).toMatchObject({ mesocycleId: null, deletedAt: null })
+    expect(getRow('training_weeks', untouched.id)).toMatchObject({ mesocycleId: mesoToKeep.id })
     const remaining = await listMesocycles(macrocycle.id)
     expect(remaining).toHaveLength(1)
     expect(remaining[0].id).toBe(mesoToKeep.id)
@@ -779,7 +796,7 @@ describe('deleteWeek / deleteMesocycle / deleteMacrocycle', () => {
 describe('copyPlannedExercisesToDay', () => {
   it('copies exercises and sets as independent records', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
       name: 'Press banca',
@@ -833,7 +850,7 @@ describe('copyPlannedExercisesToDay', () => {
 
   it('no duplica un ejercicio que el día de destino ya tiene planificado', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const chest = await createMuscleGroup('Pecho')
     const exercise = await createExercise({
       name: 'Press banca',
@@ -904,7 +921,7 @@ describe('updateMacrocycle / updateMesocycle / updateDay', () => {
 
   it('overwrites a day in place', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -921,39 +938,64 @@ describe('updateMacrocycle / updateMesocycle / updateDay', () => {
   })
 })
 
-describe('reorderWeek', () => {
-  it('swaps a week with the previous or next sibling', async () => {
+describe('semanas independientes', () => {
+  it('se listan por fecha de inicio, no por el orden en que se crearon', async () => {
     const mesocycle = await seedMesocycle()
-    const week1 = await createWeek(mesocycle.id)
-    const week2 = await createWeek(mesocycle.id)
-    const week3 = await createWeek(mesocycle.id)
+    const later = await createWeek(weekRange(mesocycle.id, '2026-01-12', '2026-01-18'))
+    const earlier = await createWeek(weekRange(mesocycle.id, '2026-01-05', '2026-01-11'))
 
-    await reorderWeek(week2.id, 'up')
-    let ordered = await listWeeks(mesocycle.id)
-    expect(ordered.map((w) => w.id)).toEqual([week2.id, week1.id, week3.id])
-
-    await reorderWeek(week2.id, 'down')
-    ordered = await listWeeks(mesocycle.id)
-    expect(ordered.map((w) => w.id)).toEqual([week1.id, week2.id, week3.id])
+    expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([earlier.id, later.id])
+    expect((await listAllWeeks()).map((w) => w.id)).toEqual([earlier.id, later.id])
   })
 
-  it('is a no-op at either end of the list', async () => {
+  it('una semana puede existir sin mesociclo y aparece sólo en la lista general', async () => {
     const mesocycle = await seedMesocycle()
-    const week1 = await createWeek(mesocycle.id)
-    const week2 = await createWeek(mesocycle.id)
+    const free = await createWeek(weekRange(null))
 
-    await reorderWeek(week1.id, 'up')
-    expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([week1.id, week2.id])
+    expect(await listWeeks(mesocycle.id)).toEqual([])
+    expect((await listAllWeeks()).map((w) => w.id)).toEqual([free.id])
+  })
 
-    await reorderWeek(week2.id, 'down')
-    expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([week1.id, week2.id])
+  it('acepta un rango de domingo a domingo', async () => {
+    const week = await createWeek(weekRange(null, '2026-10-18', '2026-10-25'))
+    expect(getRow('training_weeks', week.id)).toMatchObject({
+      startDate: '2026-10-18',
+      endDate: '2026-10-25',
+    })
+  })
+
+  it('enlazar o soltar una semana no toca sus días ni lo planificado', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(weekRange(null))
+    const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: 'A' })
+
+    await setWeekMesocycle(week.id, mesocycle.id)
+    expect((await listWeeks(mesocycle.id)).map((w) => w.id)).toEqual([week.id])
+    await setWeekMesocycle(week.id, null)
+    expect(await listWeeks(mesocycle.id)).toEqual([])
+    expect((await listDays(week.id)).map((d) => d.id)).toEqual([day.id])
+  })
+
+  it('updateWeek cambia el rango y el mesociclo sin mover los días', async () => {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(weekRange(null))
+    const day = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: 'A' })
+
+    await updateWeek(week.id, weekRange(mesocycle.id, '2026-01-04', '2026-01-11'))
+
+    expect(getRow('training_weeks', week.id)).toMatchObject({
+      mesocycleId: mesocycle.id,
+      startDate: '2026-01-04',
+      endDate: '2026-01-11',
+    })
+    expect(getRow('training_days', day.id)).toMatchObject({ date: '2026-01-05T00:00:00.000Z' })
   })
 })
 
 describe('reorderPlannedExercise', () => {
   it('swaps a planned exercise with the previous or next sibling', async () => {
     const mesocycle = await seedMesocycle()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek(weekRange(mesocycle.id))
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
@@ -1002,7 +1044,9 @@ describe('planilla del bloque', () => {
     const marzo = (day: number) => `2026-03-${String(day).padStart(2, '0')}T00:00:00.000Z`
     const weeks = []
     for (let w = 0; w < 3; w++) {
-      const week = await createWeek(meso.id)
+      const week = await createWeek(
+        weekRange(meso.id, marzo(2 + w * 7).slice(0, 10), marzo(8 + w * 7).slice(0, 10)),
+      )
       const d1 = await createDay({ weekId: week.id, date: marzo(2 + w * 7), label: '' })
       const d2 = await createDay({ weekId: week.id, date: marzo(4 + w * 7), label: '' })
       weeks.push({ week, d1, d2 })
@@ -1026,7 +1070,7 @@ describe('planilla del bloque', () => {
 
     // Otro bloque, que no debe colarse.
     const otro = await seedMesocycle()
-    const otraSemana = await createWeek(otro.id)
+    const otraSemana = await createWeek(weekRange(otro.id, '2026-05-01', '2026-05-07'))
     await createDay({ weekId: otraSemana.id, date: '2026-05-01T00:00:00.000Z', label: '' })
 
     const data = await getBlockGridData(meso.id)
@@ -1240,8 +1284,8 @@ describe('copyPreviousWeekPlan', () => {
       category: null,
       muscleContributions: [{ muscleGroupId: chest.id, factor: 0.5 }],
     })
-    const week1 = await createWeek(mesocycle.id)
-    const week2 = await createWeek(mesocycle.id)
+    const week1 = await createWeek(weekRange(mesocycle.id))
+    const week2 = await createWeek(weekRange(mesocycle.id))
     const w1d1 = await createDay({
       weekId: week1.id,
       date: '2026-01-05T00:00:00.000Z',

@@ -58,7 +58,7 @@ async function seedDay() {
     startDate: '2026-01-01T00:00:00.000Z',
     endDate: '2026-02-01T00:00:00.000Z',
   })
-  const week = await createWeek(mesocycle.id)
+  const week = await createWeek({ mesocycleId: mesocycle.id, startDate: '2026-01-05', endDate: '2026-01-11' })
   return createDay({
     weekId: week.id,
     date: '2026-01-05T00:00:00.000Z',

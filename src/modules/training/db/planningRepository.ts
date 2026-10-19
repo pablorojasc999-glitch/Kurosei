@@ -7,6 +7,7 @@ import { deleteSession, getSessionForDay } from './executionRepository'
 import { moveInOrder } from '../lib/blockGridOrder'
 import { arrangeDaysBySlot } from '../lib/daySlots'
 import { countsAsEffective } from '../lib/effectiveSets'
+import { compareWeeks } from '../lib/weeks'
 import type {
   Day,
   ExecutedSet,
@@ -132,6 +133,7 @@ export async function updateMesocycle(
   if (error) throw new Error(error.message)
 }
 
+/** Las semanas enlazadas a un mesociclo, por fecha de inicio. */
 export async function listWeeks(mesocycleId: string): Promise<Week[]> {
   const { data, error } = await client()
     .from('training_weeks')
@@ -139,18 +141,31 @@ export async function listWeeks(mesocycleId: string): Promise<Week[]> {
     .eq('mesocycleId', mesocycleId)
     .is('deletedAt', null)
   if (error) throw new Error(error.message)
-  return (data as Week[]).sort((a, b) => a.order - b.order)
+  return (data as Week[]).sort(compareWeeks)
 }
 
-export async function createWeek(mesocycleId: string): Promise<Week> {
-  const siblings = await listWeeks(mesocycleId)
-  const nextOrder = siblings.length
-    ? Math.max(...siblings.map((w) => w.order)) + 1
-    : 0
+/** Todas las semanas, enlazadas o no, por fecha de inicio. */
+export async function listAllWeeks(): Promise<Week[]> {
+  const { data, error } = await client().from('training_weeks').select('*').is('deletedAt', null)
+  if (error) throw new Error(error.message)
+  return (data as Week[]).sort(compareWeeks)
+}
+
+export interface WeekInput {
+  mesocycleId: string | null
+  /** `YYYY-MM-DD`. */
+  startDate: string
+  /** `YYYY-MM-DD`, inclusive. */
+  endDate: string
+}
+
+export async function createWeek(input: WeekInput): Promise<Week> {
+  const siblings = await listAllWeeks()
+  const nextOrder = siblings.length ? Math.max(...siblings.map((w) => w.order)) + 1 : 0
   const timestamp = nowIso()
   const week: Week = {
     id: generateId(),
-    mesocycleId,
+    ...input,
     order: nextOrder,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -162,6 +177,28 @@ export async function createWeek(mesocycleId: string): Promise<Week> {
   return week
 }
 
+/**
+ * Cambia el rango o el mesociclo de una semana. No toca sus días: mover una
+ * semana de fechas no mueve lo planificado dentro, y enlazarla a otro mesociclo
+ * tampoco.
+ */
+export async function updateWeek(id: string, input: WeekInput): Promise<void> {
+  const { error } = await client()
+    .from('training_weeks')
+    .update({ ...input, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** Enlaza una semana a un mesociclo, o la suelta con `null`. */
+export async function setWeekMesocycle(id: string, mesocycleId: string | null): Promise<void> {
+  const { error } = await client()
+    .from('training_weeks')
+    .update({ mesocycleId, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
 export async function getWeekById(id: string): Promise<Week | null> {
   const { data, error } = await client()
     .from('training_weeks')
@@ -170,35 +207,6 @@ export async function getWeekById(id: string): Promise<Week | null> {
     .maybeSingle()
   if (error) throw new Error(error.message)
   return data as Week | null
-}
-
-/**
- * Swaps a week's position with its previous ('up') or next ('down') sibling
- * within the same mesocycle. A no-op at either end of the list.
- */
-export async function reorderWeek(
-  id: string,
-  direction: 'up' | 'down',
-): Promise<void> {
-  const week = await getWeekById(id)
-  if (!week) return
-  const siblings = await listWeeks(week.mesocycleId)
-  const index = siblings.findIndex((w) => w.id === id)
-  const targetIndex = direction === 'up' ? index - 1 : index + 1
-  const target = siblings[targetIndex]
-  if (!target) return
-
-  const timestamp = nowIso()
-  const { error: error1 } = await client()
-    .from('training_weeks')
-    .update({ order: target.order, updatedAt: timestamp })
-    .eq('id', week.id)
-  if (error1) throw new Error(error1.message)
-  const { error: error2 } = await client()
-    .from('training_weeks')
-    .update({ order: week.order, updatedAt: timestamp })
-    .eq('id', target.id)
-  if (error2) throw new Error(error2.message)
 }
 
 export async function listDays(weekId: string): Promise<Day[]> {
@@ -341,11 +349,14 @@ export async function deleteWeek(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-/** Deletes a Mesocycle and every week inside it (see deleteWeek). */
+/**
+ * Borra un mesociclo y suelta sus semanas, que siguen existiendo con todo lo
+ * planificado: son independientes, y el mesociclo sólo era una agrupación.
+ */
 export async function deleteMesocycle(id: string): Promise<void> {
   const weeks = await listWeeks(id)
   for (const week of weeks) {
-    await deleteWeek(week.id)
+    await setWeekMesocycle(week.id, null)
   }
   const timestamp = nowIso()
   const { error } = await client()
@@ -355,7 +366,7 @@ export async function deleteMesocycle(id: string): Promise<void> {
   if (error) throw new Error(error.message)
 }
 
-/** Deletes a Macrocycle and every mesocycle inside it (see deleteMesocycle). */
+/** Borra un macrociclo y sus mesociclos (las semanas quedan sueltas, ver deleteMesocycle). */
 export async function deleteMacrocycle(id: string): Promise<void> {
   const mesocycles = await listMesocycles(id)
   for (const mesocycle of mesocycles) {
@@ -701,9 +712,9 @@ export async function copyPlannedExercisesToDay(
 }
 
 /**
- * Duplicates a week as a starting point for the next one: new week appended
- * to the same mesocycle, its days shifted +7 days, with all planned
- * exercises/sets copied 1:1 so they can be edited independently.
+ * Duplica una semana como punto de partida para la siguiente: la copia queda
+ * siete días después, en el mismo mesociclo, con sus días desplazados y todo lo
+ * planificado copiado 1:1 para poder editarlo por separado.
  */
 export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
   const sourceWeek = await getWeekById(sourceWeekId)
@@ -711,14 +722,21 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
     throw new Error('Semana de origen no encontrada.')
   }
 
+  const shift = (iso: string) => new Date(new Date(iso).getTime() + SEVEN_DAYS_MS).toISOString()
+  const shiftKey = (key: string) => shift(`${key.slice(0, 10)}T12:00:00.000Z`).slice(0, 10)
+
   const sourceDays = await listDays(sourceWeekId)
-  const newWeek = await createWeek(sourceWeek.mesocycleId)
+  const newWeek = await createWeek({
+    mesocycleId: sourceWeek.mesocycleId,
+    startDate: shiftKey(sourceWeek.startDate),
+    endDate: shiftKey(sourceWeek.endDate),
+  })
 
   const newDays: Day[] = []
   for (const sourceDay of sourceDays) {
     const newDay = await createDay({
       weekId: newWeek.id,
-      date: new Date(new Date(sourceDay.date).getTime() + SEVEN_DAYS_MS).toISOString(),
+      date: shift(sourceDay.date),
       label: sourceDay.label,
       slotIndex: sourceDay.slotIndex ?? null,
     })
@@ -774,9 +792,11 @@ export async function listPlannedDaysWithExercises(): Promise<PlannedDaySummary[
 
 export interface WeekWithContext {
   id: string
-  macrocycleName: string
-  mesocycleName: string
-  order: number
+  /** `null` cuando la semana no está enlazada a ningún mesociclo. */
+  macrocycleName: string | null
+  mesocycleName: string | null
+  startDate: string
+  endDate: string
   dayDates: string[]
 }
 
@@ -811,23 +831,26 @@ export async function listWeeksWithContext(): Promise<WeekWithContext[]> {
 
   return weeks
     .map((w) => {
-      const meso = mesoById.get(w.mesocycleId)
+      const meso = w.mesocycleId ? mesoById.get(w.mesocycleId) : undefined
       const macro = meso ? macroById.get(meso.macrocycleId) : undefined
       return {
         id: w.id,
-        macrocycleName: macro?.name ?? '?',
-        mesocycleName: meso?.name ?? '?',
-        order: w.order,
+        macrocycleName: macro?.name ?? null,
+        mesocycleName: meso?.name ?? null,
+        startDate: w.startDate,
+        endDate: w.endDate,
         dayDates: (dayDatesByWeek.get(w.id) ?? []).sort(),
       }
     })
-    .sort((a, b) => (a.dayDates[0] ?? '').localeCompare(b.dayDates[0] ?? ''))
+    .sort((a, b) => a.startDate.slice(0, 10).localeCompare(b.startDate.slice(0, 10)))
 }
 
 export interface MesocycleWithContext {
   id: string
+  macrocycleId: string
   macrocycleName: string
   name: string
+  order: number
   phaseType: PhaseType
   startDate: string
   endDate: string
@@ -851,8 +874,10 @@ export async function listMesocyclesWithContext(): Promise<MesocycleWithContext[
   return mesocycles
     .map((m) => ({
       id: m.id,
+      macrocycleId: m.macrocycleId,
       macrocycleName: macroById.get(m.macrocycleId)?.name ?? '?',
       name: m.name,
+      order: m.order,
       phaseType: m.phaseType,
       startDate: m.startDate,
       endDate: m.endDate,

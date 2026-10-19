@@ -1,22 +1,15 @@
 import { useCallback, useEffect, useRef } from 'react'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { listAllSessions } from '../db/executionRepository'
-import { listAllDays, listMesocycles, listWeeks } from '../db/planningRepository'
+import { listAllDays, listAllWeeks, listMesocycles } from '../db/planningRepository'
 import type { Macrocycle } from '../domain/types'
-import { buildMacroCalendar, WEEKDAY_LABELS, type CellState } from '../lib/macroCalendar'
+import { buildMacroCalendar, mesoHue, WEEKDAY_LABELS, type CellState } from '../lib/macroCalendar'
 
 interface MacroCalendarProps {
   macrocycle: Macrocycle
   /** Abre el día tocado; null cuando la celda no tiene plan. */
   onOpenDay: (dayId: string) => void
   onOpenMesocycle: (mesocycleId: string) => void
-}
-
-/** Un tono por mesociclo, en orden. Se repite si hay más de cinco. */
-const MESO_HUES = [332, 68, 168, 262, 28]
-
-function hueOf(index: number): number | null {
-  return index < 0 ? null : MESO_HUES[index % MESO_HUES.length]
 }
 
 /** El punto de estado: hecho, planificado, o todavía nada. */
@@ -32,19 +25,22 @@ function StateDot({ state }: { state: CellState }) {
  * izquierda para no perder de vista qué fila se está mirando.
  */
 export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroCalendarProps) {
-  // Una sola consulta encadenada: mesociclos → semanas → días → sesiones. Por
+  // Una sola consulta encadenada: mesociclos y semanas → días → sesiones. Por
   // separado haría cuatro renders en cascada y un parpadeo por cada uno.
   const { data } = useRemoteQuery(
     useCallback(async () => {
-      const mesocycles = await listMesocycles(macrocycle.id)
-      const weeksPerMeso = await Promise.all(mesocycles.map((m) => listWeeks(m.id)))
-      const weekIds = new Set(weeksPerMeso.flat().map((w) => w.id))
+      const [mesocycles, allWeeks] = await Promise.all([listMesocycles(macrocycle.id), listAllWeeks()])
+      const mesoIds = new Set(mesocycles.map((m) => m.id))
+      // Las semanas sin mesociclo también se ven (sin color): sacarlas haría
+      // desaparecer del calendario lo que todavía no se agrupó.
+      const weeks = allWeeks.filter((w) => w.mesocycleId === null || mesoIds.has(w.mesocycleId))
+      const weekIds = new Set(weeks.map((w) => w.id))
       const days = (await listAllDays()).filter(
         (d) => d.weekId !== null && weekIds.has(d.weekId),
       )
       const dayIds = new Set(days.map((d) => d.id))
       const sessions = (await listAllSessions()).filter((s) => dayIds.has(s.dayId))
-      return { mesocycles, days, sessions }
+      return { mesocycles, weeks, days, sessions }
     }, [macrocycle.id]),
   )
 
@@ -65,6 +61,7 @@ export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroC
   const calendar = buildMacroCalendar({
     macrocycle,
     mesocycles: data.mesocycles,
+    weeks: data.weeks,
     days: data.days,
     sessions: data.sessions,
     today: new Date(),
@@ -82,8 +79,8 @@ export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroC
             <div
               key={week.start}
               className={`macro-week-head${week.containsToday ? ' macro-week-head--now' : ''}`}
-              style={hueOf(week.mesocycleIndex) !== null
-                ? ({ '--meso-hue': hueOf(week.mesocycleIndex) } as React.CSSProperties)
+              style={mesoHue(week.mesocycleIndex) !== null
+                ? ({ '--meso-hue': mesoHue(week.mesocycleIndex) } as React.CSSProperties)
                 : undefined}
             >
               {week.monthLabel && <span className="macro-month">{week.monthLabel}</span>}
@@ -105,7 +102,7 @@ export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroC
               // bloque que empieza o termina a mitad de semana tiene que
               // pintarse desde su primer día y hasta el último, no de lunes a
               // domingo.
-              const hue = hueOf(cell.mesocycleIndex)
+              const hue = mesoHue(cell.mesocycleIndex)
               const className = [
                 'macro-cell',
                 cell.outside ? 'macro-cell--outside' : '',
@@ -158,7 +155,7 @@ export function MacroCalendar({ macrocycle, onOpenDay, onOpenMesocycle }: MacroC
               key={m.id}
               type="button"
               className="macro-meso-chip"
-              style={{ '--meso-hue': hueOf(m.index) } as React.CSSProperties}
+              style={{ '--meso-hue': mesoHue(m.index) } as React.CSSProperties}
               onClick={() => onOpenMesocycle(m.id)}
             >
               <span className="macro-meso-name">
