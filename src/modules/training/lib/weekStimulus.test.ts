@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MuscleContribution } from './metrics'
-import { countsForStimulus, weekStimulusByGroup } from './weekStimulus'
+import { countsForStimulus, weekStimulusByDay, weekStimulusByGroup } from './weekStimulus'
 
 const contributions = new Map<string, MuscleContribution[]>([
   ['squat', [{ muscleGroupId: 'quad', factor: 1 }, { muscleGroupId: 'glute', factor: 0.5 }]],
@@ -63,5 +63,56 @@ describe('weekStimulusByGroup', () => {
 
   it('sin series no hay filas', () => {
     expect(weekStimulusByGroup([], contributions, nameOf)).toEqual([])
+  })
+})
+
+describe('weekStimulusByDay', () => {
+  it('reparte el estímulo por día y la suma de los días da el total', () => {
+    const result = weekStimulusByDay(
+      [
+        { dayId: 'lun', exerciseId: 'squat', rpe: 8 },
+        { dayId: 'lun', exerciseId: 'squat', rpe: 8 },
+        { dayId: 'jue', exerciseId: 'squat', rpe: 8 },
+        { dayId: 'jue', exerciseId: 'curl', rpe: null },
+      ],
+      ['lun', 'mar', 'jue'],
+      contributions,
+      nameOf,
+    )
+    const quad = result.rows.find((r) => r.name === 'Cuádriceps')
+    expect(quad?.perDay).toEqual([2, 0, 1])
+    expect(quad?.total).toBeCloseTo(3, 6)
+    const biceps = result.rows.find((r) => r.name === 'Bíceps')
+    expect(biceps?.perDay).toEqual([0, 0, 1])
+    for (const row of result.rows) {
+      expect(row.perDay.reduce((a, b) => a + b, 0)).toBeCloseTo(row.total, 6)
+    }
+  })
+
+  it('suma el estímulo de todos los grupos de cada día', () => {
+    const result = weekStimulusByDay(
+      [{ dayId: 'lun', exerciseId: 'squat', rpe: 8 }, { dayId: 'jue', exerciseId: 'curl', rpe: 8 }],
+      ['lun', 'jue'],
+      contributions,
+      nameOf,
+    )
+    // Una sentadilla reparte 1 + 0,5; un curl, 1.
+    expect(result.dayTotals[0]).toBeCloseTo(1.5, 6)
+    expect(result.dayTotals[1]).toBeCloseTo(1, 6)
+  })
+
+  it('ordena las filas por total y un día sin series queda en cero', () => {
+    const result = weekStimulusByDay(
+      [{ dayId: 'lun', exerciseId: 'curl', rpe: 8 }, { dayId: 'lun', exerciseId: 'squat', rpe: 8 }, { dayId: 'lun', exerciseId: 'squat', rpe: 8 }],
+      ['lun', 'mar'],
+      contributions,
+      nameOf,
+    )
+    expect(result.rows.map((r) => r.name)).toEqual(['Cuádriceps', 'Bíceps', 'Glúteos'])
+    expect(result.dayTotals[1]).toBe(0)
+  })
+
+  it('sin días no hay filas', () => {
+    expect(weekStimulusByDay([], [], contributions, nameOf)).toEqual({ rows: [], dayTotals: [] })
   })
 })

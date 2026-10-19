@@ -3,6 +3,7 @@ import type { Week } from '../domain/types'
 import { parseDateInput } from './calendarGrid'
 import {
   compareWeeks,
+  dayColumnLabel,
   formatWeekRange,
   isCurrentWeek,
   isValidWeekRange,
@@ -127,5 +128,13 @@ describe('mesocycleIndexInMacro', () => {
     expect(mesocycleIndexInMacro(all[0], all)).toBe(1)
     expect(mesocycleIndexInMacro(all[1], all)).toBe(0)
     expect(mesocycleIndexInMacro(all[2], all)).toBe(0)
+  })
+})
+
+describe('dayColumnLabel', () => {
+  it('da la inicial del día (lunes primero) y el número', () => {
+    // El 19 de octubre de 2026 es lunes y el 25, domingo.
+    expect(dayColumnLabel(new Date(2026, 9, 19, 12).toISOString())).toEqual({ weekday: 'L', day: 19 })
+    expect(dayColumnLabel(new Date(2026, 9, 25, 12).toISOString())).toEqual({ weekday: 'D', day: 25 })
   })
 })

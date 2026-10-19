@@ -1790,6 +1790,72 @@ section {
   color: var(--accent-2);
 }
 
+/* --- estímulo por día ---------------------------------------------------- */
+/* Una fila por músculo y una columna por día. Las columnas se reparten el
+   ancho en vez de desbordar: con siete días entra en un teléfono. */
+.stimulus-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: 12px;
+}
+
+.stimulus-table th {
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.stimulus-table thead th {
+  padding: 2px 0;
+  text-align: center;
+}
+
+.stimulus-table thead th:first-child,
+.stimulus-table tbody th,
+.stimulus-table tfoot th {
+  width: 26%;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 4px;
+}
+
+.stimulus-day-weekday,
+.stimulus-day-number {
+  display: block;
+  line-height: 1.2;
+}
+
+.stimulus-day-number {
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.stimulus-cell,
+.stimulus-total {
+  padding: 5px 0;
+  text-align: center;
+  border-radius: 4px;
+  color: var(--text-muted);
+}
+
+.stimulus-cell--on {
+  color: var(--text);
+  background: rgba(var(--accent-rgb), var(--share, 0.2));
+}
+
+.stimulus-total {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.stimulus-table tfoot th,
+.stimulus-table tfoot td {
+  border-top: 1px solid var(--border);
+}
+
 .volume-bars {
   list-style: none;
   padding: 0;

@@ -41,3 +41,61 @@ export function weekStimulusByGroup(
   const named = [...byId].filter(([id]) => nameOf(id) !== undefined)
   return mergeMuscleGroupTotals(named, (id) => nameOf(id) as string)
 }
+
+export interface DayStimulusSet extends StimulusSet {
+  dayId: string
+}
+
+export interface StimulusRow {
+  key: string
+  name: string
+  /** El estímulo de la semana entera para este grupo. */
+  total: number
+  /** Lo que aporta cada día, en el mismo orden que los días pedidos. */
+  perDay: number[]
+}
+
+export interface WeekStimulus {
+  rows: StimulusRow[]
+  /** El estímulo total de cada día, sumando todos los grupos: dice qué día carga más. */
+  dayTotals: number[]
+}
+
+/**
+ * El estímulo de la semana repartido por día: una fila por músculo con lo que
+ * aporta cada día, para ver en cuál se concentra.
+ *
+ * Cada día se calcula por separado con el mismo criterio de la semana y las
+ * filas se juntan por músculo después, así que la suma de los días da
+ * exactamente el total semanal.
+ */
+export function weekStimulusByDay(
+  sets: DayStimulusSet[],
+  dayIds: string[],
+  contributionsByExercise: Map<string, MuscleContribution[]>,
+  nameOf: (muscleGroupId: string) => string | undefined,
+): WeekStimulus {
+  const merged = new Map<string, StimulusRow>()
+  const dayTotals = dayIds.map(() => 0)
+  dayIds.forEach((dayId, dayIndex) => {
+    const totals = weekStimulusByGroup(
+      sets.filter((s) => s.dayId === dayId),
+      contributionsByExercise,
+      nameOf,
+    )
+    for (const t of totals) {
+      const row = merged.get(t.key) ?? {
+        key: t.key,
+        name: t.name,
+        total: 0,
+        perDay: dayIds.map(() => 0),
+      }
+      row.perDay[dayIndex] += t.value
+      row.total += t.value
+      dayTotals[dayIndex] += t.value
+      merged.set(t.key, row)
+    }
+  })
+  const rows = [...merged.values()].sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'es'))
+  return { rows, dayTotals }
+}

@@ -1,5 +1,6 @@
 import type { Week } from '../domain/types'
 import { addDays, parseDateInput, toDateKey } from './calendarGrid'
+import { WEEKDAY_LABELS } from './macroCalendar'
 
 /**
  * Las semanas son independientes: cada una trae su rango y se ordenan por
@@ -79,4 +80,10 @@ export function mesocycleIndexInMacro(
     .filter((m) => m.macrocycleId === mesocycle.macrocycleId)
     .sort((a, b) => a.order - b.order)
     .findIndex((m) => m.id === mesocycle.id)
+}
+
+/** La inicial del día de la semana (lunes primero, como el calendario) y el número del día: `L` y `19`. */
+export function dayColumnLabel(dateIso: string): { weekday: string; day: number } {
+  const date = new Date(dateIso)
+  return { weekday: WEEKDAY_LABELS[(date.getDay() + 6) % 7], day: date.getDate() }
 }

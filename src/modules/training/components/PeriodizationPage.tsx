@@ -29,6 +29,7 @@ import {
   listPlannedExercises,
   listPlannedSetsForExercises,
   listWeeks,
+  movePlannedExerciseToDay,
   reorderPlannedExercise,
   setDayPlanClosed,
   setWeekMesocycle,
@@ -44,7 +45,7 @@ import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { parseReps } from '../lib/reps'
-import { formatDate, formatRestMinutes } from '../lib/format'
+import { formatDate, formatDateWithWeekday, formatRestMinutes } from '../lib/format'
 import { mesoHue } from '../lib/macroCalendar'
 import {
   formatWeekRange,
@@ -216,6 +217,9 @@ export function PeriodizationPage({
   const [editingMacroId, setEditingMacroId] = useState<string | null>(null)
   const [editingMesoId, setEditingMesoId] = useState<string | null>(null)
   const [editingDayId, setEditingDayId] = useState<string | null>(null)
+  // El ejercicio planificado que se está por mover a otro día, si hay uno.
+  const [movingExerciseId, setMovingExerciseId] = useState<string | null>(null)
+  const [moveError, setMoveError] = useState<string | null>(null)
 
   const { isSubmitting: isCreatingMacro, guard: guardMacro } = useSubmitGuard()
   const { isSubmitting: isCreatingMeso, guard: guardMeso } = useSubmitGuard()
@@ -551,6 +555,17 @@ export function PeriodizationPage({
       [plannedExerciseId]: { weight: '', reps: '', rpe: '', dropSet: false, restPause: false },
     }))
     setEditingSetId((prev) => ({ ...prev, [plannedExerciseId]: null }))
+  }
+
+  async function handleMoveExercise(plannedExerciseId: string, targetDayId: string) {
+    setMoveError(null)
+    try {
+      await movePlannedExerciseToDay(plannedExerciseId, targetDayId)
+      setMovingExerciseId(null)
+      await Promise.all([refreshPlannedExercises(), refreshPlannedDayOptions()])
+    } catch (err) {
+      setMoveError(err instanceof Error ? err.message : 'No se pudo mover el ejercicio')
+    }
   }
 
   function exerciseName(id: string): string {
@@ -894,6 +909,17 @@ export function PeriodizationPage({
                       {!dayLocked && (
                         <button
                           type="button"
+                          onClick={() => {
+                            setMoveError(null)
+                            setMovingExerciseId(pe.id)
+                          }}
+                        >
+                          Mover a otro día
+                        </button>
+                      )}
+                      {!dayLocked && (
+                        <button
+                          type="button"
                           onClick={() =>
                             void setPlannedExerciseClosed(pe.id, !exerciseClosed).then(refreshPlannedExercises)
                           }
@@ -1039,6 +1065,45 @@ export function PeriodizationPage({
               )
             })}
           </ul>
+
+          {movingExerciseId && (
+            <BottomSheet
+              title={`Mover ${exerciseName(plannedExercises?.find((pe) => pe.id === movingExerciseId)?.exerciseId ?? '')}`}
+              onClose={() => setMovingExerciseId(null)}
+            >
+              {(() => {
+                const destinations = (days ?? []).filter((d) => d.id !== dayId)
+                if (destinations.length === 0) {
+                  return (
+                    <p className="empty-hint">
+                      Esta semana no tiene otro día. Agrega uno desde la lista de días y vuelve a intentar.
+                    </p>
+                  )
+                }
+                return (
+                  <ul className="entity-list">
+                    {destinations.map((d) => (
+                      <li key={d.id} className="list-card">
+                        <button
+                          type="button"
+                          className="list-card-main"
+                          disabled={d.planClosedAt !== null}
+                          onClick={() => void handleMoveExercise(movingExerciseId, d.id)}
+                        >
+                          <span className="list-card-line">{formatDateWithWeekday(d.date)}</span>
+                          <span className="list-card-line list-card-line--secondary">
+                            {d.label || 'Sin etiqueta'}
+                            {d.planClosedAt !== null && ' · plan cerrado'}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )
+              })()}
+              {moveError && <p className="error">{moveError}</p>}
+            </BottomSheet>
+          )}
 
           {dayLocked ? (
             <p className="empty-hint">
