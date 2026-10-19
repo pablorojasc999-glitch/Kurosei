@@ -492,6 +492,34 @@ export async function reorderPlannedExercise(
 }
 
 /**
+ * Pasa un ejercicio planificado a otro día, con sus series, al final de lo que
+ * ese día ya tenga.
+ *
+ * Las series cuelgan del ejercicio planificado, no del día, así que basta con
+ * cambiarle el `dayId`: no se copia ni se recrea nada, y lo ya cargado sigue
+ * siendo el mismo registro. Se rechaza un destino con el plan cerrado, porque
+ * cerrar un día es justamente prometer que no se toca.
+ */
+export async function movePlannedExerciseToDay(id: string, targetDayId: string): Promise<void> {
+  const plannedExercise = await getPlannedExerciseById(id)
+  if (!plannedExercise) throw new Error('Ejercicio planificado no encontrado.')
+  if (plannedExercise.dayId === targetDayId) return
+  const targetDay = await getDayById(targetDayId)
+  if (!targetDay) throw new Error('Día de destino no encontrado.')
+  if (targetDay.planClosedAt !== null) {
+    throw new Error('El plan del día de destino está cerrado: reabrilo para poder mover ejercicios ahí.')
+  }
+
+  const siblings = await listPlannedExercises(targetDayId)
+  const nextOrder = siblings.length ? Math.max(...siblings.map((pe) => pe.order)) + 1 : 0
+  const { error } = await client()
+    .from('training_planned_exercises')
+    .update({ dayId: targetDayId, order: nextOrder, updatedAt: nowIso() })
+    .eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/**
  * Edita sólo la nota de un ejercicio planificado, sin tocar sus series.
  *
  * La nota se copia a la sesión al cargar el plan (ver `addSessionExercise` en

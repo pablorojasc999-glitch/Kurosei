@@ -41,6 +41,7 @@ const {
   listPlannedSetsForExercises,
   listWeeks,
   listWeeksWithContext,
+  movePlannedExerciseToDay,
   reorderPlannedExercise,
   setDayPlanClosed,
   setPlannedExerciseClosed,
@@ -1014,5 +1015,73 @@ describe('reorderPlannedExercise', () => {
     await reorderPlannedExercise(pe2.id, 'up')
     const ordered = await listPlannedExercises(day.id)
     expect(ordered.map((pe) => pe.id)).toEqual([pe2.id, pe1.id])
+  })
+})
+
+describe('movePlannedExerciseToDay', () => {
+  async function seedTwoDays() {
+    const mesocycle = await seedMesocycle()
+    const week = await createWeek(weekRange(mesocycle.id))
+    const source = await createDay({ weekId: week.id, date: '2026-01-05T00:00:00.000Z', label: 'A' })
+    const target = await createDay({ weekId: week.id, date: '2026-01-07T00:00:00.000Z', label: 'B' })
+    const chest = await createMuscleGroup('Pecho')
+    const bench = await createExercise({
+      name: 'Press banca',
+      type: 'strength',
+      category: 'bench',
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 1 }],
+    })
+    const fly = await createExercise({
+      name: 'Aperturas',
+      type: 'strength',
+      category: null,
+      muscleContributions: [{ muscleGroupId: chest.id, factor: 0.5 }],
+    })
+    return { source, target, bench, fly }
+  }
+
+  it('pasa el ejercicio con sus series al final del día de destino', async () => {
+    const { source, target, bench, fly } = await seedTwoDays()
+    const moving = await createPlannedExercise({ dayId: source.id, exerciseId: bench.id, notes: 'pausa' })
+    const set = await createPlannedSet({
+      plannedExerciseId: moving.id,
+      targetWeightKg: 100,
+      targetReps: 5,
+      targetRpe: 8,
+      restSecondsTarget: null,
+      dropSet: false,
+      restPause: false,
+    })
+    const resident = await createPlannedExercise({ dayId: target.id, exerciseId: fly.id, notes: '' })
+
+    await movePlannedExerciseToDay(moving.id, target.id)
+
+    expect((await listPlannedExercises(source.id)).map((pe) => pe.id)).toEqual([])
+    expect((await listPlannedExercises(target.id)).map((pe) => pe.id)).toEqual([resident.id, moving.id])
+    // Es el mismo registro, no una copia: conserva su nota y sus series.
+    expect(getRow('training_planned_exercises', moving.id)).toMatchObject({ notes: 'pausa', dayId: target.id })
+    expect((await listPlannedSets(moving.id)).map((s) => s.id)).toEqual([set.id])
+  })
+
+  it('al mover al día vacío queda primero', async () => {
+    const { source, target, bench } = await seedTwoDays()
+    const moving = await createPlannedExercise({ dayId: source.id, exerciseId: bench.id, notes: '' })
+    await movePlannedExerciseToDay(moving.id, target.id)
+    expect(getRow('training_planned_exercises', moving.id)).toMatchObject({ order: 0 })
+  })
+
+  it('mover al mismo día no cambia nada', async () => {
+    const { source, bench } = await seedTwoDays()
+    const moving = await createPlannedExercise({ dayId: source.id, exerciseId: bench.id, notes: '' })
+    await movePlannedExerciseToDay(moving.id, source.id)
+    expect((await listPlannedExercises(source.id)).map((pe) => pe.id)).toEqual([moving.id])
+  })
+
+  it('rechaza un día de destino con el plan cerrado', async () => {
+    const { source, target, bench } = await seedTwoDays()
+    const moving = await createPlannedExercise({ dayId: source.id, exerciseId: bench.id, notes: '' })
+    await setDayPlanClosed(target.id, true)
+    await expect(movePlannedExerciseToDay(moving.id, target.id)).rejects.toThrow(/cerrado/)
+    expect((await listPlannedExercises(source.id)).map((pe) => pe.id)).toEqual([moving.id])
   })
 })
