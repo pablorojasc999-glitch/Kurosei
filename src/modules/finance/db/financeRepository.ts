@@ -386,7 +386,7 @@ export async function softDeleteTransaction(id: string): Promise<void> {
 }
 
 /** Todas las transacciones no borradas — base para filtrar por mes o por año. */
-async function listAllTransactions(): Promise<FinanceTransaction[]> {
+export async function listAllTransactions(): Promise<FinanceTransaction[]> {
   const { data, error } = await client()
     .from('finance_transactions')
     .select('*')

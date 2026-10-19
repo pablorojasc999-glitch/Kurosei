@@ -11,6 +11,9 @@ import {
   updateExercise,
 } from '../db/trainingRepository'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { ExportCsvButton } from '../../../shared/components/ExportCsvButton'
+import { toDateKey } from '../lib/calendarGrid'
+import { buildExerciseLibraryCsv } from '../lib/exerciseCsv'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type { Exercise, ExerciseCategory, ExerciseType, MuscleGroup } from '../domain/types'
 
@@ -148,6 +151,21 @@ export function ExerciseLibraryPage() {
   return (
     <div className="page">
       <h1>Biblioteca de ejercicios</h1>
+
+      <ExportCsvButton
+        label="Exportar biblioteca (CSV)"
+        filename={`kurosei-ejercicios-${toDateKey(new Date())}.csv`}
+        build={async () => {
+          // Se vuelve a pedir en vez de usar lo que ya hay en pantalla: el
+          // archivo tiene que reflejar la base, no un filtro de búsqueda.
+          const [allExercises, allContributions, groups] = await Promise.all([
+            listExercises(),
+            listAllMuscleContributions(),
+            ensureCanonicalMuscleGroups(),
+          ])
+          return buildExerciseLibraryCsv(allExercises, allContributions, groups)
+        }}
+      />
 
       <button type="button" className="finance-add-button" onClick={openCreateForm}>
         + Nuevo ejercicio

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from 'react'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
+import { ExportCsvButton } from '../../../shared/components/ExportCsvButton'
 import { useRemoteQuery } from '../../../shared/hooks/useRemoteQuery'
 import { useSubmitGuard } from '../../../shared/hooks/useSubmitGuard'
 import { useSupabaseSession } from '../../../shared/hooks/useSupabaseSession'
@@ -10,6 +11,7 @@ import {
   getCategoryTotalsForMonth,
   getMonthTotals,
   listAccounts,
+  listAllTransactions,
   listCategories,
   listCategoryBudgets,
   listTransactionsForMonth,
@@ -19,6 +21,7 @@ import {
 import type { FinanceCategoryType, FinanceTransaction } from '../domain/types'
 import { budgetsForMonth } from '../lib/budgets'
 import { sortCategoriesForGrid } from '../lib/categoryOrder'
+import { buildTransactionsCsv } from '../lib/financeCsv'
 import { formatMoney, formatSignedMoney } from '../lib/money'
 import {
   financialMonthOptions,
@@ -258,6 +261,19 @@ export function TransaccionesPage() {
           </ul>
         </section>
       )}
+
+      <ExportCsvButton
+        label="Exportar todos los movimientos (CSV)"
+        filename={`kurosei-finanzas-${toDateKey(new Date())}.csv`}
+        build={async () => {
+          const [transactions, allAccounts, allCategories] = await Promise.all([
+            listAllTransactions(),
+            listAccounts(),
+            listCategories(),
+          ])
+          return buildTransactionsCsv(transactions, allAccounts, allCategories)
+        }}
+      />
 
       <button
         type="button"
