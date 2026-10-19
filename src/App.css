@@ -2503,6 +2503,14 @@ section {
   color: var(--accent-2);
 }
 
+.export-csv-button {
+  width: 100%;
+  margin-bottom: 8px;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
 .finance-total-breakdown {
   list-style: none;
   padding: 0;
