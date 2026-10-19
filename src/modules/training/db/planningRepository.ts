@@ -4,20 +4,15 @@ import { generateId } from '../../../shared/lib/id'
 import { nowIso } from '../../../shared/lib/timestamps'
 import { deleteCardioSession, listCardioSessions } from './cardioRepository'
 import { deleteSession, getSessionForDay } from './executionRepository'
-import { moveInOrder } from '../lib/blockGridOrder'
-import { arrangeDaysBySlot } from '../lib/daySlots'
 import { countsAsEffective } from '../lib/effectiveSets'
 import { compareWeeks } from '../lib/weeks'
 import type {
   Day,
-  ExecutedSet,
   Macrocycle,
   Mesocycle,
   PhaseType,
   PlannedExercise,
   PlannedSet,
-  SessionExercise,
-  StrengthSession,
   Week,
 } from '../domain/types'
 
@@ -264,7 +259,6 @@ export interface CreateDayInput {
   weekId: string | null
   date: string
   label: string
-  slotIndex?: number | null
 }
 
 export async function createDay(input: CreateDayInput): Promise<Day> {
@@ -286,8 +280,6 @@ export async function createDay(input: CreateDayInput): Promise<Day> {
 export interface UpdateDayInput {
   date: string
   label: string
-  /** `null` devuelve el día a la posición que le toca por fecha. */
-  slotIndex?: number | null
 }
 
 export async function updateDay(id: string, input: UpdateDayInput): Promise<void> {
@@ -655,6 +647,81 @@ export async function deletePlannedExercise(id: string): Promise<void> {
   }
 }
 
+/** Una serie del plan, tal como se copia a otro ejercicio. */
+export interface PlannedSetInput {
+  targetWeightKg: number | null
+  targetReps: number
+  targetRpe: number | null
+  restSecondsTarget: number | null
+  /**
+   * Opcionales a propósito: omitirlas deja la marca que ya tuviera la serie
+   * en vez de borrarla sin que nadie la haya desmarcado.
+   */
+  dropSet?: boolean
+  restPause?: boolean
+  countsAsEffective?: boolean
+}
+
+/**
+ * Deja las series de un ejercicio planificado exactamente como se piden,
+ * renumeradas desde 1.
+ *
+ * Se reutilizan las filas que ya existen en vez de borrarlas y recrearlas: así
+ * la sincronización ve una edición y no un borrado más un alta.
+ */
+export async function setPlannedSets(
+  plannedExerciseId: string,
+  rows: PlannedSetInput[],
+): Promise<void> {
+  if (rows.length === 0) throw new Error('Tiene que haber al menos una serie.')
+  if (rows.some((r) => !Number.isInteger(r.targetReps) || r.targetReps < 1)) {
+    throw new Error('Cada serie necesita al menos una repetición.')
+  }
+
+  const timestamp = nowIso()
+  const existing = await listPlannedSets(plannedExerciseId)
+  const userId = await requireUserId()
+
+  for (let i = 0; i < rows.length; i++) {
+    const { dropSet, restPause, countsAsEffective, ...rest } = rows[i]
+    const fields = {
+      ...rest,
+      setNumber: i + 1,
+      updatedAt: timestamp,
+      ...(dropSet === undefined ? {} : { dropSet }),
+      ...(restPause === undefined ? {} : { restPause }),
+      ...(countsAsEffective === undefined ? {} : { countsAsEffective }),
+    }
+    const current = existing[i]
+    if (current) {
+      const { error } = await client().from('training_planned_sets').update(fields).eq('id', current.id)
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await client()
+        .from('training_planned_sets')
+        .insert({
+          id: generateId(),
+          plannedExerciseId,
+          dropSet: dropSet === true,
+          restPause: restPause === true,
+          ...fields,
+          createdAt: timestamp,
+          deletedAt: null,
+          userId,
+        })
+      if (error) throw new Error(error.message)
+    }
+  }
+  // Las que sobran se borran: bajar de 5 a 3 series tiene que dejar 3.
+  for (const extra of existing.slice(rows.length)) {
+    const { error } = await client()
+      .from('training_planned_sets')
+      .update({ deletedAt: timestamp, updatedAt: timestamp })
+      .eq('id', extra.id)
+    if (error) throw new Error(error.message)
+  }
+}
+
 /**
  * Las series de un ejercicio planificado, listas para copiarlas a otro.
  *
@@ -681,9 +748,8 @@ function setsToCopy(sets: PlannedSet[], source: PlannedExercise): PlannedSetInpu
  * Copia un ejercicio planificado a otro día, con sus notas y sus series, como
  * filas nuevas e independientes.
  *
- * Se conserva el `order` de origen en vez de recalcularlo: la planilla ordena
- * las filas por él, así que renumerar dejaría el día copiado con los
- * ejercicios en otro orden que el original.
+ * Se conserva el `order` de origen en vez de recalcularlo: renumerar dejaría el día
+ * copiado con los ejercicios en otro orden que el original.
  */
 async function copyPlannedExerciseTo(
   source: PlannedExercise,
@@ -762,7 +828,6 @@ export async function duplicateWeek(sourceWeekId: string): Promise<Week> {
       weekId: newWeek.id,
       date: shift(sourceDay.date),
       label: sourceDay.label,
-      slotIndex: sourceDay.slotIndex ?? null,
     })
     newDays.push(newDay)
   }
@@ -937,569 +1002,4 @@ export async function getOrCreateDayForDate(date: Date): Promise<Day> {
   const existing = await findDayByDate(date)
   if (existing) return existing
   return createDay({ weekId: null, date: date.toISOString(), label: '' })
-}
-
-// ---------------------------------------------------------------------
-// Planilla del bloque
-// ---------------------------------------------------------------------
-
-/** Todo lo que la planilla del bloque necesita, en una sola pasada. */
-export interface BlockGridData {
-  weeks: Week[]
-  days: Day[]
-  plannedExercises: PlannedExercise[]
-  plannedSets: PlannedSet[]
-  /** Lo realizado, para poder contrastarlo contra el plan en la misma celda. */
-  sessions: StrengthSession[]
-  sessionExercises: SessionExercise[]
-  executedSets: ExecutedSet[]
-}
-
-export async function getBlockGridData(mesocycleId: string): Promise<BlockGridData> {
-  const weeks = await listWeeks(mesocycleId)
-  const weekIds = weeks.map((w) => w.id)
-  if (weekIds.length === 0) {
-    return { weeks, days: [], plannedExercises: [], plannedSets: [], sessions: [], sessionExercises: [], executedSets: [] }
-  }
-
-  const { data: daysData, error: daysError } = await client()
-    .from('training_days')
-    .select('*')
-    .in('weekId', weekIds)
-    .is('deletedAt', null)
-  if (daysError) throw new Error(daysError.message)
-  const days = daysData as Day[]
-
-  const dayIds = days.map((d) => d.id)
-  let plannedExercises: PlannedExercise[] = []
-  let sessions: StrengthSession[] = []
-  if (dayIds.length > 0) {
-    const [peRes, sessionsRes] = await Promise.all([
-      client().from('training_planned_exercises').select('*').in('dayId', dayIds).is('deletedAt', null),
-      client().from('training_sessions').select('*').in('dayId', dayIds).is('deletedAt', null),
-    ])
-    if (peRes.error) throw new Error(peRes.error.message)
-    if (sessionsRes.error) throw new Error(sessionsRes.error.message)
-    plannedExercises = peRes.data as PlannedExercise[]
-    sessions = sessionsRes.data as StrengthSession[]
-  }
-
-  const peIds = plannedExercises.map((pe) => pe.id)
-  const plannedSets =
-    peIds.length === 0
-      ? []
-      : ((await (async () => {
-          const { data, error } = await client()
-            .from('training_planned_sets')
-            .select('*')
-            .in('plannedExerciseId', peIds)
-            .is('deletedAt', null)
-          if (error) throw new Error(error.message)
-          return data as PlannedSet[]
-        })()) ?? [])
-
-  const sessionIds = sessions.map((s) => s.id)
-  const sessionExercises =
-    sessionIds.length === 0
-      ? []
-      : ((await (async () => {
-          const { data, error } = await client()
-            .from('training_session_exercises')
-            .select('*')
-            .in('sessionId', sessionIds)
-            .is('deletedAt', null)
-          if (error) throw new Error(error.message)
-          return data as SessionExercise[]
-        })()) ?? [])
-
-  const seIds = sessionExercises.map((se) => se.id)
-  const executedSets =
-    seIds.length === 0
-      ? []
-      : ((await (async () => {
-          const { data, error } = await client()
-            .from('training_executed_sets')
-            .select('*')
-            .in('sessionExerciseId', seIds)
-            .is('deletedAt', null)
-          if (error) throw new Error(error.message)
-          return data as ExecutedSet[]
-        })()) ?? [])
-
-  return {
-    weeks,
-    days,
-    plannedExercises,
-    plannedSets,
-    sessions,
-    sessionExercises,
-    executedSets,
-  }
-}
-
-/** La prescripción uniforme que se edita desde una celda de la planilla. */
-export interface UniformPrescription {
-  sets: number
-  reps: number
-  weightKg: number | null
-  rpe: number | null
-  restSecondsTarget: number | null
-}
-
-/** Una serie del plan, tal como se edita en la planilla. */
-export interface PlannedSetInput {
-  targetWeightKg: number | null
-  targetReps: number
-  targetRpe: number | null
-  restSecondsTarget: number | null
-  /**
-   * Opcionales a propósito: la prescripción uniforme no ofrece estas marcas,
-   * así que omitirlas deja la que ya tuviera la serie en vez de borrarla sin
-   * que nadie la haya desmarcado.
-   */
-  dropSet?: boolean
-  restPause?: boolean
-  countsAsEffective?: boolean
-}
-
-/**
- * Deja las series de un ejercicio planificado exactamente como se piden,
- * renumeradas desde 1.
- *
- * Se reutilizan las filas que ya existen en vez de borrarlas y recrearlas: así
- * la sincronización ve una edición y no un borrado más un alta.
- */
-export async function setPlannedSets(
-  plannedExerciseId: string,
-  rows: PlannedSetInput[],
-): Promise<void> {
-  if (rows.length === 0) throw new Error('Tiene que haber al menos una serie.')
-  if (rows.some((r) => !Number.isInteger(r.targetReps) || r.targetReps < 1)) {
-    throw new Error('Cada serie necesita al menos una repetición.')
-  }
-
-  const timestamp = nowIso()
-  const existing = await listPlannedSets(plannedExerciseId)
-  const userId = await requireUserId()
-
-  for (let i = 0; i < rows.length; i++) {
-    const { dropSet, restPause, countsAsEffective, ...rest } = rows[i]
-    const fields = {
-      ...rest,
-      setNumber: i + 1,
-      updatedAt: timestamp,
-      ...(dropSet === undefined ? {} : { dropSet }),
-      ...(restPause === undefined ? {} : { restPause }),
-      ...(countsAsEffective === undefined ? {} : { countsAsEffective }),
-    }
-    const current = existing[i]
-    if (current) {
-      const { error } = await client().from('training_planned_sets').update(fields).eq('id', current.id)
-      if (error) throw new Error(error.message)
-    } else {
-      const { error } = await client()
-        .from('training_planned_sets')
-        .insert({
-          id: generateId(),
-          plannedExerciseId,
-          dropSet: dropSet === true,
-          restPause: restPause === true,
-          ...fields,
-          createdAt: timestamp,
-          deletedAt: null,
-          userId,
-        })
-      if (error) throw new Error(error.message)
-    }
-  }
-  // Las que sobran se borran: bajar de 5 a 3 series tiene que dejar 3.
-  for (const extra of existing.slice(rows.length)) {
-    const { error } = await client()
-      .from('training_planned_sets')
-      .update({ deletedAt: timestamp, updatedAt: timestamp })
-      .eq('id', extra.id)
-    if (error) throw new Error(error.message)
-  }
-}
-
-/**
- * El atajo de la planilla: N series iguales, que es como se prescribe el 90%
- * del powerlifting.
- */
-export async function setUniformPrescription(
-  plannedExerciseId: string,
-  input: UniformPrescription,
-): Promise<void> {
-  if (input.sets < 1) throw new Error('Tiene que haber al menos una serie.')
-  if (input.reps < 1) throw new Error('Tiene que haber al menos una repetición.')
-  await setPlannedSets(
-    plannedExerciseId,
-    Array.from({ length: input.sets }, () => ({
-      targetWeightKg: input.weightKg,
-      targetReps: input.reps,
-      targetRpe: input.rpe,
-      restSecondsTarget: input.restSecondsTarget,
-    })),
-  )
-}
-
-export interface PinExerciseResult {
-  /** En cuántas semanas quedó el ejercicio con esa prescripción. */
-  applied: number
-  /** Semanas del bloque que no tienen ese día, así que no se pudo aplicar. */
-  skipped: number
-}
-
-/**
- * Fija un ejercicio en la misma posición de día de todas las semanas del
- * bloque, con la prescripción de la celda de origen. Es lo que hace útil que
- * el "día 1" sea siempre el mismo trabajo: se define una vez y se replica.
- *
- * Una semana que no llega a tener ese día se salta en vez de inventarle una
- * fecha, y se informa cuántas fueron.
- */
-export async function pinExerciseAcrossBlock(
-  mesocycleId: string,
-  slotIndex: number,
-  exerciseId: string,
-  sourcePlannedExerciseId: string,
-): Promise<PinExerciseResult> {
-  const source = await getPlannedExerciseById(sourcePlannedExerciseId)
-  if (!source) throw new Error('No se encontró el ejercicio de origen.')
-  const sourceSets = await listPlannedSets(sourcePlannedExerciseId)
-
-  const { weeks, days } = await getBlockGridData(mesocycleId)
-  let applied = 0
-  let skipped = 0
-
-  for (const week of weeks) {
-    const target = arrangeDaysBySlot(days.filter((d) => d.weekId === week.id))[slotIndex]
-    if (!target) {
-      skipped += 1
-      continue
-    }
-
-    const existing = (await listPlannedExercises(target.id)).find(
-      (pe) => pe.exerciseId === exerciseId,
-    )
-    const plannedExercise =
-      existing ??
-      (await createPlannedExercise({
-        dayId: target.id,
-        exerciseId,
-        notes: source.notes,
-      }))
-
-    if (plannedExercise.id !== sourcePlannedExerciseId) {
-      await replaceSetsFrom(plannedExercise.id, sourceSets, source)
-    }
-    applied += 1
-  }
-
-  return { applied, skipped }
-}
-
-/** Deja las series de `plannedExerciseId` idénticas a las del ejercicio de origen. */
-async function replaceSetsFrom(
-  plannedExerciseId: string,
-  sourceSets: PlannedSet[],
-  source: PlannedExercise,
-): Promise<void> {
-  if (sourceSets.length === 0) return
-  await setPlannedSets(plannedExerciseId, setsToCopy(sourceSets, source))
-}
-
-/**
- * Añade un ejercicio a la posición de día de una semana concreta — el `+` de
- * una celda vacía de la planilla.
- */
-export async function addExerciseToSlot(
-  weekId: string,
-  slotIndex: number,
-  exerciseId: string,
-): Promise<PlannedExercise | null> {
-  const weekDays = await listDays(weekId)
-  const target = arrangeDaysBySlot(weekDays)[slotIndex]
-  if (!target) return null
-  const existing = (await listPlannedExercises(target.id)).find(
-    (pe) => pe.exerciseId === exerciseId,
-  )
-  if (existing) return existing
-  return createPlannedExercise({ dayId: target.id, exerciseId, notes: '' })
-}
-
-/**
- * Los días de un bloque por posición: `[semana][posición]`, ordenados por
- * fecha dentro de cada semana.
- *
- * Es el mismo emparejamiento que hace la planilla —el "día 1" es posicional, no
- * el lunes—, y lo necesitan todas las operaciones que trabajan sobre una fila
- * entera en vez de sobre un día suelto.
- */
-async function slotDaysOfBlock(mesocycleId: string): Promise<(Day | undefined)[][]> {
-  const weeks = await listWeeks(mesocycleId)
-  const perWeek: (Day | undefined)[][] = []
-  for (const week of weeks) {
-    const days = await listDays(week.id)
-    perWeek.push(arrangeDaysBySlot(days))
-  }
-  return perWeek
-}
-
-/**
- * Mueve una fila de la planilla dentro de su día, en todas las semanas del
- * bloque a la vez.
- *
- * Una fila no es un ejercicio planificado sino el mismo ejercicio repetido en
- * cada semana, así que moverlo en una sola dejaría la planilla descuadrada: la
- * fila saldría en un lugar distinto según la columna.
- */
-export async function reorderSlotExercise(
-  mesocycleId: string,
-  slotIndex: number,
-  exerciseId: string,
-  direction: 'up' | 'down',
-): Promise<void> {
-  const slotDays = await slotDaysOfBlock(mesocycleId)
-  const days = slotDays.map((week) => week[slotIndex]).filter((d): d is Day => d !== undefined)
-  if (days.length === 0) return
-
-  // El orden de las filas lo fija el `order` más bajo que tenga el ejercicio en
-  // cualquiera de las semanas, que es como lo lee la planilla.
-  const peByDay = new Map<string, PlannedExercise[]>()
-  const lowestOrder = new Map<string, number>()
-  for (const day of days) {
-    const list = await listPlannedExercises(day.id)
-    peByDay.set(day.id, list)
-    for (const pe of list) {
-      const current = lowestOrder.get(pe.exerciseId)
-      if (current === undefined || pe.order < current) lowestOrder.set(pe.exerciseId, pe.order)
-    }
-  }
-  const ordered = [...lowestOrder.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id)
-  const next = moveInOrder(ordered, exerciseId, direction)
-  if (next === ordered) return
-
-  const rank = new Map(next.map((id, index) => [id, index]))
-  const timestamp = nowIso()
-  for (const list of peByDay.values()) {
-    for (const pe of list) {
-      const order = rank.get(pe.exerciseId)
-      if (order === undefined || order === pe.order) continue
-      const { error } = await client()
-        .from('training_planned_exercises')
-        .update({ order, updatedAt: timestamp })
-        .eq('id', pe.id)
-      if (error) throw new Error(error.message)
-    }
-  }
-}
-
-export interface MoveExerciseResult {
-  /** En cuántas semanas se movió de verdad. */
-  moved: number
-  /** Semanas que no tienen el día de destino, o que ya tenían ese ejercicio allí. */
-  skipped: number
-}
-
-/**
- * Mueve una fila entera de una posición de día a otra, en todas las semanas.
- *
- * Las series se van con el ejercicio sin tocarlas: cuelgan del ejercicio
- * planificado, y lo que cambia es a qué día apunta.
- */
-export async function moveSlotExerciseToSlot(
-  mesocycleId: string,
-  fromSlotIndex: number,
-  toSlotIndex: number,
-  exerciseId: string,
-): Promise<MoveExerciseResult> {
-  if (fromSlotIndex === toSlotIndex) return { moved: 0, skipped: 0 }
-  const slotDays = await slotDaysOfBlock(mesocycleId)
-  const timestamp = nowIso()
-  let moved = 0
-  let skipped = 0
-
-  for (const week of slotDays) {
-    const from = week[fromSlotIndex]
-    const to = week[toSlotIndex]
-    if (!from || !to) {
-      if (from) skipped += 1
-      continue
-    }
-    const source = (await listPlannedExercises(from.id)).find(
-      (pe) => pe.exerciseId === exerciseId,
-    )
-    if (!source) continue
-    const targets = await listPlannedExercises(to.id)
-    // Ya está en el día de destino: moverlo dejaría dos filas del mismo
-    // ejercicio en el mismo día, que la planilla no sabe distinguir.
-    if (targets.some((pe) => pe.exerciseId === exerciseId)) {
-      skipped += 1
-      continue
-    }
-    const nextOrder = targets.length
-      ? Math.max(...targets.map((pe) => pe.order)) + 1
-      : 0
-    const { error } = await client()
-      .from('training_planned_exercises')
-      .update({ dayId: to.id, order: nextOrder, updatedAt: timestamp })
-      .eq('id', source.id)
-    if (error) throw new Error(error.message)
-    moved += 1
-  }
-
-  return { moved, skipped }
-}
-
-/**
- * Marca de un tirón todas las series de una fila de la planilla: el mismo
- * ejercicio en todas las semanas del bloque.
- *
- * Es un atajo, no otro nivel de marca: escribe en cada serie, que es donde
- * vive el dato. Sirve para un día técnico entero, donde ir serie por serie
- * serían doce toques para decir una sola cosa.
- */
-export async function setSlotExerciseCounts(
-  mesocycleId: string,
-  slotIndex: number,
-  exerciseId: string,
-  counts: boolean,
-): Promise<void> {
-  const slotDays = await slotDaysOfBlock(mesocycleId)
-  const timestamp = nowIso()
-  for (const week of slotDays) {
-    const day = week[slotIndex]
-    if (!day) continue
-    for (const pe of await listPlannedExercises(day.id)) {
-      if (pe.exerciseId !== exerciseId) continue
-      for (const set of await listPlannedSets(pe.id)) {
-        const { error } = await client()
-          .from('training_planned_sets')
-          .update({ countsAsEffective: counts, updatedAt: timestamp })
-          .eq('id', set.id)
-        if (error) throw new Error(error.message)
-      }
-    }
-  }
-}
-
-export interface RemoveExerciseResult {
-  /** En cuántas semanas se quitó. */
-  removed: number
-  /** Semanas que se dejaron como estaban por tener la sesión ya finalizada. */
-  skipped: number
-}
-
-/**
- * Quita una fila entera de la planilla: el ejercicio en todas las semanas de
- * esa posición de día.
- *
- * Un día con la sesión finalizada se salta. Borrarle el plan a algo que ya se
- * entrenó no arregla nada y sí pierde con qué se comparó lo que se hizo, que
- * es justo lo que la planilla enseña en esa celda.
- */
-export async function removeSlotExercise(
-  mesocycleId: string,
-  slotIndex: number,
-  exerciseId: string,
-): Promise<RemoveExerciseResult> {
-  const slotDays = await slotDaysOfBlock(mesocycleId)
-  let removed = 0
-  let skipped = 0
-
-  for (const week of slotDays) {
-    const day = week[slotIndex]
-    if (!day) continue
-    const target = (await listPlannedExercises(day.id)).find(
-      (pe) => pe.exerciseId === exerciseId,
-    )
-    if (!target) continue
-    const session = await getSessionForDay(day.id)
-    if (session && session.endedAt !== null) {
-      skipped += 1
-      continue
-    }
-    await deletePlannedExercise(target.id)
-    removed += 1
-  }
-
-  return { removed, skipped }
-}
-
-export interface CopyPreviousWeekResult {
-  /** Ejercicios que se trajeron, con sus series. */
-  copied: number
-  /** Los que la semana ya tenía planificados y quedaron como estaban. */
-  kept: number
-  /** Días que no se tocaron: la semana no los tiene, o ya se entrenaron. */
-  skippedDays: number
-}
-
-/**
- * Trae a una semana lo planificado en la anterior del mismo bloque: cada
- * ejercicio que le falte, con sus series tal como estaban.
- *
- * Es como se planifica de verdad un mesociclo —la semana 3 es la 2 con un poco
- * más de peso—, así que partir de cero cada semana es reescribir a mano algo
- * que ya estaba decidido, y es donde se cuelan los errores.
- *
- * Nunca pisa lo que la semana de destino ya tenga: un ejercicio que ya está
- * planificado se deja como está y se informa. Traer no es reemplazar, y
- * después de ajustar el peso de una celda la copia no puede deshacerlo.
- *
- * Con `slotIndex` viene sólo ese día; sin él, la semana entera.
- */
-export async function copyPreviousWeekPlan(
-  mesocycleId: string,
-  weekIndex: number,
-  slotIndex?: number,
-): Promise<CopyPreviousWeekResult> {
-  const empty = { copied: 0, kept: 0, skippedDays: 0 }
-  // La primera semana no tiene anterior de la que traer.
-  if (weekIndex <= 0) return empty
-
-  const slotDays = await slotDaysOfBlock(mesocycleId)
-  const sourceWeek = slotDays[weekIndex - 1]
-  const targetWeek = slotDays[weekIndex]
-  if (!sourceWeek || !targetWeek) return empty
-
-  const slots =
-    slotIndex === undefined
-      ? Array.from({ length: Math.max(sourceWeek.length, targetWeek.length) }, (_, i) => i)
-      : [slotIndex]
-
-  let copied = 0
-  let kept = 0
-  let skippedDays = 0
-
-  for (const index of slots) {
-    const from = sourceWeek[index]
-    const to = targetWeek[index]
-    // Sin día de origen no hay nada que traer, y eso no es un día saltado.
-    if (!from) continue
-    if (!to) {
-      skippedDays += 1
-      continue
-    }
-    // Un día ya entrenado se salta: cambiarle el plan no cambia lo que se hizo
-    // y sí rompe la comparación que la planilla enseña en esa celda.
-    const session = await getSessionForDay(to.id)
-    if (session && session.endedAt !== null) {
-      skippedDays += 1
-      continue
-    }
-
-    const existing = await listPlannedExercises(to.id)
-    for (const source of await listPlannedExercises(from.id)) {
-      if (existing.some((pe) => pe.exerciseId === source.exerciseId)) {
-        kept += 1
-        continue
-      }
-      await copyPlannedExerciseTo(source, to.id)
-      copied += 1
-    }
-  }
-
-  return { copied, kept, skippedDays }
 }

@@ -55,8 +55,8 @@ import {
   suggestNextWeekRange,
 } from '../lib/weeks'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
-import { BlockGrid } from './BlockGrid'
 import { ExercisePicker } from './ExercisePicker'
+import { WeekStimulus } from './WeekStimulus'
 import { MacroCalendar } from './MacroCalendar'
 import { ConfirmDeleteButton } from './ConfirmDeleteButton'
 import type {
@@ -94,9 +94,6 @@ export function PeriodizationPage({
   // Las semanas son lo que se planifica, así que son lo primero que se ve; los
   // macrociclos y mesociclos son la forma de agruparlas y viven aparte.
   const [section, setSection] = useState<'semanas' | 'macrociclos'>('semanas')
-  // La planilla es la vista por defecto del bloque: entrar a comparar es lo
-  // que se hace al planificar. La lista de semanas sigue a un toque.
-  const [mesoView, setMesoView] = useState<'planilla' | 'semanas'>('planilla')
 
   useEffect(() => {
     if (!jumpToDayId || !session) return
@@ -197,8 +194,6 @@ export function PeriodizationPage({
 
   const [dayDate, setDayDate] = useState('')
   const [dayLabel, setDayLabel] = useState('')
-  // '' = lo decide la posición por fecha; si no, el número de "Día N" (1 = Día 1).
-  const [daySlot, setDaySlot] = useState('')
   const [copyFromDayId, setCopyFromDayId] = useState('')
 
   const [newExerciseId, setNewExerciseId] = useState('')
@@ -279,7 +274,6 @@ export function PeriodizationPage({
     setEditingDayId(d.id)
     setDayDate(toDateKey(new Date(d.date)))
     setDayLabel(d.label)
-    setDaySlot(d.slotIndex != null ? String(d.slotIndex + 1) : '')
     setCopyFromDayId('')
     setShowDayForm(true)
   }
@@ -288,7 +282,6 @@ export function PeriodizationPage({
     setEditingDayId(null)
     setDayDate('')
     setDayLabel('')
-    setDaySlot('')
     setCopyFromDayId('')
     setShowDayForm(false)
   }
@@ -407,14 +400,12 @@ export function PeriodizationPage({
         await updateDay(editingDayId, {
           date: parseDateInput(dayDate).toISOString(),
           label: dayLabel,
-          slotIndex: daySlot === '' ? null : Number(daySlot) - 1,
         })
       } else {
         const d = await createDay({
           weekId,
           date: parseDateInput(dayDate).toISOString(),
           label: dayLabel,
-          slotIndex: daySlot === '' ? null : Number(daySlot) - 1,
         })
         if (copyFromDayId) {
           await copyPlannedExercisesToDay(copyFromDayId, d.id)
@@ -742,6 +733,8 @@ export function PeriodizationPage({
         </section>
       )}
 
+      {section === 'semanas' && selectedWeek && !dayId && <WeekStimulus weekId={selectedWeek.id} />}
+
       {showWeekForm && (
         <BottomSheet title={editingWeekId ? 'Editar semana' : 'Nueva semana'} onClose={resetWeekForm}>
           <form onSubmit={handleSubmitWeek} className="entity-form" autoComplete="off">
@@ -817,17 +810,6 @@ export function PeriodizationPage({
                 <input autoComplete="off" type="date" value={dayDate} onChange={(e) => setDayDate(e.target.value)} required />
               </label>
               <input autoComplete="off" value={dayLabel} onChange={(e) => setDayLabel(e.target.value)} placeholder="Etiqueta (ej. Tren superior)" />
-              <label>
-                Día del bloque en la planilla
-                <select autoComplete="off" value={daySlot} onChange={(e) => setDaySlot(e.target.value)}>
-                  <option value="">Automático (según la fecha)</option>
-                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                    <option key={n} value={n}>
-                      Día {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
               {!editingDayId && plannedDayOptions && plannedDayOptions.length > 0 && (
                 <label>
                   Copiar plan de un día ya planificado (opcional)
@@ -1191,39 +1173,6 @@ export function PeriodizationPage({
       )}
 
       {section === 'macrociclos' && mesocycleId && (
-        <div className="sub-tabs">
-          <button
-            type="button"
-            className={mesoView === 'planilla' ? 'active' : ''}
-            onClick={() => setMesoView('planilla')}
-          >
-            Planilla
-          </button>
-          <button
-            type="button"
-            className={mesoView === 'semanas' ? 'active' : ''}
-            onClick={() => setMesoView('semanas')}
-          >
-            Semanas
-          </button>
-        </div>
-      )}
-
-      {section === 'macrociclos' && mesocycleId && mesoView === 'planilla' && (
-        <section className="elevated-section">
-          <h2>{selectedMesocycle?.name}</h2>
-          <BlockGrid
-            mesocycleId={mesocycleId}
-            onOpenDay={(week, day) => {
-              setSection('semanas')
-              setWeekId(week)
-              setDayId(day)
-            }}
-          />
-        </section>
-      )}
-
-      {section === 'macrociclos' && mesocycleId && mesoView === 'semanas' && (
         <section className="elevated-section">
           <h2>Semanas de {selectedMesocycle?.name}</h2>
           <ul className="entity-list">
