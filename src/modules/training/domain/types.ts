@@ -48,9 +48,23 @@ export interface Mesocycle extends SyncedEntity {
   endDate: string
 }
 
+/**
+ * Una semana vive por sí sola: tiene su propio rango de fechas (que no tiene por
+ * qué ir de lunes a domingo) y el mesociclo es un enlace opcional que se puede
+ * poner, cambiar o quitar sin tocar lo planificado dentro.
+ */
 export interface Week extends SyncedEntity {
-  mesocycleId: string
+  /** El mesociclo al que se agrupó, o `null` si todavía no pertenece a ninguno. */
+  mesocycleId: string | null
+  /**
+   * @deprecated Era la posición dentro del mesociclo. Las semanas se ordenan por
+   * `startDate`; se conserva sólo como desempate y porque la columna es obligatoria.
+   */
   order: number
+  /** Primer día de la semana, `YYYY-MM-DD` o ISO. */
+  startDate: string
+  /** Último día de la semana, inclusive. */
+  endDate: string
 }
 
 export interface Day extends SyncedEntity {

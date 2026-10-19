@@ -22,19 +22,22 @@ import {
   getWeekById,
   listDays,
   listMacrocycles,
+  listAllWeeks,
   listMesocycles,
+  listMesocyclesWithContext,
   listPlannedDaysWithExercises,
   listPlannedExercises,
   listPlannedSetsForExercises,
   listWeeks,
   reorderPlannedExercise,
-  reorderWeek,
   setDayPlanClosed,
+  setWeekMesocycle,
   setPlannedExerciseClosed,
   updateDay,
   updateMacrocycle,
   updateMesocycle,
   updatePlannedSet,
+  updateWeek,
 } from '../db/planningRepository'
 import { listExercises } from '../db/trainingRepository'
 import { generateId } from '../../../shared/lib/id'
@@ -42,6 +45,15 @@ import { nowIso } from '../../../shared/lib/timestamps'
 import { parseDateInput, toDateKey } from '../lib/calendarGrid'
 import { parseReps } from '../lib/reps'
 import { formatDate, formatRestMinutes } from '../lib/format'
+import { mesoHue } from '../lib/macroCalendar'
+import {
+  formatWeekRange,
+  isCurrentWeek,
+  isValidWeekRange,
+  mesocycleIndexInMacro,
+  suggestNextDayDate,
+  suggestNextWeekRange,
+} from '../lib/weeks'
 import { BottomSheet } from '../../../shared/components/BottomSheet'
 import { BlockGrid } from './BlockGrid'
 import { ExercisePicker } from './ExercisePicker'
@@ -79,6 +91,9 @@ export function PeriodizationPage({
   const [mesocycleId, setMesocycleId] = useState<string | null>(null)
   const [weekId, setWeekId] = useState<string | null>(null)
   const [dayId, setDayId] = useState<string | null>(null)
+  // Las semanas son lo que se planifica, así que son lo primero que se ve; los
+  // macrociclos y mesociclos son la forma de agruparlas y viven aparte.
+  const [section, setSection] = useState<'semanas' | 'macrociclos'>('semanas')
   // La planilla es la vista por defecto del bloque: entrar a comparar es lo
   // que se hace al planificar. La lista de semanas sigue a un toque.
   const [mesoView, setMesoView] = useState<'planilla' | 'semanas'>('planilla')
@@ -90,8 +105,9 @@ export function PeriodizationPage({
       const day = await getDayById(jumpToDayId as string)
       if (!day || cancelled) return
       const week = day.weekId ? await getWeekById(day.weekId) : null
-      const mesocycle = week ? await getMesocycleById(week.mesocycleId) : null
+      const mesocycle = week?.mesocycleId ? await getMesocycleById(week.mesocycleId) : null
       if (cancelled) return
+      setSection('semanas')
       setMacrocycleId(mesocycle?.macrocycleId ?? null)
       setMesocycleId(week?.mesocycleId ?? null)
       setWeekId(day.weekId)
@@ -109,8 +125,7 @@ export function PeriodizationPage({
   async function openDayFromCalendar(id: string) {
     const day = await getDayById(id)
     if (!day) return
-    const week = day.weekId ? await getWeekById(day.weekId) : null
-    setMesocycleId(week?.mesocycleId ?? null)
+    setSection('semanas')
     setWeekId(day.weekId)
     setDayId(id)
   }
@@ -130,6 +145,10 @@ export function PeriodizationPage({
       [mesocycleId],
     ),
   )
+  const { data: allWeeks, refresh: refreshAllWeeks } = useRemoteQuery(
+    useCallback(() => listAllWeeks(), []),
+  )
+  const { data: allMesocycles } = useRemoteQuery(useCallback(() => listMesocyclesWithContext(), []))
   const { data: days, refresh: refreshDays } = useRemoteQuery(
     useCallback(() => (weekId ? listDays(weekId) : Promise.resolve<Day[]>([])), [weekId]),
   )
@@ -157,7 +176,7 @@ export function PeriodizationPage({
 
   const selectedMacrocycle = macrocycles?.find((m) => m.id === macrocycleId)
   const selectedMesocycle = mesocycles?.find((m) => m.id === mesocycleId)
-  const selectedWeek = weeks?.find((w) => w.id === weekId)
+  const selectedWeek = allWeeks?.find((w) => w.id === weekId)
   const selectedDay = days?.find((d) => d.id === dayId)
   const dayLocked = selectedDay?.planClosedAt != null
 
@@ -171,6 +190,10 @@ export function PeriodizationPage({
   const [mesoPhase, setMesoPhase] = useState<PhaseType>('accumulation')
   const [mesoStart, setMesoStart] = useState('')
   const [mesoEnd, setMesoEnd] = useState('')
+
+  const [weekStart, setWeekStart] = useState('')
+  const [weekEnd, setWeekEnd] = useState('')
+  const [weekMesoId, setWeekMesoId] = useState('')
 
   const [dayDate, setDayDate] = useState('')
   const [dayLabel, setDayLabel] = useState('')
@@ -192,6 +215,8 @@ export function PeriodizationPage({
   const [showMacroForm, setShowMacroForm] = useState(false)
   const [showMesoForm, setShowMesoForm] = useState(false)
   const [showDayForm, setShowDayForm] = useState(false)
+  const [showWeekForm, setShowWeekForm] = useState(false)
+  const [editingWeekId, setEditingWeekId] = useState<string | null>(null)
 
   const [editingMacroId, setEditingMacroId] = useState<string | null>(null)
   const [editingMesoId, setEditingMesoId] = useState<string | null>(null)
@@ -270,7 +295,34 @@ export function PeriodizationPage({
 
   function openNewDayForm() {
     resetDayForm()
+    if (selectedWeek) {
+      setDayDate(suggestNextDayDate(selectedWeek, (days ?? []).map((d) => d.date)))
+    }
     setShowDayForm(true)
+  }
+
+  function resetWeekForm() {
+    setEditingWeekId(null)
+    setWeekStart('')
+    setWeekEnd('')
+    setWeekMesoId('')
+    setShowWeekForm(false)
+  }
+
+  function openNewWeekForm() {
+    resetWeekForm()
+    const suggestion = suggestNextWeekRange(allWeeks ?? [], new Date())
+    setWeekStart(suggestion.startDate)
+    setWeekEnd(suggestion.endDate)
+    setShowWeekForm(true)
+  }
+
+  function startEditWeek(w: Week) {
+    setEditingWeekId(w.id)
+    setWeekStart(w.startDate.slice(0, 10))
+    setWeekEnd(w.endDate.slice(0, 10))
+    setWeekMesoId(w.mesocycleId ?? '')
+    setShowWeekForm(true)
   }
 
   async function handleSubmitMacrocycle(e: React.FormEvent) {
@@ -315,19 +367,36 @@ export function PeriodizationPage({
     })
   }
 
-  async function handleCreateWeek() {
-    if (!mesocycleId) return
+  async function handleSubmitWeek(e: React.FormEvent) {
+    e.preventDefault()
+    if (!isValidWeekRange(weekStart, weekEnd)) return
     await guardWeek(async () => {
-      const w = await createWeek(mesocycleId)
-      await refreshWeeks()
-      setWeekId(w.id)
+      const input = {
+        mesocycleId: weekMesoId || null,
+        startDate: weekStart,
+        endDate: weekEnd,
+      }
+      if (editingWeekId) {
+        await updateWeek(editingWeekId, input)
+      } else {
+        const w = await createWeek(input)
+        setWeekId(w.id)
+      }
+      await Promise.all([refreshAllWeeks(), refreshWeeks()])
+      resetWeekForm()
     })
+  }
+
+  async function handleChangeWeekMesocycle(id: string, nextMesoId: string) {
+    await setWeekMesocycle(id, nextMesoId || null)
+    await Promise.all([refreshAllWeeks(), refreshWeeks()])
   }
 
   async function handleDuplicateWeek(sourceWeekId: string) {
     const w = await duplicateWeek(sourceWeekId)
-    await Promise.all([refreshWeeks(), refreshPlannedDayOptions()])
+    await Promise.all([refreshAllWeeks(), refreshWeeks(), refreshPlannedDayOptions()])
     setWeekId(w.id)
+    setDayId(null)
   }
 
   async function handleSubmitDay(e: React.FormEvent) {
@@ -520,235 +589,195 @@ export function PeriodizationPage({
     <div className="page">
       <h1>Periodización</h1>
 
-      <nav className="breadcrumb">
-        <button type="button" onClick={() => { setMacrocycleId(null); setMesocycleId(null); setWeekId(null); setDayId(null); resetMacroForm(); resetMesoForm(); resetDayForm() }}>
+      <div className="sub-tabs">
+        <button
+          type="button"
+          className={section === 'semanas' ? 'active' : ''}
+          onClick={() => setSection('semanas')}
+        >
+          Semanas
+        </button>
+        <button
+          type="button"
+          className={section === 'macrociclos' ? 'active' : ''}
+          onClick={() => setSection('macrociclos')}
+        >
           Macrociclos
         </button>
-        {selectedMacrocycle && (
-          <>
-            {' / '}
-            <button type="button" onClick={() => { setMesocycleId(null); setWeekId(null); setDayId(null); resetMesoForm(); resetDayForm() }}>
-              {selectedMacrocycle.name}
-            </button>
-          </>
-        )}
-        {selectedMesocycle && (
-          <>
-            {' / '}
-            <button type="button" onClick={() => { setWeekId(null); setDayId(null); resetDayForm() }}>
-              {selectedMesocycle.name}
-            </button>
-          </>
-        )}
-        {selectedWeek && (
-          <>
-            {' / '}
-            <button type="button" onClick={() => { setDayId(null); resetDayForm() }}>
-              Semana {selectedWeek.order + 1}
-            </button>
-          </>
-        )}
-      </nav>
+      </div>
 
-      {!macrocycleId && (
-        <section className="elevated-section">
-          <h2>Macrociclos</h2>
-          <ul className="entity-list">
-            {macrocycles?.map((m) => (
-              <li key={m.id} className="list-card">
-                <button type="button" className="list-card-main" onClick={() => setMacrocycleId(m.id)}>
-                  {m.name} — {formatDate(m.startDate)} a {formatDate(m.endDate)}
-                </button>
-                <div className="list-card-actions">
-                  <button type="button" onClick={() => startEditMacro(m)}>
-                    Editar
-                  </button>
-                  <ConfirmDeleteButton
-                    confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() =>
-                      deleteMacrocycle(m.id).then(async () => {
-                        await Promise.all([refreshMacrocycles(), refreshPlannedDayOptions()])
-                      })
-                    }
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="finance-add-button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
-          {showMacroForm && (
-            <BottomSheet title={editingMacroId ? 'Editar macrociclo' : 'Nuevo macrociclo'} onClose={resetMacroForm}>
-            <form onSubmit={handleSubmitMacrocycle} className="entity-form" autoComplete="off">
-              <input autoComplete="off" value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
-              <input autoComplete="off" value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
-              <label>
-                Fecha de inicio
-                <input autoComplete="off" type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
-              </label>
-              <label>
-                Fecha de fin
-                <input autoComplete="off" type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
-              </label>
-              <button type="submit" disabled={isCreatingMacro}>
-                {editingMacroId ? 'Guardar cambios' : 'Crear macrociclo'}
-              </button>
-              <button type="button" onClick={resetMacroForm}>Cancelar</button>
-            </form>
-            </BottomSheet>
-          )}
-        </section>
-      )}
-
-      {selectedMacrocycle && !mesocycleId && (
-        <section className="elevated-section">
-          <h2>Calendario</h2>
-          <MacroCalendar
-            macrocycle={selectedMacrocycle}
-            onOpenDay={openDayFromCalendar}
-            onOpenMesocycle={setMesocycleId}
-          />
-        </section>
-      )}
-
-      {macrocycleId && !mesocycleId && (
-        <section className="elevated-section">
-          <h2>Mesociclos de {selectedMacrocycle?.name}</h2>
-          <ul className="entity-list">
-            {mesocycles?.map((m) => (
-              <li key={m.id} className="list-card">
-                <button type="button" className="list-card-main" onClick={() => setMesocycleId(m.id)}>
-                  {m.name} ({PHASE_LABELS[m.phaseType]}) — {formatDate(m.startDate)} a {formatDate(m.endDate)}
-                </button>
-                <div className="list-card-actions">
-                  <button type="button" onClick={() => startEditMeso(m)}>
-                    Editar
-                  </button>
-                  <ConfirmDeleteButton
-                    confirmMessage={`¿Eliminar "${m.name}"? Se borra todo lo planificado y registrado dentro.`}
-                    onConfirm={() =>
-                      deleteMesocycle(m.id).then(async () => {
-                        await Promise.all([refreshMesocycles(), refreshPlannedDayOptions()])
-                      })
-                    }
-                  />
-                </div>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="finance-add-button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
-          {showMesoForm && (
-            <BottomSheet title={editingMesoId ? 'Editar mesociclo' : 'Nuevo mesociclo'} onClose={resetMesoForm}>
-            <form onSubmit={handleSubmitMesocycle} className="entity-form" autoComplete="off">
-              <input autoComplete="off" value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
-              <select autoComplete="off" value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
-                {Object.entries(PHASE_LABELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
-              <label>
-                Fecha de inicio
-                <input autoComplete="off" type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
-              </label>
-              <label>
-                Fecha de fin
-                <input autoComplete="off" type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
-              </label>
-              <button type="submit" disabled={isCreatingMeso}>
-                {editingMesoId ? 'Guardar cambios' : 'Crear mesociclo'}
-              </button>
-              <button type="button" onClick={resetMesoForm}>Cancelar</button>
-            </form>
-            </BottomSheet>
-          )}
-        </section>
-      )}
-
-      {mesocycleId && !weekId && (
-        <div className="sub-tabs">
-          <button
-            type="button"
-            className={mesoView === 'planilla' ? 'active' : ''}
-            onClick={() => setMesoView('planilla')}
-          >
-            Planilla
-          </button>
-          <button
-            type="button"
-            className={mesoView === 'semanas' ? 'active' : ''}
-            onClick={() => setMesoView('semanas')}
-          >
+      {section === 'semanas' && (
+        <nav className="breadcrumb">
+          <button type="button" onClick={() => { setWeekId(null); setDayId(null); resetDayForm() }}>
             Semanas
           </button>
-        </div>
+          {selectedWeek && (
+            <>
+              {' / '}
+              <button type="button" onClick={() => { setDayId(null); resetDayForm() }}>
+                {formatWeekRange(selectedWeek)}
+              </button>
+            </>
+          )}
+        </nav>
       )}
 
-      {mesocycleId && !weekId && mesoView === 'planilla' && (
-        <section className="elevated-section">
-          <h2>{selectedMesocycle?.name}</h2>
-          <BlockGrid
-            mesocycleId={mesocycleId}
-            onOpenDay={(week, day) => {
-              setWeekId(week)
-              setDayId(day)
-            }}
-          />
-        </section>
+      {section === 'macrociclos' && (
+        <nav className="breadcrumb">
+          <button type="button" onClick={() => { setMacrocycleId(null); setMesocycleId(null); resetMacroForm(); resetMesoForm() }}>
+            Macrociclos
+          </button>
+          {selectedMacrocycle && (
+            <>
+              {' / '}
+              <button type="button" onClick={() => { setMesocycleId(null); resetMesoForm() }}>
+                {selectedMacrocycle.name}
+              </button>
+            </>
+          )}
+          {selectedMesocycle && (
+            <>
+              {' / '}
+              <button type="button" onClick={() => undefined}>
+                {selectedMesocycle.name}
+              </button>
+            </>
+          )}
+        </nav>
       )}
 
-      {mesocycleId && !weekId && mesoView === 'semanas' && (
+      {section === 'semanas' && !dayId && (
         <section className="elevated-section">
-          <h2>Semanas de {selectedMesocycle?.name}</h2>
-          <ul className="entity-list">
-            {weeks?.map((w, index) => (
-              <li key={w.id} className="list-card">
-                <button type="button" className="list-card-main" onClick={() => setWeekId(w.id)}>
-                  Semana {w.order + 1}
-                </button>
-                <div className="list-card-actions">
+          <h2>Semanas</h2>
+          <div className="week-chips">
+            {allWeeks?.map((w) => {
+              const meso = w.mesocycleId ? allMesocycles?.find((m) => m.id === w.mesocycleId) : undefined
+              const hue = meso ? mesoHue(mesocycleIndexInMacro(meso, allMesocycles ?? [])) : null
+              const current = isCurrentWeek(w, toDateKey(new Date()))
+              return (
+                <div
+                  key={w.id}
+                  className={[
+                    'week-chip',
+                    w.id === weekId ? 'week-chip--active' : '',
+                    hue !== null ? 'week-chip--meso' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  style={hue !== null ? ({ '--meso-hue': hue } as React.CSSProperties) : undefined}
+                >
                   <button
                     type="button"
-                    className="icon-button"
-                    aria-label="Mover semana hacia arriba"
-                    disabled={index === 0}
-                    onClick={() => void reorderWeek(w.id, 'up').then(refreshWeeks)}
+                    className="week-chip-main"
+                    aria-pressed={w.id === weekId}
+                    onClick={() => {
+                      setWeekId(w.id)
+                      resetDayForm()
+                    }}
                   >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-button"
-                    aria-label="Mover semana hacia abajo"
-                    disabled={index === (weeks?.length ?? 0) - 1}
-                    onClick={() => void reorderWeek(w.id, 'down').then(refreshWeeks)}
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    className="list-row-secondary"
-                    onClick={() => void handleDuplicateWeek(w.id)}
-                  >
-                    Duplicar como punto de partida
+                    <span className="week-chip-range">{formatWeekRange(w)}</span>
+                    <span className="week-chip-meso">{meso ? meso.name : 'Sin mesociclo'}</span>
+                    {current && <span className="week-chip-now">En curso</span>}
                   </button>
                   <ConfirmDeleteButton
-                    confirmMessage={`¿Eliminar la Semana ${w.order + 1}? Se borra todo lo planificado y registrado dentro.`}
+                    variant="icon"
+                    label={`Eliminar la semana ${formatWeekRange(w)}`}
+                    className="icon-button week-chip-delete"
+                    confirmMessage={`¿Eliminar la semana ${formatWeekRange(w)}? Se borra todo lo planificado y registrado dentro.`}
                     onConfirm={() =>
                       deleteWeek(w.id).then(async () => {
-                        await Promise.all([refreshWeeks(), refreshPlannedDayOptions()])
+                        if (weekId === w.id) setWeekId(null)
+                        await Promise.all([refreshAllWeeks(), refreshWeeks(), refreshPlannedDayOptions()])
                       })
                     }
                   />
                 </div>
-              </li>
-            ))}
-          </ul>
-          <button type="button" className="finance-add-button" onClick={handleCreateWeek} disabled={isCreatingWeek}>+ Agregar semana</button>
+              )
+            })}
+          </div>
+          {allWeeks?.length === 0 && (
+            <p className="empty-hint">Todavía no hay semanas. Cada una se planifica por separado.</p>
+          )}
+          <button
+            type="button"
+            className="finance-add-button"
+            onClick={openNewWeekForm}
+            disabled={isCreatingWeek}
+          >
+            + Nueva semana
+          </button>
         </section>
       )}
 
-      {weekId && !dayId && (
+      {section === 'semanas' && selectedWeek && !dayId && (
         <section className="elevated-section">
-          <h2>Días de la semana {selectedWeek ? selectedWeek.order + 1 : ''}</h2>
+          <div className="planned-exercise-header">
+            <h2>{formatWeekRange(selectedWeek)}</h2>
+            <button type="button" onClick={() => startEditWeek(selectedWeek)}>
+              Editar fechas
+            </button>
+          </div>
+          <label className="week-meso-field">
+            Mesociclo
+            <select
+              autoComplete="off"
+              value={selectedWeek.mesocycleId ?? ''}
+              onChange={(e) => void handleChangeWeekMesocycle(selectedWeek.id, e.target.value)}
+            >
+              <option value="">Sin mesociclo</option>
+              {allMesocycles?.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.name} · {m.macrocycleName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            className="list-row-secondary"
+            onClick={() => void handleDuplicateWeek(selectedWeek.id)}
+          >
+            Duplicar como punto de partida
+          </button>
+        </section>
+      )}
+
+      {showWeekForm && (
+        <BottomSheet title={editingWeekId ? 'Editar semana' : 'Nueva semana'} onClose={resetWeekForm}>
+          <form onSubmit={handleSubmitWeek} className="entity-form" autoComplete="off">
+            <label>
+              Primer día
+              <input autoComplete="off" type="date" value={weekStart} onChange={(e) => setWeekStart(e.target.value)} required />
+            </label>
+            <label>
+              Último día
+              <input autoComplete="off" type="date" value={weekEnd} onChange={(e) => setWeekEnd(e.target.value)} required />
+            </label>
+            {weekStart && weekEnd && !isValidWeekRange(weekStart, weekEnd) && (
+              <p className="error">El último día no puede ser anterior al primero.</p>
+            )}
+            <label>
+              Mesociclo (opcional)
+              <select autoComplete="off" value={weekMesoId} onChange={(e) => setWeekMesoId(e.target.value)}>
+                <option value="">Sin mesociclo</option>
+                {allMesocycles?.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name} · {m.macrocycleName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" disabled={isCreatingWeek || !isValidWeekRange(weekStart, weekEnd)}>
+              {editingWeekId ? 'Guardar cambios' : 'Crear semana'}
+            </button>
+            <button type="button" onClick={resetWeekForm}>Cancelar</button>
+          </form>
+        </BottomSheet>
+      )}
+
+      {section === 'semanas' && selectedWeek && !dayId && (
+        <section className="elevated-section">
+          <h2>Días de la semana</h2>
           <ul className="entity-list">
             {days?.map((d) => (
               <li key={d.id} className="list-card">
@@ -827,7 +856,7 @@ export function PeriodizationPage({
         </section>
       )}
 
-      {dayId && (
+      {section === 'semanas' && dayId && (
         <section className="elevated-section">
           <div className="planned-exercise-header">
             <h2>Plan del día</h2>
@@ -1044,6 +1073,209 @@ export function PeriodizationPage({
                   : 'Elegí un ejercicio'}
               </button>
             </form>
+          )}
+        </section>
+      )}
+
+      {section === 'macrociclos' && !macrocycleId && (
+        <section className="elevated-section">
+          <h2>Macrociclos</h2>
+          <ul className="entity-list">
+            {macrocycles?.map((m) => (
+              <li key={m.id} className="list-card">
+                <button type="button" className="list-card-main" onClick={() => setMacrocycleId(m.id)}>
+                  {m.name} — {formatDate(m.startDate)} a {formatDate(m.endDate)}
+                </button>
+                <div className="list-card-actions">
+                  <button type="button" onClick={() => startEditMacro(m)}>
+                    Editar
+                  </button>
+                  <ConfirmDeleteButton
+                    confirmMessage={`¿Eliminar "${m.name}"? Sus mesociclos se borran y las semanas quedan sueltas, con todo lo planificado.`}
+                    onConfirm={() =>
+                      deleteMacrocycle(m.id).then(async () => {
+                        await Promise.all([refreshMacrocycles(), refreshPlannedDayOptions()])
+                      })
+                    }
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="finance-add-button" onClick={openNewMacroForm}>+ Agregar macrociclo</button>
+          {showMacroForm && (
+            <BottomSheet title={editingMacroId ? 'Editar macrociclo' : 'Nuevo macrociclo'} onClose={resetMacroForm}>
+            <form onSubmit={handleSubmitMacrocycle} className="entity-form" autoComplete="off">
+              <input autoComplete="off" value={macroName} onChange={(e) => setMacroName(e.target.value)} placeholder="Nombre (ej. Prep. Nacional 2027)" required />
+              <input autoComplete="off" value={macroGoal} onChange={(e) => setMacroGoal(e.target.value)} placeholder="Objetivo" />
+              <label>
+                Fecha de inicio
+                <input autoComplete="off" type="date" value={macroStart} onChange={(e) => setMacroStart(e.target.value)} required />
+              </label>
+              <label>
+                Fecha de fin
+                <input autoComplete="off" type="date" value={macroEnd} onChange={(e) => setMacroEnd(e.target.value)} required />
+              </label>
+              <button type="submit" disabled={isCreatingMacro}>
+                {editingMacroId ? 'Guardar cambios' : 'Crear macrociclo'}
+              </button>
+              <button type="button" onClick={resetMacroForm}>Cancelar</button>
+            </form>
+            </BottomSheet>
+          )}
+        </section>
+      )}
+
+      {section === 'macrociclos' && selectedMacrocycle && !mesocycleId && (
+        <section className="elevated-section">
+          <h2>Calendario</h2>
+          <MacroCalendar
+            macrocycle={selectedMacrocycle}
+            onOpenDay={openDayFromCalendar}
+            onOpenMesocycle={setMesocycleId}
+          />
+        </section>
+      )}
+
+      {section === 'macrociclos' && macrocycleId && !mesocycleId && (
+        <section className="elevated-section">
+          <h2>Mesociclos de {selectedMacrocycle?.name}</h2>
+          <ul className="entity-list">
+            {mesocycles?.map((m) => (
+              <li key={m.id} className="list-card">
+                <button type="button" className="list-card-main" onClick={() => setMesocycleId(m.id)}>
+                  {m.name} ({PHASE_LABELS[m.phaseType]}) — {formatDate(m.startDate)} a {formatDate(m.endDate)}
+                </button>
+                <div className="list-card-actions">
+                  <button type="button" onClick={() => startEditMeso(m)}>
+                    Editar
+                  </button>
+                  <ConfirmDeleteButton
+                    confirmMessage={`¿Eliminar "${m.name}"? Sus semanas quedan sueltas, con todo lo planificado.`}
+                    onConfirm={() =>
+                      deleteMesocycle(m.id).then(async () => {
+                        await Promise.all([refreshMesocycles(), refreshPlannedDayOptions()])
+                      })
+                    }
+                  />
+                </div>
+              </li>
+            ))}
+          </ul>
+          <button type="button" className="finance-add-button" onClick={openNewMesoForm}>+ Agregar mesociclo</button>
+          {showMesoForm && (
+            <BottomSheet title={editingMesoId ? 'Editar mesociclo' : 'Nuevo mesociclo'} onClose={resetMesoForm}>
+            <form onSubmit={handleSubmitMesocycle} className="entity-form" autoComplete="off">
+              <input autoComplete="off" value={mesoName} onChange={(e) => setMesoName(e.target.value)} placeholder="Nombre (ej. Bloque 1)" required />
+              <select autoComplete="off" value={mesoPhase} onChange={(e) => setMesoPhase(e.target.value as PhaseType)}>
+                {Object.entries(PHASE_LABELS).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
+              </select>
+              <label>
+                Fecha de inicio
+                <input autoComplete="off" type="date" value={mesoStart} onChange={(e) => setMesoStart(e.target.value)} required />
+              </label>
+              <label>
+                Fecha de fin
+                <input autoComplete="off" type="date" value={mesoEnd} onChange={(e) => setMesoEnd(e.target.value)} required />
+              </label>
+              <button type="submit" disabled={isCreatingMeso}>
+                {editingMesoId ? 'Guardar cambios' : 'Crear mesociclo'}
+              </button>
+              <button type="button" onClick={resetMesoForm}>Cancelar</button>
+            </form>
+            </BottomSheet>
+          )}
+        </section>
+      )}
+
+      {section === 'macrociclos' && mesocycleId && (
+        <div className="sub-tabs">
+          <button
+            type="button"
+            className={mesoView === 'planilla' ? 'active' : ''}
+            onClick={() => setMesoView('planilla')}
+          >
+            Planilla
+          </button>
+          <button
+            type="button"
+            className={mesoView === 'semanas' ? 'active' : ''}
+            onClick={() => setMesoView('semanas')}
+          >
+            Semanas
+          </button>
+        </div>
+      )}
+
+      {section === 'macrociclos' && mesocycleId && mesoView === 'planilla' && (
+        <section className="elevated-section">
+          <h2>{selectedMesocycle?.name}</h2>
+          <BlockGrid
+            mesocycleId={mesocycleId}
+            onOpenDay={(week, day) => {
+              setSection('semanas')
+              setWeekId(week)
+              setDayId(day)
+            }}
+          />
+        </section>
+      )}
+
+      {section === 'macrociclos' && mesocycleId && mesoView === 'semanas' && (
+        <section className="elevated-section">
+          <h2>Semanas de {selectedMesocycle?.name}</h2>
+          <ul className="entity-list">
+            {weeks?.map((w) => (
+              <li key={w.id} className="list-card">
+                <button
+                  type="button"
+                  className="list-card-main"
+                  onClick={() => {
+                    setSection('semanas')
+                    setWeekId(w.id)
+                    setDayId(null)
+                  }}
+                >
+                  {formatWeekRange(w)}
+                </button>
+                <div className="list-card-actions">
+                  <button
+                    type="button"
+                    className="list-row-secondary"
+                    onClick={() => void handleChangeWeekMesocycle(w.id, '')}
+                  >
+                    Soltar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {weeks?.length === 0 && <p className="empty-hint">Todavía no hay semanas en este mesociclo.</p>}
+          {(allWeeks ?? []).some((w) => w.mesocycleId !== mesocycleId) && (
+            <label>
+              Enlazar una semana
+              <select
+                autoComplete="off"
+                value=""
+                onChange={(e) =>
+                  e.target.value && void handleChangeWeekMesocycle(e.target.value, mesocycleId as string)
+                }
+              >
+                <option value="">Elegí una semana…</option>
+                {(allWeeks ?? [])
+                  .filter((w) => w.mesocycleId !== mesocycleId)
+                  .map((w) => {
+                    const other = allMesocycles?.find((m) => m.id === w.mesocycleId)
+                    return (
+                      <option key={w.id} value={w.id}>
+                        {formatWeekRange(w)} · {other ? other.name : 'Sin mesociclo'}
+                      </option>
+                    )
+                  })}
+              </select>
+            </label>
           )}
         </section>
       )}

@@ -617,7 +617,95 @@ section {
 .planned-exercise-item--pending .plan-target-title,
 .planned-exercise-item--pending .plan-target-row,
 .planned-exercise-item--pending .set-number,
-.planned-exercise-item--pending .empty-hint {
+.planned-exercise-item--pending /* --- tira de semanas ---------------------------------------------------- */
+/* Una pastilla por semana. Se desliza en horizontal dentro de su contenedor
+   para que la página no se desborde cuando hay muchas. */
+.week-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.week-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px 4px 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.week-chip--meso {
+  border-color: hsl(var(--meso-hue, 265) 45% 38%);
+  background: hsl(var(--meso-hue, 265) 45% 18%);
+}
+
+.week-chip--meso .week-chip-range {
+  color: hsl(var(--meso-hue, 265) 75% 80%);
+}
+
+.week-chip--meso .week-chip-meso {
+  color: hsl(var(--meso-hue, 265) 45% 70%);
+}
+
+.week-meso-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+
+.week-chip--active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 1px var(--text);
+}
+
+.week-chip-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-height: 40px;
+  padding: 2px 6px 2px 0;
+  background: none;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+}
+
+.week-chip-range {
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.week-chip-meso {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.week-chip-now {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--success);
+}
+
+.week-chip-delete {
+  flex: 0 0 auto;
+}
+
+.empty-hint {
   color: var(--text-muted);
 }
 

@@ -22,7 +22,15 @@ import {
 
 const base = { createdAt: '2026-01-01', updatedAt: '2026-01-01', deletedAt: null }
 
-const week = (id: string, order: number): Week => ({ id, mesocycleId: 'm', order, ...base })
+const week = (id: string, order: number): Week => ({
+  id,
+  mesocycleId: 'm',
+  order,
+  // Una semana por cada siete días, en el mismo orden que `order`.
+  startDate: `2026-01-${String(5 + order * 7).padStart(2, '0')}`,
+  endDate: `2026-01-${String(11 + order * 7).padStart(2, '0')}`,
+  ...base,
+})
 const day = (
   id: string,
   weekId: string,

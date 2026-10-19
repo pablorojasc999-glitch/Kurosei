@@ -10,6 +10,7 @@ import type {
 } from '../domain/types'
 import { countsAsEffective } from './effectiveSets'
 import { arrangeDaysBySlot } from './daySlots'
+import { compareWeeks } from './weeks'
 
 /**
  * La planilla del bloque: una fila por ejercicio, una columna por semana, y
@@ -249,7 +250,7 @@ export function buildBlockGrid({
   executedSets,
   exercises,
 }: BlockGridInput): BlockGrid {
-  const orderedWeeks = [...weeks].sort((a, b) => a.order - b.order)
+  const orderedWeeks = [...weeks].sort(compareWeeks)
 
   // Los días de cada semana en su posición de "día N": la que fijan ellos mismos
   // o, si no, la que les toca por fecha. Una posición sin día queda vacía.

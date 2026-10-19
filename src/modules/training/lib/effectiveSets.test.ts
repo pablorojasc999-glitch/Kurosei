@@ -14,6 +14,8 @@ const week = (id: string, order: number): Week => ({
   id,
   mesocycleId: 'meso',
   order,
+  startDate: '2026-09-21',
+  endDate: '2026-09-27',
   ...base,
 })
 

@@ -300,6 +300,11 @@ update "finance_transactions"
 alter table "nutrition_entries" add column if not exists "checked" boolean not null default true;
 -- En qué "Día N" de la planilla cae el día (0 = Día 1); null = por posición de fecha.
 alter table "training_days" add column if not exists "slotIndex" integer;
+-- Las semanas son independientes: traen su propio rango (no tiene por qué ir de
+-- lunes a domingo) y el mesociclo es un enlace opcional.
+alter table "training_weeks" alter column "mesocycleId" drop not null;
+alter table "training_weeks" add column if not exists "startDate" timestamptz;
+alter table "training_weeks" add column if not exists "endDate" timestamptz;
 
 create table if not exists "finance_category_budgets" (
   "id" uuid primary key,

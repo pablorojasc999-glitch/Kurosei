@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Day, Macrocycle, Mesocycle, StrengthSession } from '../domain/types'
+import type { Day, Macrocycle, Mesocycle, StrengthSession, Week } from '../domain/types'
 import { buildMacroCalendar, startOfWeek } from './macroCalendar'
 import { parseDateInput, toDateKey } from './calendarGrid'
 
@@ -42,6 +42,13 @@ const day = (id: string, date: string, planClosed = true): Day => ({
   ...base,
 })
 
+const linkedWeek = (
+  id: string,
+  mesocycleId: string | null,
+  startDate: string,
+  endDate: string,
+): Week => ({ id, mesocycleId, order: 0, startDate, endDate, ...base })
+
 const session = (dayId: string, ended: boolean): StrengthSession => ({
   id: `s-${dayId}`,
   dayId,
@@ -55,6 +62,7 @@ const build = (over: Partial<Parameters<typeof buildMacroCalendar>[0]> = {}) =>
   buildMacroCalendar({
     macrocycle: macro('2026-08-31', '2026-09-27'),
     mesocycles: [],
+    weeks: [],
     days: [],
     sessions: [],
     today: parseDateInput('2026-09-13'),
@@ -295,5 +303,49 @@ describe('buildMacroCalendar', () => {
     const cal = build()
     expect(cal.mesocycles).toEqual([])
     expect(cal.weeks.every((w) => w.cells.every((c) => c.slot === null))).toBe(true)
+  })
+
+  describe('color por semanas enlazadas', () => {
+    const mesos = [
+      meso('m1', 0, '2026-08-31', '2026-09-13', 'Primero'),
+      meso('m2', 1, '2026-09-14', '2026-09-27', 'Segundo'),
+    ]
+    const cellsOf = (cal: ReturnType<typeof build>, weekStart: string) =>
+      cal.weeks.find((w) => w.start === weekStart)?.cells.map((c) => c.mesocycleIndex)
+
+    it('pinta con el mesociclo al que está enlazada la semana, aunque el rango diga otro', () => {
+      const cal = build({
+        mesocycles: mesos,
+        weeks: [linkedWeek('w', 'm2', '2026-08-31', '2026-09-06')],
+      })
+      expect(cellsOf(cal, '2026-08-31')).toEqual([1, 1, 1, 1, 1, 1, 1])
+    })
+
+    it('una semana de domingo a domingo pinta sus ocho días', () => {
+      const cal = build({
+        mesocycles: mesos,
+        weeks: [linkedWeek('w', 'm2', '2026-09-06', '2026-09-13')],
+      })
+      // El domingo 6 cierra la semana del 31/08 y el domingo 13 cierra la
+      // siguiente: la semana flexible los pinta a los dos.
+      expect(cellsOf(cal, '2026-08-31')?.[6]).toBe(1)
+      expect(cellsOf(cal, '2026-09-07')).toEqual([1, 1, 1, 1, 1, 1, 1])
+    })
+
+    it('una semana sin mesociclo queda sin pintar en vez de caer al rango', () => {
+      const cal = build({
+        mesocycles: mesos,
+        weeks: [linkedWeek('w', null, '2026-08-31', '2026-09-06')],
+      })
+      expect(cellsOf(cal, '2026-08-31')).toEqual([-1, -1, -1, -1, -1, -1, -1])
+    })
+
+    it('los días que ninguna semana cubre siguen el rango del mesociclo', () => {
+      const cal = build({
+        mesocycles: mesos,
+        weeks: [linkedWeek('w', 'm2', '2026-08-31', '2026-09-06')],
+      })
+      expect(cellsOf(cal, '2026-09-14')).toEqual([1, 1, 1, 1, 1, 1, 1])
+    })
   })
 })

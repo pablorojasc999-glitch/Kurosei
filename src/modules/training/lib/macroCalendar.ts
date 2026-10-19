@@ -1,14 +1,15 @@
-import type { Day, Macrocycle, Mesocycle, StrengthSession } from '../domain/types'
+import type { Day, Macrocycle, Mesocycle, StrengthSession, Week } from '../domain/types'
 import { addDays, parseDateInput, startOfDay, toDateKey } from './calendarGrid'
+import { weekContains } from './weeks'
 
 /**
  * La vista de un macrociclo entero: una columna por semana de calendario y una
  * fila por día de la semana, de lunes a domingo.
  *
- * Se arma desde las fechas reales de los días planificados, no desde las
- * semanas: `Week` sólo guarda su orden dentro del mesociclo, así que una semana
- * sin días no tendría fecha con la que ubicarse. Los mesociclos sí traen rango,
- * y eso es lo que colorea cada columna.
+ * Los puntitos salen de las fechas reales de los días planificados. El color de
+ * cada día lo da el mesociclo al que está enlazada la semana que lo contiene:
+ * las semanas son independientes y se agrupan a voluntad, así que el rango del
+ * mesociclo sólo manda en los días que ninguna semana cubre.
  */
 
 /** Lunes a domingo, que es como se lee un plan de entrenamiento. */
@@ -90,6 +91,7 @@ export interface MacroCalendar {
 export interface MacroCalendarInput {
   macrocycle: Macrocycle
   mesocycles: Mesocycle[]
+  weeks: Week[]
   days: Day[]
   sessions: StrengthSession[]
   today: Date
@@ -101,6 +103,14 @@ export function startOfWeek(date: Date): Date {
   // getDay() da 0 para domingo; acá la semana empieza el lunes.
   const shift = (day.getDay() + 6) % 7
   return addDays(day, -shift)
+}
+
+/** Un tono por mesociclo, en orden. Se repite si hay más de cinco. */
+const MESO_HUES = [332, 68, 168, 262, 28]
+
+/** El tono de un mesociclo según su posición dentro del macrociclo; `null` si no tiene (índice -1). */
+export function mesoHue(index: number): number | null {
+  return index < 0 ? null : MESO_HUES[index % MESO_HUES.length]
 }
 
 const MONTHS = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC']
@@ -115,7 +125,7 @@ function dominantMesoIndex(daysPerMeso: number[]): number {
 }
 
 export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
-  const { macrocycle, mesocycles, days, sessions, today } = input
+  const { macrocycle, mesocycles, weeks: plannedWeeks, days, sessions, today } = input
 
   const macroStart = startOfDay(parseDateInput(macrocycle.startDate.slice(0, 10)))
   const macroEnd = startOfDay(parseDateInput(macrocycle.endDate.slice(0, 10)))
@@ -128,8 +138,19 @@ export function buildMacroCalendar(input: MacroCalendarInput): MacroCalendar {
     from: m.startDate.slice(0, 10),
     to: m.endDate.slice(0, 10),
   }))
-  const mesoIndexOf = (dateKey: string) =>
-    mesoRanges.findIndex((m) => dateKey >= m.from && dateKey <= m.to)
+  const mesoIndexById = new Map(ordered.map((m, index) => [m.id, index]))
+  // Si dos semanas se pisan gana la que empezó más tarde, que es la que se
+  // armó después para corregir a la anterior.
+  const weeksNewestFirst = [...plannedWeeks].sort((a, b) =>
+    b.startDate.slice(0, 10).localeCompare(a.startDate.slice(0, 10)),
+  )
+  const mesoIndexOf = (dateKey: string) => {
+    const week = weeksNewestFirst.find((w) => weekContains(w, dateKey))
+    // Una semana sin mesociclo no pinta: es justamente "todavía sin agrupar",
+    // y caer al rango del mesociclo la agruparía a espaldas de quien la soltó.
+    if (week) return week.mesocycleId ? (mesoIndexById.get(week.mesocycleId) ?? -1) : -1
+    return mesoRanges.findIndex((m) => dateKey >= m.from && dateKey <= m.to)
+  }
 
   // Un día planificado por fecha. Si hubiera dos, gana el primero: la vista no
   // es el lugar para resolver un duplicado, sólo para no romperse con él.

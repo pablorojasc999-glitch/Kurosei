@@ -74,7 +74,7 @@ async function seedTrainingDay(
   plannedRpe: number,
   actualRpe?: number,
 ) {
-  const week = await createWeek(mesocycleId)
+  const week = await createWeek({ mesocycleId, startDate: '2026-01-05', endDate: '2026-01-11' })
   const day = await createDay({ weekId: week.id, date, label: 'Tren superior' })
   const plannedExercise = await createPlannedExercise({
     dayId: day.id,
@@ -142,7 +142,7 @@ describe('listAllExecutedSetsWithContext', () => {
   it('joins executed sets up to their exerciseId, sessionId, and weekId', async () => {
     const mesocycle = await seedMesocycle()
     const exercise = await seedExercise()
-    const week = await createWeek(mesocycle.id)
+    const week = await createWeek({ mesocycleId: mesocycle.id, startDate: '2026-01-05', endDate: '2026-01-11' })
     const day = await createDay({
       weekId: week.id,
       date: '2026-01-05T00:00:00.000Z',
